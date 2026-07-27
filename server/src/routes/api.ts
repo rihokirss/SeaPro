@@ -8,6 +8,9 @@ import type {
 } from '@seapro/shared';
 import { VARIABLES } from '@seapro/shared';
 import { config } from '../config.js';
+import { rateLimiter } from '../rateLimit.js';
+import { vessels } from '../ais/registry.js';
+import { aisstream } from '../ais/aisstream.js';
 import {
   coversPoint,
   enabledProviders,
@@ -87,6 +90,8 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     ok: true,
     version: config.appVersion,
     time: new Date().toISOString(),
+    // Päringueelarve seis — ilma selleta on "miks tuulekiht kadus?" pime koht.
+    budgets: rateLimiter.stats(),
   }));
 
   app.get('/api/config', async () => ({
@@ -195,6 +200,24 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
 
     reply.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
     return { stations: readings, errors };
+  });
+
+  /** Laevad AIS-ist, ühendatud registrist. */
+  app.get('/api/ais', async (req, reply) => {
+    const q = req.query as Record<string, unknown>;
+    const parts = String(q.bbox ?? '').split(',').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+      return reply.code(400).send({ error: 'bbox peab olema "lõuna,lääs,põhi,ida"' });
+    }
+
+    const list = vessels.query(parts as [number, number, number, number]);
+    // AIS on reaalajas — vananenud laevapositsioon on halvem kui puuduv,
+    // seega keelame vahepuhverdamise sõnaselgelt.
+    reply.header('Cache-Control', 'no-store');
+    return {
+      vessels: list,
+      sources: ['digitraffic', ...(aisstream.enabled ? ['aisstream'] : [])],
+    };
   });
 
   /** Trackid — liides on olemas, allikaid veel pole (Traccar / GPX tulevad hiljem). */

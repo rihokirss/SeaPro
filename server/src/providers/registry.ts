@@ -1,6 +1,7 @@
 import type { ProviderCapabilities } from '@seapro/shared';
 import type { WeatherProvider } from './types.js';
 import { openMeteo } from './openMeteo.js';
+import { metNo } from './metNo.js';
 import { metoc } from './metocTaltech.js';
 import { lainepoiss } from './lainepoiss.js';
 
@@ -8,7 +9,7 @@ import { lainepoiss } from './lainepoiss.js';
  * Kõik providerid ühes kohas. Uue allika lisamine = üks rida siia.
  * Järjekord määrab UI vaikimisi järjestuse — prognoosid enne, mõõtmised pärast.
  */
-const ALL: WeatherProvider[] = [openMeteo, metoc, lainepoiss];
+const ALL: WeatherProvider[] = [openMeteo, metNo, metoc, lainepoiss];
 
 const byId = new Map<string, WeatherProvider>(ALL.map((p) => [p.caps.id, p]));
 

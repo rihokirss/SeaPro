@@ -9,6 +9,7 @@ import type {
 import { cache } from '../cache.js';
 import { config } from '../config.js';
 import { fetchJson } from '../http.js';
+import { rateLimiter } from '../rateLimit.js';
 import { round, type GridQuery, type PointQuery, type WeatherProvider } from './types.js';
 
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -123,14 +124,14 @@ export class OpenMeteoProvider implements WeatherProvider {
   async grid(q: GridQuery): Promise<GridFrame> {
     const [south, west, north, east] = q.bbox;
 
-    // Ära küsi tihedamat võrku, kui mudel suudab lahutada. Open-Meteo loeb iga
-    // punkti eraldi API-kutseks, seega 16x16 lähivaates oleks 256 kutset, mis
-    // annaks tagasi kuus korduvat lahtrit. ~0.05° on parima mudeli suurusjärk.
-    // Open-Meteo tasuta kasutus loeb mitmepunktilise päringu iga punkti
-    // ERALDI kutseks. 16x16 võrk oleks 256 kutset ühe kaardikaadri kohta ja
-    // päevalimiit saaks täis mõne tunniga. GRID_MAX_STEPS hoiab ühe kaadri
-    // kulu <= 64 kutset; kombineerituna bbox'i kleepimisega ja tunnise TTL-iga
-    // jääb reaalne päringute arv päevas kolmekohaliseks.
+    // Open-Meteo loeb mitmepunktilise päringu IGA PUNKTI eraldi kutseks.
+    // 16x16 võrk oleks 256 kutset ühe kaardikaadri kohta ja tunnilimiit (5000)
+    // saaks täis kümnekonna kaadriga — arenduses juhtus täpselt see.
+    //
+    // Kaks piirajat:
+    //   GRID_MAX_STEPS hoiab ühe kaadri kulu <= 64 kutset
+    //   MIN_CELL_DEG väldib mudeli lahutusest tihedama võrgu küsimist, mis
+    //   tagastaks lihtsalt korduvaid lahtreid
     const GRID_MAX_STEPS = 8;
     const MIN_CELL_DEG = 0.05;
     const spanLat = north - south;
@@ -187,9 +188,11 @@ export class OpenMeteoProvider implements WeatherProvider {
     // Võrgustiku kaadrid on kallid ja mudel ise uueneb harvemini kui tund;
     // hoiame neid mälus tunduvalt kauem kui punktiprognoose.
     const key = `om:grid:${params.toString()}`;
-    const { value } = await cache.get(key, config.ttl.openMeteo * 4, () =>
-      fetchJson<OmResponse | OmResponse[]>(`${url}?${params}`),
-    );
+    const { value } = await cache.get(key, config.ttl.openMeteo * 4, () => {
+      // Iga võrgupunkt on Open-Meteo arvestuses eraldi kutse.
+      rateLimiter.spend('open-meteo', lats.length);
+      return fetchJson<OmResponse | OmResponse[]>(`${url}?${params}`);
+    });
 
     // Mitme punkti korral tagastab Open-Meteo massiivi, ühe punkti korral objekti.
     const responses = Array.isArray(value) ? value : [value];
@@ -254,9 +257,10 @@ export class OpenMeteoProvider implements WeatherProvider {
     if (realModels.length) params.set('models', realModels.join(','));
 
     const key = `om:point:${url}:${params.toString()}`;
-    const { value } = await cache.get(key, config.ttl.openMeteo, () =>
-      fetchJson<OmResponse | OmResponse[]>(`${url}?${params}`),
-    );
+    const { value } = await cache.get(key, config.ttl.openMeteo, () => {
+      rateLimiter.spend('open-meteo', 1);
+      return fetchJson<OmResponse | OmResponse[]>(`${url}?${params}`);
+    });
 
     const res = Array.isArray(value) ? value[0] : value;
     if (!res?.hourly) return [];

@@ -1,3 +1,7 @@
+import { aisstream } from './ais/aisstream.js';
+import { digitraffic } from './ais/digitraffic.js';
+import { vessels } from './ais/registry.js';
+import { config } from './config.js';
 import { listProviders } from './providers/registry.js';
 
 interface Logger {
@@ -41,9 +45,46 @@ export function startBackgroundJobs(log: Logger): void {
 
     log.info(`Taustapäring "${id}" iga ${intervalSeconds} s`);
   }
+
+  startAis(log);
+}
+
+/**
+ * AIS-i taustatööd.
+ *
+ * Digitraffic on REST ja vajab küsimist; aisstream on WebSocket ja lükkab ise.
+ * Mõlemad kirjutavad samasse registrisse, seega kumbagi kadumine jätab teise
+ * tööle — see on kogu kaheallikalise lahenduse mõte.
+ */
+function startAis(log: Logger): void {
+  const pollAis = async (): Promise<void> => {
+    try {
+      const n = await digitraffic.poll();
+      log.info(`AIS Digitraffic: ${n} laeva piirkonnas`);
+    } catch (err) {
+      log.warn(`AIS Digitraffic ebaõnnestus: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  void pollAis();
+  const poll = setInterval(() => void pollAis(), Math.max(30, config.ttl.ais) * 1000);
+  poll.unref();
+  timers.push(poll);
+
+  // Vananenud positsioonid kustuvad mälust, muidu kasvaks register piiramatult.
+  const prune = setInterval(() => vessels.prune(), 5 * 60 * 1000);
+  prune.unref();
+  timers.push(prune);
+
+  if (aisstream.enabled) {
+    aisstream.start((msg) => log.info(msg));
+  } else {
+    log.info('aisstream on välja lülitatud (AISSTREAM_KEY puudub)');
+  }
 }
 
 export function stopBackgroundJobs(): void {
   for (const t of timers) clearInterval(t);
   timers.length = 0;
+  aisstream.stop();
 }

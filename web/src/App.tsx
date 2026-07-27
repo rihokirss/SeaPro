@@ -6,6 +6,7 @@ import type {
   ProviderCapabilities,
   StationReading,
   Variable,
+  Vessel,
 } from '@seapro/shared';
 import { I18nContext, detectLang, makeTranslate, saveLang, type Lang } from './i18n';
 import { api, type AppConfig } from './lib/api';
@@ -18,6 +19,7 @@ import { hideWindArrows, updateWindArrows } from './map/layers/windArrows';
 import { hideScalarField, updateScalarField } from './map/layers/scalarField';
 import { WindParticleLayer } from './map/layers/windParticles';
 import { setStationsVisible, updateStations } from './map/layers/stations';
+import { setVesselsVisible, updateVessels } from './map/layers/vessels';
 import { buildWindField, type Field } from './map/interpolate';
 import { LayerPanel, type LayerState } from './components/LayerPanel';
 import { TimeSlider } from './components/TimeSlider';
@@ -253,6 +255,44 @@ export function App() {
       setStationsVisible(map, false);
     }
   }, [stations, layers.stations, layers.scalarField, speedUnit, mapReady]);
+
+  // --- Laevad (AIS) --------------------------------------------------------
+  const [vessels, setVessels] = useState<Vessel[]>([]);
+
+  useEffect(() => {
+    if (!layers.vessels || !view) {
+      setVessels([]);
+      return;
+    }
+
+    let cancelled = false;
+    const load = (): void => {
+      api
+        .vessels(view.bbox)
+        .then((res) => {
+          if (!cancelled) setVessels(res.vessels);
+        })
+        .catch(() => {
+          // AIS kadus; ilmakihid töötavad edasi.
+        });
+    };
+
+    load();
+    // Laevad liiguvad; 30 s vastab serveri Digitraffici pollimise sammule,
+    // tihedam küsimine annaks sama vastuse.
+    const timer = window.setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [layers.vessels, view]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (layers.vessels && vessels.length > 0) updateVessels(map, vessels);
+    else setVesselsVisible(map, false);
+  }, [vessels, layers.vessels, mapReady]);
 
   // --- Punktiprognoos ------------------------------------------------------
   useEffect(() => {
