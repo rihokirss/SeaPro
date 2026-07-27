@@ -102,5 +102,7 @@
   "layer.windAnimation.hint": "Voolavad osakesed — ilus, aga kulutab akut",
   "layer.field": "Värviväli",
   "chart.time": "Aeg",
-  "layer.field.none": "Väljas"
+  "layer.field.none": "Väljas",
+  "vessel.size": "Mõõtmed",
+  "vessel.length": "Pikkus"
 }

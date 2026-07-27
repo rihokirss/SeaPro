@@ -49,6 +49,11 @@ interface VesselMetadata {
   imo?: number;
   shipType?: number;
   destination?: string;
+  /** AIS-i mõõtmed antennist: A vöör, B ahter, C pakpoord, D tüürpoord. */
+  referencePointA?: number;
+  referencePointB?: number;
+  referencePointC?: number;
+  referencePointD?: number;
 }
 
 /**
@@ -127,6 +132,11 @@ export class DigitrafficAis {
           imo: v.imo || undefined,
           shipType: v.shipType,
           destination: v.destination?.trim() || undefined,
+          // 0 tähendab AIS-is "teadmata", mitte nullpikkust.
+          toBow: v.referencePointA || undefined,
+          toStern: v.referencePointB || undefined,
+          toPort: v.referencePointC || undefined,
+          toStarboard: v.referencePointD || undefined,
         });
       }
       this.#metaLoadedAt = Date.now();

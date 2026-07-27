@@ -1,0 +1,454 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+            <observations timestamp="1785174788">
+	<station>
+        		<name>Kuressaare linn</name>
+        		<wmocode></wmocode>
+        		<longitude>22.48944444411111</longitude>
+        		<latitude>58.26416666666667</latitude>
+        		<phenomenon></phenomenon>
+        		<visibility></visibility>
+        		<precipitations></precipitations>
+        		<airpressure></airpressure>
+        		<relativehumidity>97</relativehumidity>
+        		<airtemperature>15.2</airtemperature>
+        		<winddirection></winddirection>
+        		<windspeed></windspeed>
+        		<windspeedmax></windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Tallinn-Harku</name>
+        		<wmocode>26038</wmocode>
+        		<longitude>24.602891666624284</longitude>
+        		<latitude>59.398122222355134</latitude>
+        		<phenomenon>Light shower</phenomenon>
+        		<visibility>26</visibility>
+        		<precipitations>0.2</precipitations>
+        		<airpressure>996.6</airpressure>
+        		<relativehumidity>92.9</relativehumidity>
+        		<airtemperature>17.6</airtemperature>
+        		<winddirection>257</winddirection>
+        		<windspeed>1.4</windspeed>
+        		<windspeedmax>2.1</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>48</sunshineduration>
+        		<globalradiation>119</globalradiation>
+        	</station>
+	<station>
+        		<name>Pakri</name>
+        		<wmocode>26029</wmocode>
+        		<longitude>24.040080555476536</longitude>
+        		<latitude>59.38950277719013</latitude>
+        		<phenomenon>Light shower</phenomenon>
+        		<visibility>29</visibility>
+        		<precipitations>0.2</precipitations>
+        		<airpressure>996.2</airpressure>
+        		<relativehumidity>96</relativehumidity>
+        		<airtemperature>16.3</airtemperature>
+        		<winddirection>247</winddirection>
+        		<windspeed>2.2</windspeed>
+        		<windspeedmax>3.8</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Kunda</name>
+        		<wmocode>26045</wmocode>
+        		<longitude>26.541397222079624</longitude>
+        		<latitude>59.52141111042325</latitude>
+        		<phenomenon>Cloudy with clear spells</phenomenon>
+        		<visibility>32</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>996.8</airpressure>
+        		<relativehumidity>89</relativehumidity>
+        		<airtemperature>18.6</airtemperature>
+        		<winddirection>103</winddirection>
+        		<windspeed>5.9</windspeed>
+        		<windspeedmax>7.6</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000>38</waterlevel_eh2000>
+        		<watertemperature>15.7</watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Jõhvi</name>
+        		<wmocode>26046</wmocode>
+        		<longitude>27.39827499992098</longitude>
+        		<latitude>59.32902499979958</latitude>
+        		<phenomenon>Clear</phenomenon>
+        		<visibility>20</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>997.3</airpressure>
+        		<relativehumidity>73</relativehumidity>
+        		<airtemperature>20.1</airtemperature>
+        		<winddirection>157</winddirection>
+        		<windspeed>2.6</windspeed>
+        		<windspeedmax>4</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>275</sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Narva</name>
+        		<wmocode>26058</wmocode>
+        		<longitude>28.10933333290948</longitude>
+        		<latitude>59.38952777723252</latitude>
+        		<phenomenon>Clear</phenomenon>
+        		<visibility>20</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>997.9</airpressure>
+        		<relativehumidity>83</relativehumidity>
+        		<airtemperature>18.6</airtemperature>
+        		<winddirection>146</winddirection>
+        		<windspeed>4.3</windspeed>
+        		<windspeedmax>6.8</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation>126</globalradiation>
+        	</station>
+	<station>
+        		<name>Väike-Maarja</name>
+        		<wmocode>26141</wmocode>
+        		<longitude>26.2307361108683</longitude>
+        		<latitude>59.141347221994856</latitude>
+        		<phenomenon>Moderate rain</phenomenon>
+        		<visibility>11</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>996.9</airpressure>
+        		<relativehumidity>90</relativehumidity>
+        		<airtemperature>18.1</airtemperature>
+        		<winddirection>177</winddirection>
+        		<windspeed>2.4</windspeed>
+        		<windspeedmax>3.4</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Tiirikoja</name>
+        		<wmocode>26145</wmocode>
+        		<longitude>26.952113888925975</longitude>
+        		<latitude>58.86540277798971</latitude>
+        		<phenomenon>Heavy shower</phenomenon>
+        		<visibility>4</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>998.2</airpressure>
+        		<relativehumidity>96</relativehumidity>
+        		<airtemperature>17</airtemperature>
+        		<winddirection></winddirection>
+        		<windspeed></windspeed>
+        		<windspeedmax></windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>239</sunshineduration>
+        		<globalradiation>40</globalradiation>
+        	</station>
+	<station>
+        		<name>Jõgeva</name>
+        		<wmocode>26144</wmocode>
+        		<longitude>26.41500555568271</longitude>
+        		<latitude>58.74983611073539</latitude>
+        		<phenomenon>Heavy shower</phenomenon>
+        		<visibility>20</visibility>
+        		<precipitations>0.3</precipitations>
+        		<airpressure>997.5</airpressure>
+        		<relativehumidity>95</relativehumidity>
+        		<airtemperature>17.2</airtemperature>
+        		<winddirection>156</winddirection>
+        		<windspeed>1.4</windspeed>
+        		<windspeedmax>3.5</windspeedmax>		<waterlevel>64</waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>185</sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Tartu-Tõravere</name>
+        		<wmocode>26242</wmocode>
+        		<longitude>26.46130555576748</longitude>
+        		<latitude>58.264072222179834</latitude>
+        		<phenomenon>Heavy shower</phenomenon>
+        		<visibility>35</visibility>
+        		<precipitations>5.7</precipitations>
+        		<airpressure>998.3</airpressure>
+        		<relativehumidity>95.3</relativehumidity>
+        		<airtemperature>17.5</airtemperature>
+        		<winddirection>180</winddirection>
+        		<windspeed>2</windspeed>
+        		<windspeedmax>3</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>199</sunshineduration>
+        		<globalradiation>102.4</globalradiation>
+        	</station>
+	<station>
+        		<name>Võru</name>
+        		<wmocode>26249</wmocode>
+        		<longitude>27.01950555496306</longitude>
+        		<latitude>57.84627777702059</latitude>
+        		<phenomenon>Moderate shower</phenomenon>
+        		<visibility>15</visibility>
+        		<precipitations>4</precipitations>
+        		<airpressure>998.8</airpressure>
+        		<relativehumidity>96.4</relativehumidity>
+        		<airtemperature>16.2</airtemperature>
+        		<winddirection>127</winddirection>
+        		<windspeed>1.6</windspeed>
+        		<windspeedmax>2.6</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>370</sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Valga</name>
+        		<wmocode>26247</wmocode>
+        		<longitude>26.037733333042386</longitude>
+        		<latitude>57.79004999975144</latitude>
+        		<phenomenon>Moderate shower</phenomenon>
+        		<visibility>19</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>998.6</airpressure>
+        		<relativehumidity>95</relativehumidity>
+        		<airtemperature>17</airtemperature>
+        		<winddirection>231</winddirection>
+        		<windspeed>2.1</windspeed>
+        		<windspeedmax>3.7</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Viljandi</name>
+        		<wmocode>26233</wmocode>
+        		<longitude>25.60015555555622</longitude>
+        		<latitude>58.37777499979958</latitude>
+        		<phenomenon>Light shower</phenomenon>
+        		<visibility>20</visibility>
+        		<precipitations>0.5</precipitations>
+        		<airpressure>997.7</airpressure>
+        		<relativehumidity>95</relativehumidity>
+        		<airtemperature>17.1</airtemperature>
+        		<winddirection>208</winddirection>
+        		<windspeed>2.8</windspeed>
+        		<windspeedmax>6.2</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>126</sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Türi</name>
+        		<wmocode>26135</wmocode>
+        		<longitude>25.40915555530124</longitude>
+        		<latitude>58.80870833343929</latitude>
+        		<phenomenon>Light shower</phenomenon>
+        		<visibility>20</visibility>
+        		<precipitations>1.1</precipitations>
+        		<airpressure>996.9</airpressure>
+        		<relativehumidity>93.7</relativehumidity>
+        		<airtemperature>18.3</airtemperature>
+        		<winddirection>179</winddirection>
+        		<windspeed>1.5</windspeed>
+        		<windspeedmax>2.8</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Kuusiku</name>
+        		<wmocode>26134</wmocode>
+        		<longitude>24.733944444124358</longitude>
+        		<latitude>58.973174999418106</latitude>
+        		<phenomenon>Light shower</phenomenon>
+        		<visibility>16</visibility>
+        		<precipitations>2</precipitations>
+        		<airpressure>996.7</airpressure>
+        		<relativehumidity>97</relativehumidity>
+        		<airtemperature>16.7</airtemperature>
+        		<winddirection>149</winddirection>
+        		<windspeed>1.9</windspeed>
+        		<windspeedmax>3</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>102</sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Lääne-Nigula</name>
+        		<wmocode>26124</wmocode>
+        		<longitude>23.81566666709052</longitude>
+        		<latitude>58.951083333359826</latitude>
+        		<phenomenon>Cloudy with clear spells</phenomenon>
+        		<visibility>50</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>996.2</airpressure>
+        		<relativehumidity>90.5</relativehumidity>
+        		<airtemperature>17.5</airtemperature>
+        		<winddirection>190</winddirection>
+        		<windspeed>3.2</windspeed>
+        		<windspeedmax>4.1</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>87</sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Virtsu</name>
+        		<wmocode>26128</wmocode>
+        		<longitude>23.51355555534363</longitude>
+        		<latitude>58.572674999100215</latitude>
+        		<phenomenon>Few clouds</phenomenon>
+        		<visibility>24</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>996.7</airpressure>
+        		<relativehumidity>96.19</relativehumidity>
+        		<airtemperature>16.9</airtemperature>
+        		<winddirection>219</winddirection>
+        		<windspeed>2.9</windspeed>
+        		<windspeedmax>6.1</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000>51</waterlevel_eh2000>
+        		<watertemperature>18.6</watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Pärnu</name>
+        		<wmocode>41803</wmocode>
+        		<longitude>24.485197221899487</longitude>
+        		<latitude>58.38456666634923</latitude>
+        		<phenomenon>Light shower</phenomenon>
+        		<visibility>30</visibility>
+        		<precipitations>2.5</precipitations>
+        		<airpressure>997.3</airpressure>
+        		<relativehumidity>88</relativehumidity>
+        		<airtemperature>17.7</airtemperature>
+        		<winddirection>202</winddirection>
+        		<windspeed>4.7</windspeed>
+        		<windspeedmax>7.6</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000>47</waterlevel_eh2000>
+        		<watertemperature>19.8</watertemperature>
+        		<uvindex>0.1</uvindex>
+        		<sunshineduration>178</sunshineduration>
+        		<globalradiation>65</globalradiation>
+        	</station>
+	<station>
+        		<name>Kihnu</name>
+        		<wmocode>26226</wmocode>
+        		<longitude>23.97016666610596</longitude>
+        		<latitude>58.0986388881317</latitude>
+        		<phenomenon>Cloudy with clear spells</phenomenon>
+        		<visibility>50</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>997.7</airpressure>
+        		<relativehumidity>88.9</relativehumidity>
+        		<airtemperature>17.7</airtemperature>
+        		<winddirection>242</winddirection>
+        		<windspeed>7.6</windspeed>
+        		<windspeedmax>8.6</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Ruhnu</name>
+        		<wmocode>26227</wmocode>
+        		<longitude>23.258883333206178</longitude>
+        		<latitude>57.78339444411078</latitude>
+        		<phenomenon>Moderate rain</phenomenon>
+        		<visibility>10</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>998.8</airpressure>
+        		<relativehumidity>95</relativehumidity>
+        		<airtemperature>14.9</airtemperature>
+        		<winddirection>269</winddirection>
+        		<windspeed>8.6</windspeed>
+        		<windspeedmax>14.6</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000>45</waterlevel_eh2000>
+        		<watertemperature>18.533</watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration></sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Vilsandi</name>
+        		<wmocode>26214</wmocode>
+        		<longitude>21.81422222243415</longitude>
+        		<latitude>58.38277777711111</latitude>
+        		<phenomenon>Light rain</phenomenon>
+        		<visibility>42</visibility>
+        		<precipitations>0.5</precipitations>
+        		<airpressure>998.7</airpressure>
+        		<relativehumidity>90.2</relativehumidity>
+        		<airtemperature>14.4</airtemperature>
+        		<winddirection>308</winddirection>
+        		<windspeed>7.5</windspeed>
+        		<windspeedmax>9.9</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>31</sunshineduration>
+        		<globalradiation>21.929</globalradiation>
+        	</station>
+	<station>
+        		<name>Sõrve</name>
+        		<wmocode>26218</wmocode>
+        		<longitude>22.0579083331426</longitude>
+        		<latitude>57.91359444406297</latitude>
+        		<phenomenon>Light rain</phenomenon>
+        		<visibility>6</visibility>
+        		<precipitations>0</precipitations>
+        		<airpressure>999.1</airpressure>
+        		<relativehumidity>87</relativehumidity>
+        		<airtemperature>14.9</airtemperature>
+        		<winddirection>290</winddirection>
+        		<windspeed>10.9</windspeed>
+        		<windspeedmax>14.1</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000></waterlevel_eh2000>
+        		<watertemperature></watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>68</sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Ristna</name>
+        		<wmocode>26115</wmocode>
+        		<longitude>22.066300000084773</longitude>
+        		<latitude>58.92095277719588</latitude>
+        		<phenomenon>Moderate shower</phenomenon>
+        		<visibility>5</visibility>
+        		<precipitations></precipitations>
+        		<airpressure>997.7</airpressure>
+        		<relativehumidity>98.9</relativehumidity>
+        		<airtemperature>14.5</airtemperature>
+        		<winddirection>274</winddirection>
+        		<windspeed>1.8</windspeed>
+        		<windspeedmax>3.5</windspeedmax>		<waterlevel></waterlevel>		<waterlevel_eh2000>46</waterlevel_eh2000>
+        		<watertemperature>15.2</watertemperature>
+        		<uvindex></uvindex>
+        		<sunshineduration>15</sunshineduration>
+        		<globalradiation></globalradiation>
+        	</station>
+	<station>
+        		<name>Haapsalu</name>
+        		<wmocode>26123</wmocode>
+        		<longitude>23.55527777777778</longitude>
+        		<latitude>58.945277777444446</latitude>
+        		<phenomenon></phenomenon>
+        		<visibility></visibility>
+        		<precipitations>0.3</precipitations>
+        		<airpressure>996.1</airpressure>
+        		<relativehumidity>95.8</relativehumidity>
+        		<airtemperature>17.4</airtemperature>
+        		<winddirection>182</winddirection>
+        		<windspeed>1.9</windspeed>
+        		<windspeedmax>3.1</windspeedmax>		<waterlevel></waterlevel>		<water

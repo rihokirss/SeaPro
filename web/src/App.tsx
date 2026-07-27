@@ -20,6 +20,7 @@ import { hideScalarField, updateScalarField } from './map/layers/scalarField';
 import { WindParticleLayer } from './map/layers/windParticles';
 import { setStationsVisible, updateStations } from './map/layers/stations';
 import { setVesselsVisible, updateVessels } from './map/layers/vessels';
+import { closePopup, registerPopups } from './map/popups';
 import { buildWindField, type Field } from './map/interpolate';
 import { LayerPanel, type LayerState } from './components/LayerPanel';
 import { TimeSlider } from './components/TimeSlider';
@@ -35,7 +36,7 @@ const DEFAULT_LAYERS: LayerState = {
   scalarField: 'wind_speed',
   windParticles: false,
   stations: true,
-  vessels: false,
+  vessels: true,
 };
 
 /**
@@ -290,9 +291,15 @@ export function App() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    if (layers.vessels && vessels.length > 0) updateVessels(map, vessels);
-    else setVesselsVisible(map, false);
-  }, [vessels, layers.vessels, mapReady]);
+    if (layers.vessels && vessels.length > 0) {
+      // Kere või ikoon otsustatakse zoomi järgi, seega kiht tuleb uuesti
+      // ehitada ka pärast suumimist, mitte ainult uute andmete saabudes.
+      updateVessels(map, vessels, view?.zoom ?? map.getZoom());
+    } else {
+      setVesselsVisible(map, false);
+      closePopup();
+    }
+  }, [vessels, layers.vessels, mapReady, view]);
 
   // --- Punktiprognoos ------------------------------------------------------
   useEffect(() => {
@@ -327,8 +334,15 @@ export function App() {
     setPointResult(null);
   }, []);
 
+  // Popupid loevad ühikut ja keelt renderdamise hetkel; hoiame neid ref'is,
+  // et kaardi klikikäsitlejaid ei peaks iga seadistuse muutuse peale uuesti
+  // registreerima.
+  const popupCtx = useRef({ t, speedUnit, lang });
+  popupCtx.current = { t, speedUnit, lang };
+
   const handleReady = useCallback((map: MapLibreMap) => {
     mapRef.current = map;
+    registerPopups(map, () => popupCtx.current);
     setMapReady(true);
   }, []);
 

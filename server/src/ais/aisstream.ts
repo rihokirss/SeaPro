@@ -34,6 +34,8 @@ interface AisStreamMessage {
       ImoNumber?: number;
       Type?: number;
       Destination?: string;
+      /** aisstream annab mõõtmed pesastatud objektina. */
+      Dimension?: { A?: number; B?: number; C?: number; D?: number };
     };
   };
 }
@@ -174,6 +176,11 @@ export class AisStream {
         imo: stat.ImoNumber || undefined,
         shipType: stat.Type,
         destination: stat.Destination?.trim() || undefined,
+        // 0 tähendab AIS-is "teadmata", mitte nullpikkust.
+        toBow: stat.Dimension?.A || undefined,
+        toStern: stat.Dimension?.B || undefined,
+        toPort: stat.Dimension?.C || undefined,
+        toStarboard: stat.Dimension?.D || undefined,
       });
     }
   }

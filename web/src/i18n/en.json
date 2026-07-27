@@ -102,5 +102,7 @@
   "layer.windAnimation.hint": "Flowing particles — pretty, but uses battery",
   "layer.field": "Colour field",
   "chart.time": "Time",
-  "layer.field.none": "Off"
+  "layer.field.none": "Off",
+  "vessel.size": "Dimensions",
+  "vessel.length": "Length"
 }

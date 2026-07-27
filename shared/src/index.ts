@@ -218,6 +218,24 @@ export interface Vessel {
   imo?: number;
   /** AIS ship type kood (0-99). */
   shipType?: number;
+  /**
+   * Laeva mõõtmed AIS-i staatilisest sõnumist, meetrites.
+   *
+   * AIS ei anna pikkust ja laiust otse, vaid neli kaugust GPS-ANTENNIST:
+   *   toBow      A — antennist vöörini
+   *   toStern    B — antennist ahtrini
+   *   toPort     C — antennist pardast vasakule
+   *   toStarboard D — antennist pardast paremale
+   *
+   * Pikkus = A + B, laius = C + D. Antenni nihe on oluline: raporteeritud
+   * positsioon ON antenni oma, mitte laeva keskpunkt, seega kere tuleb
+   * joonistada antenni suhtes — muidu istub 300 m laev kaardil poole pikkuse
+   * võrra nihkes.
+   */
+  toBow?: number;
+  toStern?: number;
+  toPort?: number;
+  toStarboard?: number;
   lat: number;
   lon: number;
   /** Kiirus üle põhja, sõlmedes — AIS-i natiivne ühik, jääb sõlmedeks. */

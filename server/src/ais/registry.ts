@@ -20,6 +20,10 @@ interface VesselMeta {
   imo?: number;
   shipType?: number;
   destination?: string;
+  toBow?: number;
+  toStern?: number;
+  toPort?: number;
+  toStarboard?: number;
   updatedAt: number;
 }
 
@@ -61,6 +65,10 @@ class VesselRegistry {
       imo: meta.imo ?? existing.imo,
       shipType: meta.shipType ?? existing.shipType,
       destination: meta.destination ?? existing.destination,
+      toBow: meta.toBow ?? existing.toBow,
+      toStern: meta.toStern ?? existing.toStern,
+      toPort: meta.toPort ?? existing.toPort,
+      toStarboard: meta.toStarboard ?? existing.toStarboard,
       updatedAt: Date.now(),
     });
   }
@@ -107,6 +115,10 @@ function stripUndefined(meta: VesselMeta): Partial<Vessel> {
   if (meta.imo) out.imo = meta.imo;
   if (meta.shipType !== undefined) out.shipType = meta.shipType;
   if (meta.destination) out.destination = meta.destination;
+  if (meta.toBow !== undefined) out.toBow = meta.toBow;
+  if (meta.toStern !== undefined) out.toStern = meta.toStern;
+  if (meta.toPort !== undefined) out.toPort = meta.toPort;
+  if (meta.toStarboard !== undefined) out.toStarboard = meta.toStarboard;
   return out;
 }
 
