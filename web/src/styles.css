@@ -1289,6 +1289,12 @@ textarea {
   text-transform: uppercase;
 }
 
+/* `visibility`, mitte `display: none` — silt peab paigutuses oma laiuse
+   alles hoidma, muidu nihkub kogu liugur hetkel, mil ajast "nüüd" saab. */
+.timebar__badge.is-hidden {
+  visibility: hidden;
+}
+
 /* Mudel ja uuendusaeg — usaldusinfo, mitte dekoratsioon.
    Kitsal ekraanil kaovad, sest kellaaeg on tähtsam. */
 .timebar__meta {

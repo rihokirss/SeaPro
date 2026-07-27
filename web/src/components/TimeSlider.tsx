@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useI18n } from '../i18n';
 import {
   addHours,
@@ -135,21 +135,18 @@ export function TimeSlider({
   const trackRef = useRef<HTMLInputElement>(null);
 
   /**
-   * Kas kasutaja lohistab parasjagu pöialt.
+   * Liugur on TÄIELIKULT kontrollitud — `value`, mitte `defaultValue` + ref.
    *
-   * Kontrollitud `<input type="range">` võitleb lohistamise ajal brauseri enda
-   * pöidlaga: brauser liigutab pöidla kohe, React renderdab hetk hiljem oma
-   * `value`-ga ja pöial nõksatab korraks tagasi. Lohistamise ajal laseme
-   * brauseril pöialt ise juhtida ja sünkroonime alles lõpus.
+   * Vahepeal proovisin lohistamise ajal brauseril pöialt ise juhtida lasta ja
+   * sünkroonida alles lõpus. See tegi asja HULLEMAKS: `dragging` on React'i
+   * olek ja jõuab kohale alles järgmises renderis, seega esimeste liigutuste
+   * ajal kirjutas sünkroonimise efekt vana väärtuse DOM-i tagasi. Mõõdetult
+   * hüppas pöial jadas 7 -> 5 -> 4 -> **7** -> 2.
+   *
+   * Kontrollitud sisend uueneb sama renderi jooksul, kus muutus tekkis, ja
+   * ainus tingimus on, et `index` -> `value` -> `index` teisendus oleks
+   * kadudeta. `addHours`/`hoursBetween` on täistunnid, seega on.
    */
-  const [dragging, setDragging] = useState(false);
-
-  useEffect(() => {
-    if (dragging || !trackRef.current) return;
-    // Väljastpoolt tulnud muutus (päevasakk, klaviatuur, graafik) jõuab
-    // liugurile alles siis, kui keegi teda parasjagu ei hoia.
-    trackRef.current.value = String(index);
-  }, [index, dragging]);
 
   return (
     <div className="timebar" role="group" aria-label={t('time.selected')}>
@@ -159,7 +156,16 @@ export function TimeSlider({
       <div className="timebar__row">
         <div className="timebar__readout timebar__pod">
           <span className="timebar__time">{formatTime(value, lang)}</span>
-          {isNow ? <span className="timebar__badge">{t('time.now')}</span> : null}
+          {/* NÜÜD-silt hoiab oma laiust ka siis, kui teda ei näidata. Kui ta
+              päriselt DOM-ist kaob, kitseneb näidukast ja liugur nihkub
+              vasakule — pöial paistab "tõmblevat", kuigi väärtus on õige.
+              See oli tõmblemise tegelik põhjus, mitte liuguri väärtusloogika. */}
+          <span
+            className={`timebar__badge${isNow ? '' : ' is-hidden'}`}
+            aria-hidden={!isNow}
+          >
+            {t('time.now')}
+          </span>
         </div>
 
         <div className="timebar__track-wrap timebar__pod">
