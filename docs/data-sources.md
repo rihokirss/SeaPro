@@ -226,7 +226,7 @@ poleks ühtki kvooti ega võtmesõltuvust.
 |---|---|---|
 | Aluskaart | `tile.openstreetmap.org` | |
 | Merekaart (EE) | `gis.transpordiamet.ee/primar/wms_ip/TranspordiametNutimeri` | WMS, `layers=cells&styles=style-id-263`, bounds 57.45–60.1 N |
-| Merekaart (FI) | `einavigointiin.fi/map/{z}/{x}/{y}` | |
+| Merekaart (FI) | `einavigointiin.fi/map/{z}/{x}/{y}` | **CORS puudub → käib meie proxy kaudu** (`/api/tiles/chart-fi/{z}/{x}/{y}`) |
 | Navigatsioonimärgid | `tiles.openseamap.org/seamark/` | globaalne |
 | Sügavused | `ows.emodnet-bathymetry.eu/wms` | |
 | Ilmaradar | `ilmgs.envir.ee/geoserver/ilm/wms`, `layers=ilm:cmp_cap` | Eesti |
@@ -244,3 +244,26 @@ Liivi lahes osutub kehvaks ja oled nõus vastuvõtja püsti panema.
 (`api.gis.ee`, `ais.gis.ee`, `data.gis.ee`) me EI kasuta — need on nende
 privaatne backend. Läheme alati algallikale. Sealt leidsime aga ülal loetletud
 ametlikud kaardikihid.
+
+### Miks Soome merekaart vajab proxyt
+
+`einavigointiin.fi` saadab paani, aga ei saada `Access-Control-Allow-Origin`
+päist, kui päringul on `Origin`. MapLibre laeb rasterpaane `crossOrigin`-iga,
+sest WebGL peab pikslitele ligi pääsema — seega brauser tõmbab paani alla ja
+viskab kohe minema. Sümptom on eksitav: võrgusakil on päringud edukad, kaardil
+pole midagi ja konsool vaikib.
+
+Mõõdetud (localhost:5174, paan `10/582/297`):
+
+| Katse | Tulemus |
+|---|---|
+| `curl` | 200, `image/png` — curl ei saada `Origin`-it, seega CORS-i ei kontrollita |
+| `fetch()` | Failed to fetch |
+| `fetch(mode:'no-cors')` | opaque, status 0 |
+| `<img>` ilma `crossOrigin`-ita | ok, 256×256 |
+| `<img crossOrigin="anonymous">` | viga (kõigil neljal proovitud paanil) |
+| kiht kaardil | 48 paanipäringut, 0 pikslit |
+
+Pärast proxyt: 48 paani, kõik 200, `crossOrigin` loeb pikslid, katvus 100%.
+
+Eesti merekaart tuleb WMS-ilt, mis CORS-i saadab, ja töötab seetõttu otse.

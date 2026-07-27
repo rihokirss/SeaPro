@@ -76,7 +76,11 @@ export const OVERLAY_LAYERS: RasterLayerDef[] = [
   {
     id: 'chart-fi',
     labelKey: 'layer.chartFI',
-    tiles: ['https://einavigointiin.fi/map/{z}/{x}/{y}'],
+    // Läbi meie proxy, MITTE otse. Allikas ei saada CORS-päiseid ja MapLibre
+    // laeb rasterpaane crossOrigin-iga (WebGL vajab pikslitele ligipääsu),
+    // seega otseühendusel tõmmatakse paan ära ja visatakse kohe minema —
+    // mõõdetult 48 päringut ja null pikslit. Vt server/src/routes/tiles.ts.
+    tiles: ['/api/tiles/chart-fi/{z}/{x}/{y}'],
     attribution: '<a href="https://einavigointiin.fi/">Väylävirasto</a>',
     bounds: [19.0, 59.0, 31.6, 70.1],
     minzoom: 6,
