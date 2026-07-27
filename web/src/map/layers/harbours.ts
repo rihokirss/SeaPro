@@ -67,14 +67,25 @@ export function updateHarbours(map: MapLibreMap, list: Harbour[]): void {
           'icon-image': ['get', 'icon'],
           'icon-size': [
             'interpolate', ['linear'], ['zoom'],
-            7, 0.5,
-            11, 0.8,
-            14, 1,
+            7, 0.7,
+            11, 1,
+            14, 1.25,
           ],
-          'icon-allow-overlap': false,
-          // Sadam on püsiv orientiir: kui ta ruumipuudusel välja jääb, jäägu
-          // pigem tema silt kui marker ise.
-          'icon-optional': false,
+          /**
+           * Sadam on PÜSIV orientiir ja ei tohi kaduda liikuvate objektide
+           * pärast.
+           *
+           * Varem oli siin `icon-allow-overlap: false`. Tagajärg oli täpselt
+           * vastupidine ootusele: zoomil 9 näidati 31 sadamat, zoomil 13
+           * mitte ühtegi. Põhjus — laevanimede kiht (`vessels-labels`,
+           * minzoom 11) asub kihijärjekorras eespool ja tema sildid võtsid
+           * ruumi ära. Sadamaikoon andis neile viisakalt teed ja kadus.
+           *
+           * Laev liigub minuti pärast edasi, sadam jääb. Ikoon joonistatakse
+           * nüüd alati; kokkupõrkeid haldab ainult SILT (`text-optional`).
+           */
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
         },
       },
       insertBefore(map, HARBOURS_LAYER),

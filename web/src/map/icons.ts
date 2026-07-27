@@ -212,7 +212,7 @@ function vesselDot(fill: string): ImageData {
  * ankrukujulised, aga ilma raamita.
  */
 function harbourMarker(fill: string): ImageData {
-  const size = 26;
+  const size = 30;
   const c = makeCanvas(size);
   const { ctx } = c;
   const mid = size / 2;
@@ -222,37 +222,37 @@ function harbourMarker(fill: string): ImageData {
   ctx.shadowBlur = 3;
   ctx.shadowOffsetY = 1;
   ctx.beginPath();
-  ctx.arc(mid, mid, 8, 0, Math.PI * 2);
+  ctx.arc(mid, mid, 9.5, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.restore();
 
   ctx.beginPath();
-  ctx.arc(mid, mid, 8, 0, Math.PI * 2);
+  ctx.arc(mid, mid, 9.5, 0, Math.PI * 2);
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 1.8;
   ctx.stroke();
 
   // Ankur: rõngas, vars, põikpuu ja käpad.
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.7;
   ctx.lineCap = 'round';
 
   ctx.beginPath();
-  ctx.arc(mid, mid - 4.2, 1.6, 0, Math.PI * 2);
+  ctx.arc(mid, mid - 5, 1.9, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(mid, mid - 2.6);
-  ctx.lineTo(mid, mid + 4.6);
-  ctx.moveTo(mid - 3, mid - 1);
-  ctx.lineTo(mid + 3, mid - 1);
+  ctx.moveTo(mid, mid - 3.1);
+  ctx.lineTo(mid, mid + 5.5);
+  ctx.moveTo(mid - 3.6, mid - 1.2);
+  ctx.lineTo(mid + 3.6, mid - 1.2);
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(mid - 3.6, mid + 1.8);
-  ctx.quadraticCurveTo(mid - 3.2, mid + 4.8, mid, mid + 4.8);
-  ctx.quadraticCurveTo(mid + 3.2, mid + 4.8, mid + 3.6, mid + 1.8);
+  ctx.moveTo(mid - 4.3, mid + 2.2);
+  ctx.quadraticCurveTo(mid - 3.8, mid + 5.7, mid, mid + 5.7);
+  ctx.quadraticCurveTo(mid + 3.8, mid + 5.7, mid + 4.3, mid + 2.2);
   ctx.stroke();
 
   return toImageData(c);
