@@ -73,78 +73,132 @@ function windArrow(fill: string): ImageData {
 export const WIND_ARROW_DARK = 'wind-arrow-dark';
 export const WIND_ARROW_LIGHT = 'wind-arrow-light';
 
-/** Jaama/poi marker. Kuju kodeerib tüübi, värv värskuse. */
+/**
+ * Jaama/poi marker. Kuju kodeerib tüübi, värv andmete vanuse.
+ *
+ * ÜKS puhas valge ring ja pehme vari — mitte valge ja tume ääris üksteise
+ * peal. Kaks joont sama serva peal segunevad määrdunud halliks, sest
+ * antialias segab need omavahel; tulemus näeb välja nagu kehvasti trükitud
+ * ikoon. Vari teeb sama töö (eraldab markeri taustast) ilma teist joont
+ * lisamata.
+ */
 function stationMarker(kind: 'coastal' | 'offshore' | 'buoy', fill: string): ImageData {
-  const size = 24;
+  const size = 26;
   const c = makeCanvas(size);
   const { ctx } = c;
   const mid = size / 2;
   const r = 7;
 
-  ctx.beginPath();
-  if (kind === 'buoy') {
-    // Poi = romb. Kuju eristab ka siis, kui värv on värskuse tõttu sama.
-    ctx.moveTo(mid, mid - r - 1);
-    ctx.lineTo(mid + r + 1, mid);
-    ctx.lineTo(mid, mid + r + 1);
-    ctx.lineTo(mid - r - 1, mid);
-    ctx.closePath();
-  } else if (kind === 'offshore') {
-    ctx.rect(mid - r + 0.5, mid - r + 0.5, r * 2 - 1, r * 2 - 1);
-  } else {
-    ctx.arc(mid, mid, r, 0, Math.PI * 2);
-  }
+  const trace = (): void => {
+    ctx.beginPath();
+    if (kind === 'buoy') {
+      // Poi = romb. Kuju eristab ka siis, kui värv on värskuse tõttu sama.
+      ctx.moveTo(mid, mid - r - 1);
+      ctx.lineTo(mid + r + 1, mid);
+      ctx.lineTo(mid, mid + r + 1);
+      ctx.lineTo(mid - r - 1, mid);
+      ctx.closePath();
+    } else if (kind === 'offshore') {
+      // Ümarad nurgad — terav ruut mõjub kaardil karmimalt kui vaja.
+      roundRect(ctx, mid - r, mid - r, r * 2, r * 2, 2.5);
+    } else {
+      ctx.arc(mid, mid, r, 0, Math.PI * 2);
+    }
+  };
 
+  ctx.save();
+  ctx.shadowColor = 'rgba(6, 22, 34, 0.45)';
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 1;
+
+  // Valge rõngas joonistatakse ALLA laia joonena; vari langeb tema servale,
+  // mitte värvilisele kettale, nii et üleminek jääb puhas.
+  trace();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  trace();
   ctx.fillStyle = fill;
   ctx.fill();
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = 0.8;
-  ctx.stroke();
 
   return toImageData(c);
 }
 
-/** Liikuv laev — nool kursi suunas. */
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): void {
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** Laev, mille suund on teada — nool. Üks õhuke tume kontuur, mitte kaks. */
 function vesselArrow(fill: string): ImageData {
-  const size = 24;
+  const size = 26;
   const c = makeCanvas(size);
   const { ctx } = c;
   const mid = size / 2;
 
   ctx.translate(mid, mid);
-  ctx.beginPath();
-  ctx.moveTo(0, -9);
-  ctx.lineTo(5.5, 8);
-  ctx.lineTo(0, 4.5);
-  ctx.lineTo(-5.5, 8);
-  ctx.closePath();
+  const trace = (): void => {
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.lineTo(5.5, 8);
+    ctx.lineTo(0, 4.5);
+    ctx.lineTo(-5.5, 8);
+    ctx.closePath();
+  };
 
+  ctx.save();
+  ctx.shadowColor = 'rgba(6, 22, 34, 0.4)';
+  ctx.shadowBlur = 2.5;
+  ctx.shadowOffsetY = 1;
+  trace();
   ctx.fillStyle = fill;
   ctx.fill();
+  ctx.restore();
+
+  trace();
   ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = 1.1;
+  ctx.lineWidth = 1;
   ctx.lineJoin = 'round';
   ctx.stroke();
 
   return toImageData(c);
 }
 
-/** Seisev laev — suunda pole mõtet näidata. */
+/** Laev, mille suunda AIS ei anna — punkt, sest nooleots valetaks suunda. */
 function vesselDot(fill: string): ImageData {
-  const size = 18;
+  const size = 20;
   const c = makeCanvas(size);
   const { ctx } = c;
   const mid = size / 2;
 
+  ctx.save();
+  ctx.shadowColor = 'rgba(6, 22, 34, 0.4)';
+  ctx.shadowBlur = 2.5;
+  ctx.shadowOffsetY = 1;
   ctx.beginPath();
   ctx.arc(mid, mid, 5, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(mid, mid, 5, 0, Math.PI * 2);
   ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = 1.4;
+  ctx.lineWidth = 1.2;
   ctx.stroke();
 
   return toImageData(c);

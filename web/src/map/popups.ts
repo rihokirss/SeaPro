@@ -26,6 +26,19 @@ export interface PopupContext {
 
 let popup: maplibregl.Popup | null = null;
 
+/**
+ * Hover-vihje: ainult nimi ja tüüp, mitte kogu näit.
+ *
+ * Eraldi popupist, sest tal on teine ülesanne. Klikk küsib "mis siin on?" ja
+ * väärib tabelit; hover küsib "mis see märk on?" ja väärib ühte rida. Kui
+ * hover näitaks sama tabelit, hüppaks kaardil ringi liikudes pidevalt suur
+ * paneel ette.
+ *
+ * Puuteseadmetel hover't pole ja seal jääbki ainult klikk — see on õige,
+ * mitte puudus.
+ */
+let hoverTip: maplibregl.Popup | null = null;
+
 export function registerPopups(map: MapLibreMap, getContext: () => PopupContext): void {
   const show = (lngLat: maplibregl.LngLatLike, html: string): void => {
     popup?.remove();
@@ -57,20 +70,100 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     });
   }
 
-  // Kursor annab märku, et marker on klikitav.
+  // Kursor ja hover-vihje.
   for (const layer of [STATIONS_LAYER, ...VESSEL_LAYERS]) {
-    map.on('mouseenter', layer, () => {
+    map.on('mousemove', layer, (e) => {
       map.getCanvas().style.cursor = 'pointer';
+
+      const f = e.features?.[0];
+      if (!f) return;
+      // Kui klikipopup on juba lahti, ei hakka vihje sellega võistlema.
+      if (popup?.isOpen()) return;
+
+      const html =
+        layer === STATIONS_LAYER
+          ? stationTipHtml(f, getContext())
+          : vesselTipHtml(f, getContext());
+
+      if (!hoverTip) {
+        hoverTip = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          className: 'tip',
+          offset: 12,
+        });
+      }
+      hoverTip.setLngLat(coordsOf(f, e.lngLat)).setHTML(html).addTo(map);
     });
+
     map.on('mouseleave', layer, () => {
       map.getCanvas().style.cursor = '';
+      hoverTip?.remove();
     });
   }
+}
+
+/** Jaama vihje: nimi, tüüp ja üks põhinäit, kui see olemas on. */
+function stationTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
+  const p = f.properties as Record<string, unknown>;
+  const { t, speedUnit } = ctx;
+
+  let values: Partial<Record<Variable, number | null>> = {};
+  try {
+    values = JSON.parse(String(p.values ?? '{}')) as typeof values;
+  } catch {
+    // Vigane JSON ei tohi vihjet katki teha.
+  }
+
+  // Näita seda, mille pärast jaama üldse vaadatakse: tuult, või kui seda
+  // pole (lainepoi), siis lainekõrgust.
+  const primary: Variable | null =
+    values.wind_speed != null ? 'wind_speed' : values.wave_height != null ? 'wave_height' : null;
+
+  const reading = primary
+    ? `<span class="tip__value">${escapeHtml(formatValue(primary, values[primary], speedUnit))}` +
+      `<small>${escapeHtml(unitLabel(primary, speedUnit))}</small></span>`
+    : '';
+
+  return `
+    <div class="tip__row">
+      <span class="tip__name">${escapeHtml(String(p.name ?? ''))}</span>
+      ${reading}
+    </div>
+    <div class="tip__sub">${escapeHtml(t(`station.kind.${String(p.kind ?? 'coastal')}`))}</div>`;
+}
+
+/** Laeva vihje: nimi ja tüüp, pluss kiirus kui liigub. */
+function vesselTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
+  const p = f.properties as Record<string, unknown>;
+  const { t } = ctx;
+
+  const name = String(p.name ?? '').trim() || t('vessel.unknown');
+  const sog = p.sog === null || p.sog === undefined ? null : Number(p.sog);
+  const category = String(p.category ?? 'default');
+  const lengthM = p.lengthM === null || p.lengthM === undefined ? null : Number(p.lengthM);
+
+  const speed =
+    sog !== null && sog >= 0.5
+      ? `<span class="tip__value">${sog.toFixed(1)}<small>kn</small></span>`
+      : '';
+
+  const type = t(`key.vessel.${category === 'default' ? 'other' : category}`);
+  const sub = lengthM !== null ? `${escapeHtml(type)} · ${lengthM} m` : escapeHtml(type);
+
+  return `
+    <div class="tip__row">
+      <span class="tip__name">${escapeHtml(name)}</span>
+      ${speed}
+    </div>
+    <div class="tip__sub">${sub}</div>`;
 }
 
 export function closePopup(): void {
   popup?.remove();
   popup = null;
+  hoverTip?.remove();
+  hoverTip = null;
 }
 
 function coordsOf(f: MapGeoJSONFeature, fallback: maplibregl.LngLat): maplibregl.LngLatLike {

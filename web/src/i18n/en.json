@@ -107,5 +107,22 @@
   "vessel.length": "Length",
   "layer.wind.off": "Off",
   "layer.wind.arrows": "Arrows",
-  "layer.wind.animated": "Animated"
+  "layer.wind.animated": "Animated",
+  "key.title": "Map key",
+  "key.stations": "Stations",
+  "key.freshness": "Data age",
+  "key.freshness.fresh": "Fresh (under 5 h)",
+  "key.freshness.stale": "Over 5 hours old",
+  "key.freshness.old": "Over a day old",
+  "key.vessels": "Vessels (AIS)",
+  "key.vessel.cargo": "Cargo",
+  "key.vessel.tanker": "Tanker",
+  "key.vessel.passenger": "Passenger",
+  "key.vessel.fishing": "Fishing",
+  "key.vessel.sailing": "Sailing",
+  "key.vessel.fast": "High-speed craft",
+  "key.vessel.other": "Other or unknown",
+  "key.vessels.note": "Close in, vessels are drawn to real size. A vessel without heading is a dot.",
+  "key.windArrow": "Wind direction",
+  "key.wind.note": "The arrow shows where the wind is blowing to. Speed comes from the colour field."
 }

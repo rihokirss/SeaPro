@@ -27,6 +27,7 @@ import { TimeSlider } from './components/TimeSlider';
 import { PointSheet } from './components/PointSheet';
 import { TopBar } from './components/TopBar';
 import { MapLegend } from './components/MapLegend';
+import { MapKey } from './components/MapKey';
 
 const DEFAULT_LAYERS: LayerState = {
   overlays: ['seamark'],
@@ -399,6 +400,8 @@ export function App() {
         />
 
         <MapLegend variable={layers.scalarField} speedUnit={speedUnit} />
+
+        <MapKey showVessels={layers.vessels} showStations={layers.stations} />
 
         <TimeSlider
           value={selectedTime}

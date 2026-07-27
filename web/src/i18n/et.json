@@ -107,5 +107,22 @@
   "vessel.length": "Pikkus",
   "layer.wind.off": "Väljas",
   "layer.wind.arrows": "Nooled",
-  "layer.wind.animated": "Animatsioon"
+  "layer.wind.animated": "Animatsioon",
+  "key.title": "Tingmärgid",
+  "key.stations": "Mõõtejaamad",
+  "key.freshness": "Andmete vanus",
+  "key.freshness.fresh": "Värske (alla 5 h)",
+  "key.freshness.stale": "Üle 5 tunni vana",
+  "key.freshness.old": "Üle ööpäeva vana",
+  "key.vessels": "Laevad (AIS)",
+  "key.vessel.cargo": "Kaubalaev",
+  "key.vessel.tanker": "Tanker",
+  "key.vessel.passenger": "Reisilaev",
+  "key.vessel.fishing": "Kalalaev",
+  "key.vessel.sailing": "Purjelaev",
+  "key.vessel.fast": "Kiirlaev",
+  "key.vessel.other": "Muu või tundmatu",
+  "key.vessels.note": "Lähivaates joonistatakse laev päris mõõtmetes. Ilma suunata laev on punkt.",
+  "key.windArrow": "Tuule suund",
+  "key.wind.note": "Nool näitab, kuhu tuul puhub. Kiiruse annab värviväli."
 }

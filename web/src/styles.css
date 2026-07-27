@@ -1803,3 +1803,146 @@ textarea {
   font-size: 18px;
   color: var(--text-dim);
 }
+
+/* ==========================================================================
+   Tingmärgid (alumine parem nurk) ja hover-vihje
+   ========================================================================== */
+
+.mapkey {
+  position: absolute;
+  right: calc(12px + var(--safe-right));
+  bottom: calc(148px + var(--safe-bottom));
+  z-index: 16;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s2, 8px);
+}
+
+.mapkey__panel {
+  width: min(250px, calc(100vw - 32px));
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
+  padding: var(--s3, 12px) var(--s3, 12px) var(--s2, 8px);
+  background: var(--surface-3);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  animation: drop-in 0.16s var(--ease);
+  scrollbar-width: thin;
+}
+
+.mapkey__panel h3 {
+  margin: 0 0 var(--s2, 8px);
+  font-size: var(--t-micro, 11px);
+  font-weight: var(--w-bold, 650);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.mapkey__section + .mapkey__section {
+  margin-top: var(--s3, 12px);
+  padding-top: var(--s3, 12px);
+  border-top: 1px solid var(--line);
+}
+
+.mapkey__panel h4 {
+  margin: var(--s2, 8px) 0 var(--s1, 4px);
+  font-size: var(--t-small, 12px);
+  font-weight: var(--w-bold, 650);
+  color: var(--text-dim);
+}
+
+.mapkey__section > h4:first-child {
+  margin-top: 0;
+}
+
+.mapkey__panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mapkey__panel li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2, 8px);
+  min-height: 22px;
+  font-size: var(--t-small, 13px);
+  color: var(--text);
+}
+
+.mapkey__mark {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--text);
+}
+
+.mapkey__note {
+  margin: var(--s1, 4px) 0 0;
+  font-size: var(--t-micro, 11px);
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+
+/* --- Hover-vihje --------------------------------------------------------- */
+
+/* Vihje ei tohi hiirt püüda: muidu jääks ta kursori alla ette ja vilguks. */
+.tip.maplibregl-popup {
+  pointer-events: none;
+}
+
+.tip .maplibregl-popup-content {
+  padding: 6px 10px !important;
+  border-radius: var(--radius-pill) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.tip .maplibregl-popup-tip {
+  display: none;
+}
+
+.tip__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2, 8px);
+  white-space: nowrap;
+}
+
+.tip__name {
+  font-size: var(--t-small, 13px);
+  font-weight: var(--w-bold, 650);
+  color: var(--text);
+}
+
+.tip__value {
+  margin-left: auto;
+  font-family: var(--num);
+  font-size: var(--t-small, 13px);
+  font-weight: var(--w-med, 550);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.tip__value small {
+  margin-left: 2px;
+  font-size: var(--t-micro, 10px);
+  color: var(--text-faint);
+}
+
+.tip__sub {
+  font-size: var(--t-micro, 11px);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* Lauaarvutil on ajariba kitsam, seega tingmärgid mahuvad madalamale. */
+@media (min-width: 880px) {
+  .mapkey {
+    bottom: calc(140px + var(--safe-bottom));
+  }
+}
