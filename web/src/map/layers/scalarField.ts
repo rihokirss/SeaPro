@@ -171,8 +171,7 @@ export function updateScalarField(
   const existing = map.getSource<CanvasSource>(SOURCE_ID);
   if (existing) {
     existing.setCoordinates(coordinates);
-    // Canvas'e sisu muutus — MapLibre ei märka seda ise iga kaadri vahel.
-    map.triggerRepaint();
+    refreshCanvasTexture(map, existing);
   } else {
     if (existing) {
       if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID);
@@ -207,6 +206,30 @@ export function updateScalarField(
   }
   map.setLayoutProperty(LAYER_ID, 'visibility', 'visible');
   if (state) state.variable = variable;
+}
+
+/**
+ * Sunnib MapLibre'i canvas'e sisu GPU-sse uuesti laadima.
+ *
+ * `animate: false` tähendab, et tekstuur laaditakse ÜKS kord ja seejärel
+ * loetakse canvas'e sisu enam kunagi. Meie joonistame sinna iga ajaliuguri
+ * sammu peale uue kaadri — ilma selle sundimiseta jäi kaardile igavesti
+ * esimene tund, kuigi andmed vahetusid korrektselt. `triggerRepaint()` üksi
+ * ei aita: see joonistab kaardi uuesti, aga vana tekstuuriga.
+ *
+ * Lahendus on lühike `play()` aken. `animate: true` alaliselt tähendaks, et
+ * MapLibre renderdab kaarti pidevalt ja sööks akut ka siis, kui midagi ei
+ * muutu — kaatris on see päris kulu.
+ */
+function refreshCanvasTexture(map: MapLibreMap, source: CanvasSource): void {
+  source.play();
+  // Kaks kaadrit, et üleslaadimine kindlasti toimuks, siis seiskame taas.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      source.pause();
+    });
+  });
+  map.triggerRepaint();
 }
 
 export function hideScalarField(map: MapLibreMap): void {

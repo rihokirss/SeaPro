@@ -8,6 +8,7 @@ import type {
 } from '@seapro/shared';
 import { VARIABLES } from '@seapro/shared';
 import { config } from '../config.js';
+import { HttpError } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { vessels } from '../ais/registry.js';
 import { aisstream } from '../ais/aisstream.js';
@@ -194,13 +195,24 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       // kliendile "midagi läks katki" ja klient neelaks selle vaikselt alla —
       // kasutaja jaoks näeks see välja nagu rakendus lihtsalt lakkas töötamast.
       // 503 + retryAfter laseb UI-l öelda, MIS toimub ja millal möödub.
-      if (err instanceof RateLimitError) {
-        reply.header('Retry-After', String(err.retryAfterSeconds));
+      // Meie oma eelarve JA allika enda 429 on kasutaja jaoks sama seisund:
+      // "andmed ei uuene, tuleb oodata". Esimene 429 tuleb allikalt ja jõuaks
+      // muidu kliendini toore 429-na, mida UI ei oska seletada.
+      const retryAfterSeconds =
+        err instanceof RateLimitError
+          ? err.retryAfterSeconds
+          : err instanceof HttpError && err.status === 429
+            ? Math.ceil((3600_000 - (Date.now() % 3600_000)) / 1000)
+            : null;
+
+      if (retryAfterSeconds !== null) {
+        reply.header('Retry-After', String(retryAfterSeconds));
         return reply.code(503).send({
           error: 'rate_limited',
-          source: err.source,
-          retryAfterSeconds: err.retryAfterSeconds,
-          message: err.message,
+          source: 'open-meteo',
+          retryAfterSeconds,
+          message:
+            err instanceof Error ? err.message : 'Allikas piirab päringute arvu',
         });
       }
       throw err;

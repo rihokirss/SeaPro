@@ -51,6 +51,11 @@ interface PersistedEntry {
   key: string;
   value: unknown;
   storedAt: number;
+  /**
+   * Millal kirje VÄRSKUS lõppes. Ilma selleta ei saa taaskäivitusel otsustada,
+   * kas kirje on veel ajakohane, ja kõik tuleks uuesti tõmmata.
+   */
+  expiresAt?: number;
 }
 
 export class Cache {
@@ -129,10 +134,14 @@ export class Cache {
   /**
    * Laeb eelmise käivituse vahemälu kettalt.
    *
-   * Kirjed laetakse AINULT `stale` kihti, mitte `fresh`i: pärast taaskäivitust
-   * ei tea me, kas andmed on veel ajakohased, seega esimene päring läheb ikka
-   * allikani. Kui allikas aga on maas, on meil kohe midagi näidata — see on
-   * kogu püsivuse mõte.
+   * Veel KEHTIVAD kirjed lähevad tagasi `fresh`i, aegunud ainult `stale`'i.
+   *
+   * Varem läks kõik ainult `stale`'i mõttega "pärast taaskäivitust ei tea me,
+   * kas andmed on ajakohased". See mõte oli vale: kui kirje TTL pole veel
+   * möödas, ongi ta ajakohane — kellaaeg ei sõltu sellest, kas meie protsess
+   * vahepeal restarditi. Praktikas tähendas see, et iga deploy või koodimuutus
+   * viskas minutivanused andmed minema ja tõmbas kõik uuesti, süües
+   * Open-Meteo tunnieelarvet asja eest.
    */
   loadFromDisk(log?: (msg: string) => void): void {
     let raw: string;
@@ -144,14 +153,25 @@ export class Cache {
 
     try {
       const entries = JSON.parse(raw) as PersistedEntry[];
-      const cutoff = Date.now() - MAX_PERSISTED_AGE_MS;
+      const now = Date.now();
+      const cutoff = now - MAX_PERSISTED_AGE_MS;
       let loaded = 0;
+      let stillFresh = 0;
+
       for (const e of entries) {
         if (e.storedAt < cutoff) continue;
-        this.#stale.set(e.key, { value: e.value, storedAt: e.storedAt, expiresAt: 0 });
+
+        const expiresAt = e.expiresAt ?? 0;
+        const entry = { value: e.value, storedAt: e.storedAt, expiresAt };
+
+        this.#stale.set(e.key, entry);
+        if (expiresAt > now) {
+          this.#fresh.set(e.key, entry);
+          stillFresh++;
+        }
         loaded++;
       }
-      log?.(`Vahemälu kettalt: ${loaded} kirjet`);
+      log?.(`Vahemälu kettalt: ${loaded} kirjet, neist ${stillFresh} veel värsked`);
     } catch (err) {
       // Rikutud fail ei tohi serverit takistada — alustame tühjalt.
       log?.(`Vahemälu fail on rikutud, alustan tühjalt: ${String(err)}`);
@@ -191,7 +211,16 @@ export class Cache {
       // (nt LainePoisi täisajalugu) ei anna taaskäivitusel piisavalt tagasi,
       // et nende kirjutamist õigustada.
       if (serialized.length > MAX_PERSISTED_ENTRY) continue;
-      out.push({ key, value: entry.value, storedAt: entry.storedAt });
+
+      // Värskusaeg tuleb kaasa panna: ilma selleta ei saaks taaskäivitusel
+      // eristada minutivanust kirjet tunnivanusest.
+      const fresh = this.#fresh.get(key);
+      out.push({
+        key,
+        value: entry.value,
+        storedAt: entry.storedAt,
+        expiresAt: fresh?.expiresAt ?? 0,
+      });
     }
 
     try {

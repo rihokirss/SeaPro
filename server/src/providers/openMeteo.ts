@@ -8,7 +8,7 @@ import type {
 } from '@seapro/shared';
 import { cache } from '../cache.js';
 import { config } from '../config.js';
-import { fetchJson } from '../http.js';
+import { HttpError, fetchJson } from '../http.js';
 import { rateLimiter } from '../rateLimit.js';
 import { round, type GridQuery, type PointQuery, type WeatherProvider } from './types.js';
 
@@ -79,6 +79,34 @@ interface OmResponse {
   longitude: number;
   hourly?: Record<string, (number | null)[] | string[]>;
   hourly_units?: Record<string, string>;
+}
+
+/**
+ * Kutsub Open-Meteot, hoides päringueelarvet ausana.
+ *
+ * Kolm asja, mis siin koos peavad olema:
+ *
+ *  1. Eelarve broneeritakse ENNE päringut — muidu võiks kümme samaaegset
+ *     päringut limiidist üle joosta.
+ *  2. Ebaõnnestumise korral tagastatakse see. Varem jäi kulu külge ka siis,
+ *     kui vastust ei tulnud: eelarve tühjenes ilma ühegi andmereata.
+ *  3. Allika enda 429 paneb jahtumise peale. Ilma selleta pommitas iga
+ *     kliendipäring allikat edasi ja meie eelarve sulas — täpselt see
+ *     juhtuski, kui Open-Meteo tunnilimiit täis sai.
+ */
+async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
+  rateLimiter.spend('open-meteo', cost);
+  try {
+    return await fetchJson<T>(url);
+  } catch (err) {
+    rateLimiter.refund('open-meteo', cost);
+    if (err instanceof HttpError && err.status === 429) {
+      // Open-Meteo lähtestab tunni piiril; ootame järgmise aknani.
+      const secondsToNextHour = Math.ceil((3600_000 - (Date.now() % 3600_000)) / 1000);
+      rateLimiter.cooldown('open-meteo', secondsToNextHour);
+    }
+    throw err;
+  }
 }
 
 const ALL_VARIABLES: Variable[] = [
@@ -199,11 +227,10 @@ export class OpenMeteoProvider implements WeatherProvider {
     // Võrgustiku kaadrid on kallid ja mudel ise uueneb harvemini kui tund;
     // hoiame neid mälus tunduvalt kauem kui punktiprognoose.
     const key = `om:grid:${params.toString()}`;
-    const { value } = await cache.get(key, config.ttl.openMeteo * 4, () => {
+    const { value } = await cache.get(key, config.ttl.openMeteo * 4, () =>
       // Iga võrgupunkt on Open-Meteo arvestuses eraldi kutse.
-      rateLimiter.spend('open-meteo', lats.length);
-      return fetchJson<OmResponse | OmResponse[]>(`${url}?${params}`);
-    });
+      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, lats.length),
+    );
 
     // Mitme punkti korral tagastab Open-Meteo massiivi, ühe punkti korral objekti.
     const responses = Array.isArray(value) ? value : [value];
@@ -280,10 +307,9 @@ export class OpenMeteoProvider implements WeatherProvider {
     if (realModels.length) params.set('models', realModels.join(','));
 
     const key = `om:point:${url}:${params.toString()}`;
-    const { value } = await cache.get(key, config.ttl.openMeteo, () => {
-      rateLimiter.spend('open-meteo', 1);
-      return fetchJson<OmResponse | OmResponse[]>(`${url}?${params}`);
-    });
+    const { value } = await cache.get(key, config.ttl.openMeteo, () =>
+      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, 1),
+    );
 
     const res = Array.isArray(value) ? value[0] : value;
     if (!res?.hourly) return [];

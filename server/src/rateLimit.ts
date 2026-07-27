@@ -18,6 +18,14 @@ interface Budget {
   limit: number;
   spent: number;
   windowStart: number;
+  /**
+   * Millal allikas ise meid uuesti lubab.
+   *
+   * Kui allikas vastab 429-ga, on tema arvestus meie omast ees ja edasine
+   * pärimine on mõttetu — see ainult koormab teda ja meie eelarvet. Seni
+   * lõpetame päringud kohe, ilma võrku puutumata.
+   */
+  cooldownUntil: number;
 }
 
 const HOUR_MS = 3600_000;
@@ -45,7 +53,7 @@ class RateLimiter {
    * välist IP-d.
    */
   register(source: string, limit: number): void {
-    this.#budgets.set(source, { limit, spent: 0, windowStart: Date.now() });
+    this.#budgets.set(source, { limit, spent: 0, windowStart: Date.now(), cooldownUntil: 0 });
   }
 
   /**
@@ -57,6 +65,12 @@ class RateLimiter {
     if (!budget) return; // Registreerimata allikal pole piirangut.
 
     const now = Date.now();
+
+    // Allikas ütles ise, et aitab — ära puuduta võrku enne, kui aeg möödub.
+    if (budget.cooldownUntil > now) {
+      throw new RateLimitError(source, Math.ceil((budget.cooldownUntil - now) / 1000));
+    }
+
     // Aken järgib tegelikku täistundi, sest Open-Meteo lähtestab samamoodi.
     const currentWindow = Math.floor(now / HOUR_MS) * HOUR_MS;
     if (budget.windowStart < currentWindow) {
@@ -72,6 +86,29 @@ class RateLimiter {
     budget.spent += cost;
   }
 
+  /**
+   * Tagastab kulutatud eelarve, kui päring EBAÕNNESTUS.
+   *
+   * Eelarve mõte on hoida meid allika limiidist eemal. Ebaõnnestunud päringu
+   * eest tasumine tähendaks, et me piirame end kiiremini ega saa vastu midagi
+   * — halvim mõlemast maailmast.
+   */
+  refund(source: string, cost = 1): void {
+    const budget = this.#budgets.get(source);
+    if (!budget) return;
+    budget.spent = Math.max(0, budget.spent - cost);
+  }
+
+  /**
+   * Märgib, et allikas ise keeldus (HTTP 429). Peatab päringud kuni aja
+   * möödumiseni.
+   */
+  cooldown(source: string, seconds: number): void {
+    const budget = this.#budgets.get(source);
+    if (!budget) return;
+    budget.cooldownUntil = Math.max(budget.cooldownUntil, Date.now() + seconds * 1000);
+  }
+
   /** Kas eelarves on veel ruumi? Kasulik enne kalli päringu koostamist. */
   canSpend(source: string, cost = 1): boolean {
     const budget = this.#budgets.get(source);
@@ -81,10 +118,15 @@ class RateLimiter {
     return budget.spent + cost <= budget.limit;
   }
 
-  stats(): Record<string, { spent: number; limit: number }> {
-    const out: Record<string, { spent: number; limit: number }> = {};
+  stats(): Record<string, { spent: number; limit: number; cooldownSeconds: number }> {
+    const out: Record<string, { spent: number; limit: number; cooldownSeconds: number }> = {};
+    const now = Date.now();
     for (const [source, b] of this.#budgets) {
-      out[source] = { spent: b.spent, limit: b.limit };
+      out[source] = {
+        spent: b.spent,
+        limit: b.limit,
+        cooldownSeconds: b.cooldownUntil > now ? Math.ceil((b.cooldownUntil - now) / 1000) : 0,
+      };
     }
     return out;
   }
