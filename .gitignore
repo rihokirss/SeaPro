@@ -17,3 +17,6 @@ coverage/
 .DS_Store
 .vscode/
 .idea/
+
+# Ajutised uurimisskriptid
+*test*.mjs
