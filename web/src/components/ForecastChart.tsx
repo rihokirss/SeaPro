@@ -72,13 +72,17 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
         {
           grid: { show: true, stroke: 'rgba(120,140,155,0.18)' },
           stroke: 'currentColor',
+          // Mitmepäevasel teljel langevad kõik jaotused keskööle ja "00:00"
+          // kordus ei ütle midagi — seal näitame kuupäeva, muidu kellaaega.
           values: (_u, splits) =>
-            splits.map((v) =>
-              new Date(v * 1000).toLocaleTimeString(lang === 'et' ? 'et-EE' : 'en-GB', {
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-            ),
+            splits.map((v) => {
+              const d = new Date(v * 1000);
+              const locale = lang === 'et' ? 'et-EE' : 'en-GB';
+              if (d.getHours() === 0 && d.getMinutes() === 0) {
+                return d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' });
+              }
+              return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+            }),
         },
         {
           grid: { show: true, stroke: 'rgba(120,140,155,0.18)' },
@@ -87,7 +91,7 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
         },
       ],
       series: [
-        { label: 'aeg' },
+        { label: t('chart.time') },
         ...usable.map((s, i) => ({
           label: s.modelId && s.modelId !== 'best_match' ? `${s.providerId} · ${s.modelId}` : s.providerId,
           stroke: SERIES_COLORS[i % SERIES_COLORS.length]!,

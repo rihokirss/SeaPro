@@ -101,5 +101,6 @@
   "layer.windAnimation": "Animated wind flow",
   "layer.windAnimation.hint": "Flowing particles — pretty, but uses battery",
   "layer.field": "Colour field",
+  "chart.time": "Time",
   "layer.field.none": "Off"
 }

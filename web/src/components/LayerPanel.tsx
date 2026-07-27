@@ -153,18 +153,18 @@ export function LayerPanel({
           </section>
 
           <section className="panel__section">
-            <h3>{t('layer.group.overlay')} — {t('var.wave_height')} / {t('var.cloud_cover')}…</h3>
-            <p className="panel__hint">
-              {/* Üks väli korraga: kaks poolläbipaistvat värvikihti üksteise peal
-                  muudaks mõlemad loetamatuks. */}
-            </p>
+            {/* Pealkiri oli varem sama mis kaardikihtidel ja lisas näidetena
+                paar muutujanime — kaks ühesugust pealkirja paneelis ajasid
+                segadusse. Üks väli korraga, sest kaks poolläbipaistvat
+                värvikihti üksteise peal muudaks mõlemad loetamatuks. */}
+            <h3>{t('layer.field')}</h3>
             <div className="chips">
               <button
                 type="button"
                 className={`chip${layers.scalarField === null ? ' is-active' : ''}`}
                 onClick={() => set({ scalarField: null })}
               >
-                —
+                {t('layer.field.none')}
               </button>
               {SCALAR_FIELDS.map((v) => (
                 <button

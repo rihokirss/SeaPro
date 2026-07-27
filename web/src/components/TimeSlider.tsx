@@ -27,6 +27,10 @@ interface Props {
  * Ainult ühest neist ei piisa — pikk tunniliugur muudab "ülehomme" otsimise
  * täpsustööks.
  *
+ * Eraldi −/+ tunninuppe ei ole: liugur ise on kiirem ja täpsem ning kaks
+ * nuppu sõid ribalt laiust, mida liugur paremini ära kasutab. Täpne
+ * tunnikaupa liikumine on alles klaviatuuril (nooled, Shift+nooled, Home).
+ *
  * Ajarida on juba tervikuna laaditud, seega liuguri liigutamine ei tekita
  * ühtki võrgupäringut; ainult kaardiväli tõmmatakse valitud tunni kohta ja
  * seegi tuleb enamasti vahemälust.
@@ -121,20 +125,37 @@ export function TimeSlider({
 
   return (
     <div className="timebar" role="group" aria-label={t('time.selected')}>
+      {/* Üks rida: näit vasakul, liugur keskel, usaldusinfo paremal. Kolme
+          rea asemel üks — riba jääb madalaks, ilma et ükski puuteala kahaneks. */}
       <div className="timebar__top">
-        <button
-          type="button"
-          className="timebar__step"
-          onClick={() => step(-1)}
-          aria-label={`${t('time.hourStep')} −1`}
-        >
-          −
-        </button>
+        <div className="timebar__readout">
+          <span className="timebar__time">{formatTime(value, lang)}</span>
+          {isNow ? <span className="timebar__badge">{t('time.now')}</span> : null}
+        </div>
 
-        <div className="timebar__scrub">
-          <div className="timebar__readout">
-            <span className="timebar__time">{formatTime(value, lang)}</span>
-            {isNow ? <span className="timebar__badge">{t('time.now')}</span> : null}
+        <div className="timebar__track-wrap">
+          <input
+            ref={trackRef}
+            className="timebar__track"
+            type="range"
+            min={0}
+            max={total}
+            step={1}
+            value={index}
+            onChange={(e) => onChange(addHours(origin, Number(e.target.value)))}
+            aria-label={t('time.selected')}
+            aria-valuetext={formatTime(value, lang)}
+          />
+          {/* Messingviip "praegu" kohal — püsiv orientiir liugurile. */}
+          <span
+            className="timebar__nowmark"
+            style={{ left: `${(pastHours / total) * 100}%` }}
+            aria-hidden="true"
+          />
+        </div>
+
+        {modelLabel || updatedAt ? (
+          <div className="timebar__meta">
             {modelLabel ? <span className="timebar__model">{modelLabel}</span> : null}
             {updatedAt ? (
               <span className="timebar__updated">
@@ -142,37 +163,7 @@ export function TimeSlider({
               </span>
             ) : null}
           </div>
-
-          <div className="timebar__track-wrap">
-            <input
-              ref={trackRef}
-              className="timebar__track"
-              type="range"
-              min={0}
-              max={total}
-              step={1}
-              value={index}
-              onChange={(e) => onChange(addHours(origin, Number(e.target.value)))}
-              aria-label={t('time.selected')}
-              aria-valuetext={formatTime(value, lang)}
-            />
-            {/* Messingviip "praegu" kohal — püsiv orientiir liugurile. */}
-            <span
-              className="timebar__nowmark"
-              style={{ left: `${(pastHours / total) * 100}%` }}
-              aria-hidden="true"
-            />
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="timebar__step"
-          onClick={() => step(1)}
-          aria-label={`${t('time.hourStep')} +1`}
-        >
-          +
-        </button>
+        ) : null}
       </div>
 
       <div className="timebar__days">

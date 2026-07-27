@@ -1,0 +1,278 @@
+[
+  {
+    "slug": "amari-air-base",
+    "name": "Ämari lennuväli",
+    "lat": 59.2589073,
+    "lon": 24.2019592
+  },
+  {
+    "slug": "aseri_laeaene_virumaa_estonia",
+    "name": "Aseri alevik",
+    "lat": 59.4551194,
+    "lon": 26.8680733
+  },
+  {
+    "slug": "audru_paernumaa_estonia",
+    "name": "Audru alevik",
+    "lat": 58.4094616,
+    "lon": 24.3438522
+  },
+  {
+    "slug": "dirhami",
+    "name": "Dirhami küla / Derhamn",
+    "lat": 59.2033669,
+    "lon": 23.5037595
+  },
+  {
+    "slug": "haapsalu",
+    "name": "Haapsalu linn",
+    "lat": 58.9399019,
+    "lon": 23.5414798
+  },
+  {
+    "slug": "haljala_laeaene_virumaa_estonia",
+    "name": "Haljala alevik",
+    "lat": 59.4350024,
+    "lon": 26.2525179
+  },
+  {
+    "slug": "heltermaa",
+    "name": "Heltermaa küla",
+    "lat": 58.8663277,
+    "lon": 23.0341225
+  },
+  {
+    "slug": "hiiumaa_island_torvanina_beach",
+    "name": "Hiiumaa",
+    "lat": 58.8901657,
+    "lon": 22.7096019
+  },
+  {
+    "slug": "kadrina_laeaene_virumaa_estonia",
+    "name": "Kadrina alevik",
+    "lat": 59.3382495,
+    "lon": 26.1384322
+  },
+  {
+    "slug": "kardla",
+    "name": "Kärdla linn",
+    "lat": 58.9988376,
+    "lon": 22.7478094
+  },
+  {
+    "slug": "keila_flight_fields",
+    "name": "Keila linn",
+    "lat": 59.3110918,
+    "lon": 24.420907
+  },
+  {
+    "slug": "kivioli_ida_virumaa_estonia",
+    "name": "Kiviõli linn",
+    "lat": 59.3530264,
+    "lon": 26.9694697
+  },
+  {
+    "slug": "kose_harjumaa_estonia",
+    "name": "Kose alevik",
+    "lat": 57.8144111,
+    "lon": 27.0331231
+  },
+  {
+    "slug": "kullipesa",
+    "name": "Kullipesa",
+    "lat": 58.2133445,
+    "lon": 22.299266
+  },
+  {
+    "slug": "kunda",
+    "name": "Kunda linn",
+    "lat": 59.5055414,
+    "lon": 26.5292222
+  },
+  {
+    "slug": "kuressaare",
+    "name": "Kuressaare linn",
+    "lat": 58.2527693,
+    "lon": 22.4849207
+  },
+  {
+    "slug": "laane-nigula",
+    "name": "Lääne-Nigula",
+    "lat": 58.342053,
+    "lon": 26.6727104
+  },
+  {
+    "slug": "lahe_pank",
+    "name": "Lahe küla",
+    "lat": 58.5806126,
+    "lon": 27.2088311
+  },
+  {
+    "slug": "laulasmaa",
+    "name": "Laulasmaa küla",
+    "lat": 59.3709546,
+    "lon": 24.2422503
+  },
+  {
+    "slug": "lihula_paernumaa_estonia",
+    "name": "Lihula linn",
+    "lat": 58.6850508,
+    "lon": 23.8287566
+  },
+  {
+    "slug": "loo_harjumaa_estonia",
+    "name": "Loo alevik",
+    "lat": 59.4326121,
+    "lon": 24.9474917
+  },
+  {
+    "slug": "narva-joesuu",
+    "name": "Narva-Jõesuu linn",
+    "lat": 59.4596435,
+    "lon": 28.0421001
+  },
+  {
+    "slug": "nasva",
+    "name": "Nasva alevik",
+    "lat": 58.2284594,
+    "lon": 22.3815016
+  },
+  {
+    "slug": "orissaare_saare_estonia",
+    "name": "Orissaare alevik",
+    "lat": 58.5585576,
+    "lon": 23.0772681
+  },
+  {
+    "slug": "paikuse_paernumaa_estonia",
+    "name": "Paikuse alev",
+    "lat": 58.3697272,
+    "lon": 24.6195334
+  },
+  {
+    "slug": "paldiski",
+    "name": "Paldiski linn",
+    "lat": 59.349089,
+    "lon": 24.0801736
+  },
+  {
+    "slug": "paljassaare",
+    "name": "Paljassaare",
+    "lat": 59.4618029,
+    "lon": 24.7009466
+  },
+  {
+    "slug": "parnu",
+    "name": "Pärnu linn",
+    "lat": 58.3870659,
+    "lon": 24.5026059
+  },
+  {
+    "slug": "pirita",
+    "name": "Pirita linnaosa",
+    "lat": 59.4718884,
+    "lon": 24.8543906
+  },
+  {
+    "slug": "rakvere_laeaene_virumaa_estonia",
+    "name": "Rakvere linn",
+    "lat": 59.3482229,
+    "lon": 26.3617173
+  },
+  {
+    "slug": "rannakula",
+    "name": "Vaigu-Rannaküla",
+    "lat": 58.4841085,
+    "lon": 22.0240033
+  },
+  {
+    "slug": "rohukula",
+    "name": "Rohuküla",
+    "lat": 58.9135167,
+    "lon": 23.4436396
+  },
+  {
+    "slug": "saue_harjumaa_estonia",
+    "name": "Saue linn",
+    "lat": 59.3217905,
+    "lon": 24.5592851
+  },
+  {
+    "slug": "sauga_paernumaa_estonia",
+    "name": "Sauga alevik",
+    "lat": 58.4248742,
+    "lon": 24.4945669
+  },
+  {
+    "slug": "sindi_paernumaa_estonia",
+    "name": "Sindi linn",
+    "lat": 58.4075128,
+    "lon": 24.6583155
+  },
+  {
+    "slug": "someru_laeaene_virumaa_estonia",
+    "name": "Sõmeru alevik",
+    "lat": 59.3589798,
+    "lon": 26.4250298
+  },
+  {
+    "slug": "sorve_saare",
+    "name": "Sõrve küla",
+    "lat": 59.4253269,
+    "lon": 24.4609325
+  },
+  {
+    "slug": "stroomi",
+    "name": "Stroomi allee",
+    "lat": 59.4476482,
+    "lon": 24.6906848
+  },
+  {
+    "slug": "tabasalu",
+    "name": "Tabasalu alevik",
+    "lat": 59.4280892,
+    "lon": 24.5417028
+  },
+  {
+    "slug": "tallinn",
+    "name": "Tallinn",
+    "lat": 59.437242,
+    "lon": 24.7572693
+  },
+  {
+    "slug": "tootsi_paernumaa_estonia",
+    "name": "Tootsi alev",
+    "lat": 58.5787559,
+    "lon": 24.7912035
+  },
+  {
+    "slug": "uuemoisa_laeaene_estonia",
+    "name": "Uuemõisa küla",
+    "lat": 58.5012384,
+    "lon": 23.1031253
+  },
+  {
+    "slug": "vaana_joesuu",
+    "name": "Vääna küla",
+    "lat": 59.3909052,
+    "lon": 24.4159265
+  },
+  {
+    "slug": "viimsi",
+    "name": "Viimsi alevik",
+    "lat": 59.5002216,
+    "lon": 24.8413395
+  },
+  {
+    "slug": "vilsandi",
+    "name": "Vilsandi küla",
+    "lat": 58.3810574,
+    "lon": 21.8590128
+  },
+  {
+    "slug": "vinni_laeaene_virumaa_estonia",
+    "name": "Vinni alevik",
+    "lat": 59.295553,
+    "lon": 26.430184
+  }
+]

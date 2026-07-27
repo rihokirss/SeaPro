@@ -286,7 +286,7 @@ export function PointSheet({
                               key={c.idx}
                               style={
                                 isWind && raw != null
-                                  ? { borderLeft: `3px solid ${windColor(raw)}` }
+                                  ? { borderLeft: `2px solid ${windColor(raw)}` }
                                   : undefined
                               }
                             >

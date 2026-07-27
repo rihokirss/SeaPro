@@ -101,5 +101,6 @@
   "layer.windAnimation": "Tuulevoo animatsioon",
   "layer.windAnimation.hint": "Voolavad osakesed — ilus, aga kulutab akut",
   "layer.field": "Värviväli",
+  "chart.time": "Aeg",
   "layer.field.none": "Väljas"
 }
