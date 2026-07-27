@@ -127,5 +127,9 @@
   "key.wind.note": "Nool näitab, kuhu tuul puhub. Kiiruse annab värviväli.",
   "source.scope": "Need allikad puudutavad punktiprognoosi (klõps kaardil). Kaardikihid tulevad allpool valitud mudelist.",
   "source.mapLayer": "Kaardikihi mudel",
-  "source.mapLayer.hint": "Tuulenooled ja värviväli tulevad Open-Meteost — ainus allikas, mis annab võrgustiku, mitte üksikpunkte."
+  "source.mapLayer.hint": "Tuulenooled ja värviväli tulevad Open-Meteost — ainus allikas, mis annab võrgustiku, mitte üksikpunkte.",
+  "layer.rateLimited": "Tuulekiht ootab — Open-Meteo tunnilimiit on täis, uueneb {min} min pärast. Kaardil on viimased tõmmatud andmed.",
+  "layer.failed": "Tuulekiht ei uuene — allikas ei vasta. Kaardil on viimased tõmmatud andmed.",
+  "chart.prevDay": "Eelmine päev",
+  "chart.nextDay": "Järgmine päev"
 }

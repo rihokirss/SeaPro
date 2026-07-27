@@ -8,7 +8,7 @@ import type {
 } from '@seapro/shared';
 import { VARIABLES } from '@seapro/shared';
 import { config } from '../config.js';
-import { rateLimiter } from '../rateLimit.js';
+import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { vessels } from '../ais/registry.js';
 import { aisstream } from '../ais/aisstream.js';
 import {
@@ -56,7 +56,18 @@ function snapBbox([south, west, north, east]: [number, number, number, number]):
   number,
 ] {
   const span = Math.max(north - south, east - west);
-  const step = span > 8 ? 1 : span > 4 ? 0.5 : span > 1.5 ? 0.25 : span > 0.5 ? 0.1 : 0.05;
+  // Alumine samm on SIHILIKULT jäme (0.25°, ~15-28 km).
+  //
+  // Varem oli see 0.05°, mis tähendas, et lähivaates tekitas iga väike nihe
+  // uue vahemälu võtme ja uue 64-kutselise päringu. Tunnieelarve (3000) sai
+  // täis ~47 vaatega — tavaline kaardil ringi vaatamine sõi selle ära ja
+  // tuulekiht lakkas uuenemast.
+  //
+  // Jämedam samm tähendab, et tõmbame nähtavast alast SUUREMA ruudu ja
+  // järgmised nihked mahuvad sama ruudu sisse ehk tulevad vahemälust. Väli
+  // interpoleeritakse niikuinii kliendis, seega jämedam tõmbeala ei vähenda
+  // kaardil nähtavat tihedust.
+  const step = span > 8 ? 1 : span > 4 ? 0.5 : 0.25;
   const floor = (v: number): number => Math.floor(v / step) * step;
   const ceil = (v: number): number => Math.ceil(v / step) * step;
   return [
@@ -174,9 +185,26 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const snapped = snapBbox([south, west, north, east]);
     const time = snapHour(typeof q.time === 'string' && q.time ? q.time : new Date().toISOString());
 
-    const frame = await provider.grid({ bbox: snapped, steps, variables, time, modelId });
-    reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
-    return frame;
+    try {
+      const frame = await provider.grid({ bbox: snapped, steps, variables, time, modelId });
+      reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+      return frame;
+    } catch (err) {
+      // Eelarve täis ei ole serveri viga, vaid teadaolev seisund. 500 tähendaks
+      // kliendile "midagi läks katki" ja klient neelaks selle vaikselt alla —
+      // kasutaja jaoks näeks see välja nagu rakendus lihtsalt lakkas töötamast.
+      // 503 + retryAfter laseb UI-l öelda, MIS toimub ja millal möödub.
+      if (err instanceof RateLimitError) {
+        reply.header('Retry-After', String(err.retryAfterSeconds));
+        return reply.code(503).send({
+          error: 'rate_limited',
+          source: err.source,
+          retryAfterSeconds: err.retryAfterSeconds,
+          message: err.message,
+        });
+      }
+      throw err;
+    }
   });
 
   /** Mõõtejaamad ja poid GeoJSON-ina, otse MapLibre'i sööda jaoks. */

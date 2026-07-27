@@ -27,6 +27,14 @@ export interface PopupContext {
 let popup: maplibregl.Popup | null = null;
 
 /**
+ * Millise objekti popup praegu lahti on. Vajalik selleks, et samale markerile
+ * teist korda klõpsamine popupi SULGEKS, mitte ei avaks sama sisu uuesti —
+ * see on tavapärane ootus ja ilma selleta pole markeril sulgemisnupu kõrval
+ * muud viisi kinni panna.
+ */
+let openFeatureId: string | null = null;
+
+/**
  * Hover-vihje: ainult nimi ja tüüp, mitte kogu näit.
  *
  * Eraldi popupist, sest tal on teine ülesanne. Klikk küsib "mis siin on?" ja
@@ -40,8 +48,15 @@ let popup: maplibregl.Popup | null = null;
 let hoverTip: maplibregl.Popup | null = null;
 
 export function registerPopups(map: MapLibreMap, getContext: () => PopupContext): void {
-  const show = (lngLat: maplibregl.LngLatLike, html: string): void => {
+  const show = (featureId: string, lngLat: maplibregl.LngLatLike, html: string): boolean => {
+    // Sama objekt teist korda = sulge.
+    if (popup?.isOpen() && openFeatureId === featureId) {
+      closePopup();
+      return false;
+    }
+
     popup?.remove();
+    openFeatureId = featureId;
     popup = new maplibregl.Popup({
       closeButton: true,
       closeOnClick: true,
@@ -51,6 +66,15 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
       .setLngLat(lngLat)
       .setHTML(html)
       .addTo(map);
+
+    // Kui kasutaja sulgeb popupi nupust või mujale klõpsates, peab ka meie
+    // arvestus nullima — muidu nõuaks järgmine klõps sama markeri peal kahte
+    // vajutust.
+    popup.on('close', () => {
+      openFeatureId = null;
+    });
+
+    return true;
   };
 
   map.on('click', STATIONS_LAYER, (e) => {
@@ -58,7 +82,10 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     if (!f) return;
     // Ära lase klikil ka punktipaneeli avada — jaam ON juba vastus.
     e.originalEvent.stopPropagation();
-    show(coordsOf(f, e.lngLat), stationHtml(f, getContext()));
+    const id = `station:${String(f.properties?.id ?? '')}`;
+    if (show(id, coordsOf(f, e.lngLat), stationHtml(f, getContext()))) {
+      hoverTip?.remove();
+    }
   });
 
   for (const layer of VESSEL_LAYERS) {
@@ -66,7 +93,10 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
       const f = e.features?.[0];
       if (!f) return;
       e.originalEvent.stopPropagation();
-      show(e.lngLat, vesselHtml(f, getContext()));
+      const id = `vessel:${String(f.properties?.mmsi ?? '')}`;
+      if (show(id, e.lngLat, vesselHtml(f, getContext()))) {
+        hoverTip?.remove();
+      }
     });
   }
 
@@ -162,6 +192,7 @@ function vesselTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
 export function closePopup(): void {
   popup?.remove();
   popup = null;
+  openFeatureId = null;
   hoverTip?.remove();
   hoverTip = null;
 }

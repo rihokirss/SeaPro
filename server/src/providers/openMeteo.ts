@@ -168,6 +168,10 @@ export class OpenMeteoProvider implements WeatherProvider {
       return { providerId: this.caps.id, time: q.time, variables: q.variables, points: [] };
     }
 
+    // Ööpäevane plokk, mis sisaldab küsitud tundi. UTC-päeva piirile joondamine
+    // hoiab vahemäluvõtme stabiilsena — muidu tekiks iga tunni kohta oma plokk.
+    const { blockStart, blockEnd } = dayBlock(q.time);
+
     const params = new URLSearchParams({
       latitude: lats.join(','),
       longitude: lons.join(','),
@@ -175,9 +179,16 @@ export class OpenMeteoProvider implements WeatherProvider {
       wind_speed_unit: 'ms',
       timeformat: 'iso8601',
       timezone: 'GMT',
-      // Küsime ainult vajaliku akna, mitte 7 päeva — vastus jääb kordades väiksemaks.
-      start_hour: hourFloor(q.time),
-      end_hour: hourFloor(q.time),
+      // Küsime terve ÖÖPÄEVA korraga, mitte ühte tundi.
+      //
+      // Varem oli siin start_hour = end_hour = valitud tund. See tähendas, et
+      // iga ajaliuguri samm tekitas uue 64-punktilise päringu ja uue
+      // vahemäluvõtme — tunnieelarve sõi end läbi lihtsalt ajas edasi-tagasi
+      // kerides. Ööpäevane plokk maksab sama arvu kutseid (kutseid loetakse
+      // punktide, mitte tundide järgi), aga katab 24 tundi, nii et kerimine
+      // on pärast esimest tõmmet tasuta ja hetkeline.
+      start_hour: blockStart,
+      end_hour: blockEnd,
       // Merevälju küsime merelahtritest; tuult ja õhku aga tavapärasest
       // lähimast lahtrist — "sea" jätaks rannikupunktid tühjaks ja kaardile
       // tekiksid augud sinna, kus kasutaja tegelikult sõidab.
@@ -198,6 +209,18 @@ export class OpenMeteoProvider implements WeatherProvider {
     const responses = Array.isArray(value) ? value : [value];
 
     const points: GridPoint[] = [];
+
+    // Vastus katab terve ööpäeva; leiame küsitud tunni indeksi ajaveerust.
+    // Otsime ajatempli järgi, mitte ei arvuta nihet — nii ei lagune asi, kui
+    // Open-Meteo peaks akna servi ümardama.
+    const firstTimes = (Array.isArray(value) ? value[0] : value)?.hourly?.time as
+      | string[]
+      | undefined;
+    const hourIndex = findHourIndex(firstTimes, q.time);
+    if (hourIndex < 0) {
+      return { providerId: this.caps.id, modelId: q.modelId, time: q.time, variables: q.variables, points: [] };
+    }
+
     responses.forEach((res, i) => {
       const hourly = res.hourly;
       if (!hourly) return;
@@ -207,7 +230,7 @@ export class OpenMeteoProvider implements WeatherProvider {
       for (const [apiName, mine] of Object.entries(varMap)) {
         const col = hourly[apiName] as (number | null)[] | undefined;
         if (!col || col.length === 0) continue;
-        const v = round(col[0], 2);
+        const v = round(col[hourIndex], 2);
         values[mine] = v;
         if (v !== null) any = true;
       }
@@ -325,6 +348,37 @@ function hourFloor(iso: string): string {
   const d = new Date(iso);
   d.setUTCMinutes(0, 0, 0);
   return d.toISOString().slice(0, 13) + ':00';
+}
+
+/**
+ * UTC-päeva plokk, mis sisaldab antud hetke.
+ *
+ * Joondamine päeva piirile on vahemälu jaoks oluline: kui plokk algaks
+ * "praegusest tunnist", nihkuks võti iga tunniga ja kogu säästu poleks.
+ */
+function dayBlock(iso: string): { blockStart: string; blockEnd: string } {
+  const d = new Date(iso);
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0));
+  const end = new Date(start.getTime() + 23 * 3600_000);
+  return {
+    blockStart: `${start.toISOString().slice(0, 13)}:00`,
+    blockEnd: `${end.toISOString().slice(0, 13)}:00`,
+  };
+}
+
+/** Küsitud tunni indeks vastuse ajaveerus. -1, kui plokk seda ei kata. */
+function findHourIndex(times: string[] | undefined, iso: string): number {
+  if (!times || times.length === 0) return -1;
+  const target = new Date(iso);
+  target.setUTCMinutes(0, 0, 0);
+  const wanted = target.getTime();
+
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i]!;
+    const stamp = new Date(t.endsWith('Z') ? t : `${t}:00Z`.replace(/:00:00Z$/, ':00Z')).getTime();
+    if (stamp === wanted) return i;
+  }
+  return -1;
 }
 
 export const openMeteo = new OpenMeteoProvider();

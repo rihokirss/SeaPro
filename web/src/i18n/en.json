@@ -127,5 +127,9 @@
   "key.wind.note": "The arrow shows where the wind is blowing to. Speed comes from the colour field.",
   "source.scope": "These sources apply to the point forecast (tap the map). Map layers come from the model chosen below.",
   "source.mapLayer": "Map layer model",
-  "source.mapLayer.hint": "Wind arrows and the colour field come from Open-Meteo — the only source that serves a grid rather than single points."
+  "source.mapLayer.hint": "Wind arrows and the colour field come from Open-Meteo — the only source that serves a grid rather than single points.",
+  "layer.rateLimited": "Wind layer paused — Open-Meteo hourly limit reached, resumes in {min} min. The map shows the last data fetched.",
+  "layer.failed": "Wind layer not updating — source not responding. The map shows the last data fetched.",
+  "chart.prevDay": "Previous day",
+  "chart.nextDay": "Next day"
 }

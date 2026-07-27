@@ -1961,3 +1961,97 @@ textarea {
     max-height: min(70vh, 560px);
   }
 }
+
+/* Kaardikihi seisunditeade — hõljub ülariba all, ei varja juhtelemente. */
+.layer-notice {
+  position: absolute;
+  top: calc(64px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 18;
+  max-width: min(440px, calc(100vw - 32px));
+  padding: 8px 14px;
+  background: rgba(224, 168, 63, 0.16);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid rgba(224, 168, 63, 0.5);
+  border-radius: var(--radius-pill);
+  color: var(--warn);
+  font-size: var(--t-small, 13px);
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  animation: drop-in 0.2s var(--ease);
+  pointer-events: none;
+}
+
+/* --- Graafiku legend: stabiilne laius -------------------------------------
+   uPlot uuendab legendi väärtusi kursori liikumisel. Kuna numbrid on eri
+   pikkusega ("5" vs "10.2"), muutus tabeli veerulaius iga hiireliigutusega ja
+   legend tõmbles. Fikseeritud tabelipaigutus + tabelnumbrid + ette antud
+   laius hoiavad selle paigal, ilma live-legendist loobumata (see on kasulik —
+   näitab kõigi allikate väärtust korraga). */
+
+.forecast-chart .u-legend {
+  width: 100%;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-chart .u-legend th,
+.forecast-chart .u-legend td {
+  padding: 1px 4px;
+}
+
+.forecast-chart .u-legend .u-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forecast-chart .u-legend .u-value {
+  display: inline-block;
+  min-width: 6ch;
+  text-align: right;
+  font-family: var(--num);
+  white-space: nowrap;
+}
+
+/* Ühe seeria korral on legend rida, mitte tabel — sama kohtlemine. */
+.forecast-chart .u-inline .u-value {
+  min-width: 6ch;
+}
+
+/* Graafiku päevanavigatsioon */
+.forecast-chart__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3, 12px);
+  margin-top: var(--s1, 4px);
+}
+
+.forecast-chart__nav button {
+  min-width: 44px;
+  min-height: 36px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm, 8px);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.forecast-chart__nav button:hover {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.forecast-chart__nav span {
+  min-width: 9ch;
+  text-align: center;
+  font-size: var(--t-small, 13px);
+  font-weight: var(--w-med, 550);
+  color: var(--text);
+}

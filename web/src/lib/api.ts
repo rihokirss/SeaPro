@@ -16,14 +16,38 @@ export interface AppConfig {
   aisstreamEnabled: boolean;
 }
 
+/**
+ * Teadaolev seisund, mitte viga: väljaminevate päringute eelarve on tunniks
+ * täis. Eraldi klass, sest UI peab seda kasutajale SELGITAMA, mitte
+ * kuvama üldist "midagi läks valesti".
+ */
+export class RateLimitedError extends Error {
+  constructor(
+    readonly source: string,
+    readonly retryAfterSeconds: number,
+  ) {
+    super(`rate_limited:${source}`);
+    this.name = 'RateLimitedError';
+  }
+}
+
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(path, { signal, headers: { Accept: 'application/json' } });
   if (!res.ok) {
     let detail = `${res.status}`;
     try {
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as {
+        error?: string;
+        message?: string;
+        source?: string;
+        retryAfterSeconds?: number;
+      };
+      if (res.status === 503 && body.error === 'rate_limited') {
+        throw new RateLimitedError(body.source ?? 'allikas', body.retryAfterSeconds ?? 0);
+      }
       if (body.error) detail = body.error;
-    } catch {
+    } catch (err) {
+      if (err instanceof RateLimitedError) throw err;
       // Vastus polnud JSON — jääme staatusekoodi juurde.
     }
     throw new Error(detail);

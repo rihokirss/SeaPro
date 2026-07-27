@@ -9,7 +9,7 @@ import type {
   Vessel,
 } from '@seapro/shared';
 import { I18nContext, detectLang, makeTranslate, saveLang, type Lang } from './i18n';
-import { api, type AppConfig } from './lib/api';
+import { RateLimitedError, api, type AppConfig } from './lib/api';
 import { useGeolocation } from './lib/geolocation';
 import { useFavorites } from './lib/favorites';
 import { loadSpeedUnit, saveSpeedUnit, type SpeedUnit } from './lib/units';
@@ -82,6 +82,15 @@ export function App() {
     null,
   );
 
+  /**
+   * Kaardikihi seisund, kui andmed EI tule. Varem neelasime need vead vaikselt
+   * alla ja kasutaja jaoks näis, nagu rakendus lihtsalt lakkaks uuenemast —
+   * ilma ühegi vihjeta, kas asi on võrgus, allikas või meis.
+   */
+  const [layerNotice, setLayerNotice] = useState<
+    { kind: 'rateLimited'; retryAfterSeconds: number } | { kind: 'error' } | null
+  >(null);
+
   const geo = useGeolocation();
   const favorites = useFavorites();
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -136,9 +145,19 @@ export function App() {
         },
         ac.signal,
       )
-      .then(setGridFrame)
-      .catch(() => {
+      .then((frame) => {
+        setGridFrame(frame);
+        setLayerNotice(null);
+      })
+      .catch((err: unknown) => {
+        if (ac.signal.aborted) return;
         // Ainult kaardikiht kadus; punktiprognoos ja jaamad töötavad edasi.
+        // Aga kasutaja peab teadma, MIKS kiht seisma jäi.
+        setLayerNotice(
+          err instanceof RateLimitedError
+            ? { kind: 'rateLimited', retryAfterSeconds: err.retryAfterSeconds }
+            : { kind: 'error' },
+        );
       });
     return () => ac.abort();
   }, [view, needWind, selectedTime, activeModel]);
@@ -404,6 +423,16 @@ export function App() {
           onMoveEnd={handleMoveEnd}
           onPick={handlePick}
         />
+
+        {layerNotice ? (
+          <div className="layer-notice" role="status">
+            {layerNotice.kind === 'rateLimited'
+              ? t('layer.rateLimited', {
+                  min: Math.max(1, Math.ceil(layerNotice.retryAfterSeconds / 60)),
+                })
+              : t('layer.failed')}
+          </div>
+        ) : null}
 
         <MapLegend variable={layers.scalarField} speedUnit={speedUnit} />
 
