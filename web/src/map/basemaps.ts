@@ -30,7 +30,32 @@ export const BASE_LAYERS: RasterLayerDef[] = [
     attribution: '© OpenStreetMap contributors',
     maxzoom: 19,
   },
+  {
+    /**
+     * Tume aluskaart valevärvi-välja alla.
+     *
+     * Miks eraldi paanistik, mitte OSM-i tumendamine: rasterkihil saab muuta
+     * ainult küllastust ja heledust TERVIKUNA — vee ja maa eristamiseks pole
+     * seal midagi käepärast. Windfinderi mõnus kontrast tuleb sellest, et
+     * nende aluskaardi VESI ongi tume. CARTO tume stiil annab sama: tume
+     * vesi, veel tumedam maa, null värvi. Sildid puuduvad sihilikult
+     * (`_nolabels`) — need tuleksid värvivälja alt niikuinii loetamatult.
+     */
+    id: 'carto-dark',
+    labelKey: 'layer.darkBase',
+    tiles: [
+      'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+      'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+      'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+    ],
+    attribution: '© OpenStreetMap contributors © CARTO',
+    maxzoom: 19,
+  },
 ];
+
+/** Vaikimisi nähtav aluskaart. Teine lisatakse peidetuna ja lülitub vajadusel. */
+export const DEFAULT_BASE_ID = 'osm';
+export const MUTED_BASE_ID = 'carto-dark';
 
 export const OVERLAY_LAYERS: RasterLayerDef[] = [
   {

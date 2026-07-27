@@ -1,69 +1,39 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { BASE_LAYERS } from './basemaps';
+import { DEFAULT_BASE_ID, MUTED_BASE_ID } from './basemaps';
 
 /**
- * Aluskaardi tuhmistamine, kui valevärvi-väli on peal.
+ * Aluskaardi vahetus, kui valevärvi-väli on peal.
  *
- * Probleem: OSM on ise värviline — roheline mets, kollased teed, sinine vesi.
- * Kui selle peale panna tuule või lainete värvigradient, võistlevad kaks
- * värvisüsteemi omavahel ja kumbki ei loe enam korralikult. Windfinderil on
- * aluskaart sellepärast peaaegu monokroomne.
+ * Probleem: OSM on ise värviline — roheline mets, kollased teed, HELE vesi.
+ * Selle peale pandud tuule- või lainegradient tekitab kaks võistlevat
+ * värvisüsteemi ja kumbki ei loe korralikult.
  *
- * Lahendus MapLibre'is on odav: rasterkihil on `raster-saturation` ja
- * `raster-brightness-min`, mis töötavad GPU-s ega vaja teist paanikomplekti.
+ * Esimene katse tuhmistas OSM-i `raster-saturation` ja `brightness`-iga.
+ * See võttis värvi maha, aga VESI jäi heledaks — rasterkihil saab muuta
+ * ainult tervikpilti ja vee eristamiseks pole seal midagi käepärast.
+ * Kasutaja märkas seda kohe: "meri pole ikka tumedam".
  *
- * MIDA ME EI TUHMISTA: merekaarti, navigatsioonimärke ega radarit. Nende
- * värv KANNAB TÄHENDUST — punane ja roheline poi, punane sajuala. Nende
- * halliks muutmine kaotaks infot, mitte ei vähendaks müra.
+ * Lahendus on kasutada aluskaarti, mille vesi ONGI tume. CARTO tume stiil
+ * annab täpselt selle, ilma võtmeta ja ilma kvoodita.
+ *
+ * MIDA ME EI PUUDUTA: merekaarti, navigatsioonimärke ega radarit. Nende
+ * värv KANNAB TÄHENDUST — punane ja roheline poi, punane sajuala.
  */
 
-/** Kui palju värvi maha võtta. -1 = täiesti hall. */
-const MUTED_SATURATION = -0.9;
+/** Väike küllastuse langus tumedal kaardil, et väli oleks ainus värv. */
+const DARK_SATURATION = -0.35;
 
-/**
- * Heledus tõstetakse ainult VEIDI.
- *
- * Esimene katse kasutas 0.42 mõttega, et kaart peab välja alt läbi paistma.
- * Tulemus oli, et RANNAJOON kadus — maa ja meri sulasid ühte helehalli
- * plekki. Mereäpis on rannajoon ainus asi, mille järgi kaardil orienteeruda,
- * ja see peab jääma nähtavaks ka siis, kui väli on peal.
- */
-const MUTED_BRIGHTNESS_MIN = 0.08;
-
-/** Kerge kontrastilangus võtab müra maha, ilma piirjooni kaotamata. */
-const MUTED_CONTRAST = -0.1;
-
-/**
- * Ülemine heledus alla — kogu aluskaart läheb tumedamaks.
- *
- * Eesmärk on kontrast valevärvi-väljaga: hele kaart ja hele väli sulavad
- * kokku, tume kaart laseb värvidel esile tulla.
- *
- * NB: see tumendab kaardi TERVIKUNA, mitte ainult merd. Rasterpaanil pole
- * vee ja maa eristamiseks midagi käepärast — see nõuaks eraldi veepolügoone
- * ehk vektorandmeid. Praktikas töötab tervikuna tumendamine sama eesmärgi
- * nimel: kaart taandub taustaks ja väli tuleb esile.
- */
-const MUTED_BRIGHTNESS_MAX = 0.72;
-
-/**
- * Lülitab aluskaardi tuhmi ja tavalise vahel.
- *
- * Üleminek on animeeritud (`*-transition`), sest järsk hüpe värvilise ja halli
- * vahel kihi sisse-välja lülitamisel mõjub vealikult.
- */
 export function setBasemapMuted(map: MapLibreMap, muted: boolean): void {
-  for (const def of BASE_LAYERS) {
-    if (!map.getLayer(def.id)) continue;
+  const show = muted ? MUTED_BASE_ID : DEFAULT_BASE_ID;
+  const hide = muted ? DEFAULT_BASE_ID : MUTED_BASE_ID;
 
-    map.setPaintProperty(def.id, 'raster-saturation', muted ? MUTED_SATURATION : 0);
-    map.setPaintProperty(def.id, 'raster-brightness-min', muted ? MUTED_BRIGHTNESS_MIN : 0);
-    map.setPaintProperty(def.id, 'raster-contrast', muted ? MUTED_CONTRAST : 0);
-    map.setPaintProperty(def.id, 'raster-brightness-max', muted ? MUTED_BRIGHTNESS_MAX : 1);
-
-    map.setPaintProperty(def.id, 'raster-saturation-transition', { duration: 300 });
-    map.setPaintProperty(def.id, 'raster-brightness-min-transition', { duration: 300 });
-    map.setPaintProperty(def.id, 'raster-contrast-transition', { duration: 300 });
-    map.setPaintProperty(def.id, 'raster-brightness-max-transition', { duration: 300 });
+  if (map.getLayer(show)) {
+    map.setLayoutProperty(show, 'visibility', 'visible');
+    map.setPaintProperty(show, 'raster-saturation', muted ? DARK_SATURATION : 0);
+  }
+  // Peidetud rasterkihi paane MapLibre ei tõmba, seega teine paanistik ei
+  // maksa midagi seni, kuni teda ei näidata.
+  if (map.getLayer(hide)) {
+    map.setLayoutProperty(hide, 'visibility', 'none');
   }
 }

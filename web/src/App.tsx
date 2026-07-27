@@ -76,6 +76,21 @@ export function App() {
   const [speedUnit, setSpeedUnit] = useState<SpeedUnit>(loadSpeedUnit);
 
   const [selectedTime, setSelectedTime] = useState<Date>(() => floorToHour());
+
+  /**
+   * Andmepäringute jaoks viivitatud aeg.
+   *
+   * Liuguri lohistamine tekitab kümneid ajamuutusi sekundis. Ilma viivituseta
+   * käivitas iga samm kohe võrgupäringu ja iga vastus (või 503) uue
+   * seisumuutuse — kontrollitud liugur jäi selle laviini alla ja tõmbles.
+   * Kuvatav aeg jääb hetkeliseks, ainult ANDMED ootavad, kuni lohistamine
+   * peatub.
+   */
+  const [dataTime, setDataTime] = useState<Date>(selectedTime);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDataTime(selectedTime), 250);
+    return () => window.clearTimeout(id);
+  }, [selectedTime]);
   const [picked, setPicked] = useState<{ lat: number; lon: number } | null>(null);
   const [pointResult, setPointResult] = useState<PointResult | null>(null);
   const [pointLoading, setPointLoading] = useState(false);
@@ -123,33 +138,45 @@ export function App() {
   }, []);
 
   // --- Kaardikihi andmed (tuul + valevärvi-väli) --------------------------
-  const [gridFrame, setGridFrame] = useState<GridFrame | null>(null);
   const [fieldFrame, setFieldFrame] = useState<GridFrame | null>(null);
 
   // Nii nooled kui animatsioon toituvad samast võrgustikupäringust.
   const needWind = layers.windDisplay !== 'off';
   const fieldVar: Variable | null = layers.scalarField;
 
+  /**
+   * Terve ööpäeva kaadrid korraga.
+   *
+   * Varem küsis klient iga tunni eraldi HTTP-ga. Server serveeris need küll
+   * vahemälust, aga ring võrgu kaudu tähendas ajaliuguri liigutamisel nähtavat
+   * viivitust enne, kui uus tuul ekraanile jõudis. Nüüd tuleb kogu ööpäev ühe
+   * päringuga ja tunni vahetamine on mäluvalik — hetkeline.
+   */
+  const [dayFrames, setDayFrames] = useState<GridFrame[]>([]);
+
+  // Ööpäev, mille kaadrid meil on. Uus päring alles siis, kui päev vahetub.
+  const dayKey = new Date(dataTime).toISOString().slice(0, 10);
+
   useEffect(() => {
     if (!view || !needWind) {
-      setGridFrame(null);
+      setDayFrames([]);
       return;
     }
     const ac = new AbortController();
     const steps = gridStepsFor(window.innerWidth);
     api
-      .grid(
+      .gridDay(
         {
           bbox: view.bbox,
           steps,
           vars: ['wind_speed', 'wind_dir', 'wind_gust'],
-          time: selectedTime.toISOString(),
+          time: dataTime.toISOString(),
           model: activeModel === 'best_match' ? undefined : activeModel,
         },
         ac.signal,
       )
-      .then((frame) => {
-        setGridFrame(frame);
+      .then((res) => {
+        setDayFrames(res.frames);
         setLayerNotice(null);
       })
       .catch((err: unknown) => {
@@ -163,32 +190,24 @@ export function App() {
         );
       });
     return () => ac.abort();
-  }, [view, needWind, selectedTime, activeModel]);
+    // Ainult ala, mudel ja PÄEV — mitte tund.
+  }, [view, needWind, dayKey, activeModel]);
 
-  useEffect(() => {
-    // Kui väli näitab sama tuulekiirust, mida nooled niikuinii toovad,
-    // ei tee me teist päringut — kasutame sama kaadrit.
-    if (!view || !fieldVar || fieldVar === 'wind_speed') {
-      setFieldFrame(null);
-      return;
+  /** Valitud tunni kaader mälust. Kerimine ei puuduta võrku. */
+  const gridFrame = useMemo(() => {
+    if (dayFrames.length === 0) return null;
+    const target = new Date(selectedTime).setMinutes(0, 0, 0);
+    let best: GridFrame | null = null;
+    let bestDiff = Infinity;
+    for (const f of dayFrames) {
+      const diff = Math.abs(new Date(f.time).getTime() - target);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = f;
+      }
     }
-    const ac = new AbortController();
-    const steps = gridStepsFor(window.innerWidth);
-    api
-      .grid(
-        {
-          bbox: view.bbox,
-          steps,
-          vars: [fieldVar],
-          time: selectedTime.toISOString(),
-          model: activeModel === 'best_match' ? undefined : activeModel,
-        },
-        ac.signal,
-      )
-      .then(setFieldFrame)
-      .catch(() => {});
-    return () => ac.abort();
-  }, [view, fieldVar, selectedTime, activeModel]);
+    return best;
+  }, [dayFrames, selectedTime]);
 
   // Interpoleeritud tuuleväli — sellest toituvad nii nooled kui osakesed.
   const windField: Field | null = useMemo(() => buildWindField(gridFrame), [gridFrame]);

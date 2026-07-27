@@ -146,7 +146,44 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
   }
 }
 
-/** Jaama vihje: nimi, tüüp ja üks põhinäit, kui see olemas on. */
+/**
+ * Vihje ühine kuju.
+ *
+ * Kolm objektitüüpi (jaam, sadam, laev) said varem igaüks oma paigutuse ja
+ * tulemus oli ebaühtlane: kord oli number nime taga, kord silt selle all, ja
+ * silt ei olnud oma väärtuse kõrval. Nüüd on struktuur alati sama:
+ *
+ *   NIMI                 <- paks, esimene rida
+ *   silt  väärtus ühik   <- paar, mis kuulub kokku
+ *   lisainfo             <- valikuline, tuhmim
+ *
+ * Silt ja väärtus samal real on siin oluline: "3.8 m" ilma sildita ei ütle,
+ * kas see on süvis, lainekõrgus või kai pikkus.
+ */
+interface TipSpec {
+  title: string;
+  /** Silt + väärtus, mis kuuluvad kokku. */
+  metric?: { label: string; value: string; unit?: string };
+  /** Tuhmim lisarida, nt tüüp või olek. */
+  note?: string;
+}
+
+function tipHtml(spec: TipSpec): string {
+  const metric = spec.metric
+    ? `<div class="tip__metric">
+         <span class="tip__label">${escapeHtml(spec.metric.label)}</span>
+         <span class="tip__value">${escapeHtml(spec.metric.value)}${
+           spec.metric.unit ? `<small>${escapeHtml(spec.metric.unit)}</small>` : ''
+         }</span>
+       </div>`
+    : '';
+
+  const note = spec.note ? `<div class="tip__note">${escapeHtml(spec.note)}</div>` : '';
+
+  return `<div class="tip__name">${escapeHtml(spec.title)}</div>${metric}${note}`;
+}
+
+/** Jaama vihje: nimi, põhinäit ja tüüp. */
 function stationTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const p = f.properties as Record<string, unknown>;
   const { t, speedUnit } = ctx;
@@ -163,47 +200,123 @@ function stationTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const primary: Variable | null =
     values.wind_speed != null ? 'wind_speed' : values.wave_height != null ? 'wave_height' : null;
 
-  const reading = primary
-    ? `<span class="tip__value">${escapeHtml(formatValue(primary, values[primary], speedUnit))}` +
-      `<small>${escapeHtml(unitLabel(primary, speedUnit))}</small></span>`
-    : '';
-
-  return `
-    <div class="tip__row">
-      <span class="tip__name">${escapeHtml(String(p.name ?? ''))}</span>
-      ${reading}
-    </div>
-    <div class="tip__sub">${escapeHtml(t(`station.kind.${String(p.kind ?? 'coastal')}`))}</div>`;
+  return tipHtml({
+    title: String(p.name ?? ''),
+    metric: primary
+      ? {
+          label: t(`var.${primary}`),
+          value: formatValue(primary, values[primary], speedUnit),
+          unit: unitLabel(primary, speedUnit),
+        }
+      : undefined,
+    note: t(`station.kind.${String(p.kind ?? 'coastal')}`),
+  });
 }
 
-/** Sadama vihje: nimi ja süvis — süvis otsustab, kas sinna üldse tasub minna. */
+/** Sadama vihje: süvis otsustab, kas sinna üldse tasub minna. */
 function harbourTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const p = f.properties as Record<string, unknown>;
   const { t } = ctx;
   const draught = p.maxDraught === null || p.maxDraught === undefined ? null : Number(p.maxDraught);
 
-  const value =
-    draught !== null
-      ? `<span class="tip__value">${draught.toFixed(1)}<small>m</small></span>`
-      : '';
+  return tipHtml({
+    title: String(p.name ?? ''),
+    metric:
+      draught !== null
+        ? { label: t('harbour.maxDraught'), value: draught.toFixed(1), unit: 'm' }
+        : undefined,
+    note: draught === null ? t('harbour.title') : undefined,
+  });
+}
+
+/** Laeva vihje: nimi, kiirus ja tüüp. */
+function vesselTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
+  const p = f.properties as Record<string, unknown>;
+  const { t } = ctx;
+
+  const name = String(p.name ?? '').trim() || t('vessel.unknown');
+  const sog = p.sog === null || p.sog === undefined ? null : Number(p.sog);
+  const category = String(p.category ?? 'default');
+  const lengthM = p.lengthM === null || p.lengthM === undefined ? null : Number(p.lengthM);
+
+  const type = t(`key.vessel.${category === 'default' ? 'other' : category}`);
+
+  return tipHtml({
+    title: name,
+    metric:
+      sog !== null && sog >= 0.5
+        ? { label: t('vessel.sog'), value: sog.toFixed(1), unit: 'kn' }
+        : undefined,
+    note: lengthM !== null ? `${type} · ${lengthM} m` : type,
+  });
+}
+
+export function closePopup(): void {
+  popup?.remove();
+  popup = null;
+  openFeatureId = null;
+  hoverTip?.remove();
+  hoverTip = null;
+}
+
+function coordsOf(f: MapGeoJSONFeature, fallback: maplibregl.LngLat): maplibregl.LngLatLike {
+  if (f.geometry.type === 'Point') {
+    const [lon, lat] = f.geometry.coordinates as [number, number];
+    return [lon, lat];
+  }
+  return fallback;
+}
+
+/** Jaama popup: nimi, tüüp, vanus ja kõik mõõdetud väärtused. */
+function stationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
+  const p = f.properties as Record<string, unknown>;
+  const { t, speedUnit } = ctx;
+
+  let values: Partial<Record<Variable, number | null>> = {};
+  try {
+    values = JSON.parse(String(p.values ?? '{}')) as typeof values;
+  } catch {
+    // Vigane JSON ei tohi popupi katki teha — näitame vähemalt nime.
+  }
+
+  const kind = String(p.kind ?? 'coastal');
+  const ageSeconds = Number(p.ageSeconds);
+  const freshness = String(p.freshness ?? 'none');
+
+  const rows = (Object.entries(values) as [Variable, number | null][])
+    .filter(([, v]) => v !== null && v !== undefined)
+    .map(
+      ([variable, v]) => `
+        <tr>
+          <th>${escapeHtml(t(`var.${variable}`))}</th>
+          <td>${escapeHtml(formatValue(variable, v, speedUnit))}
+            <small>${escapeHtml(unitLabel(variable, speedUnit))}</small></td>
+        </tr>`,
+    )
+    .join('');
 
   return `
-    <div class="tip__row">
-      <span class="tip__name">${escapeHtml(String(p.name ?? ''))}</span>
-      ${value}
-    </div>
-    <div class="tip__sub">${escapeHtml(
-      draught !== null ? t('harbour.maxDraught') : t('harbour.title'),
-    )}</div>`;
+    <div class="popup">
+      <div class="popup__head">
+        <strong>${escapeHtml(String(p.name ?? ''))}</strong>
+        <span class="popup__kind">${escapeHtml(t(`station.kind.${kind}`))}</span>
+      </div>
+      <div class="popup__age popup__age--${escapeHtml(freshness)}">
+        ${escapeHtml(formatAge(ageSeconds, t))}
+      </div>
+      ${rows ? `<table class="popup__table">${rows}</table>` : `<p class="popup__empty">${escapeHtml(t('station.noData'))}</p>`}
+      <div class="popup__source">${escapeHtml(String(p.providerId ?? ''))}</div>
+    </div>`;
 }
+
 
 /**
  * Sadama popup.
  *
  * Väljad on järjestatud selle järgi, mis otsustab sissesõidu: kõigepealt
- * SÜVIS (kas ma mahun), siis teenused, siis kontakt. Puuduvaid välju ei näidata
- * tühjana — OSM-i katvus on väljade kaupa väga erinev ja tühjad read jätaksid
- * mulje, et sadamas neid asju POLE, mitte et me ei tea.
+ * SÜVIS (kas ma mahun), siis teenused, siis kontakt. Puuduvaid välju ei
+ * näidata tühjana — OSM-i katvus on väljade kaupa väga erinev ja tühi rida
+ * jätaks mulje, et sadamas neid asju POLE, mitte et me ei tea.
  */
 function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const p = f.properties as Record<string, unknown>;
@@ -274,90 +387,6 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       ${rows.length ? `<table class="popup__table">${rows.join('')}</table>` : ''}
       ${links.length ? `<div class="popup__links">${links.join(' · ')}</div>` : ''}
       <div class="popup__source">OpenStreetMap</div>
-    </div>`;
-}
-
-/** Laeva vihje: nimi ja tüüp, pluss kiirus kui liigub. */
-function vesselTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
-  const p = f.properties as Record<string, unknown>;
-  const { t } = ctx;
-
-  const name = String(p.name ?? '').trim() || t('vessel.unknown');
-  const sog = p.sog === null || p.sog === undefined ? null : Number(p.sog);
-  const category = String(p.category ?? 'default');
-  const lengthM = p.lengthM === null || p.lengthM === undefined ? null : Number(p.lengthM);
-
-  const speed =
-    sog !== null && sog >= 0.5
-      ? `<span class="tip__value">${sog.toFixed(1)}<small>kn</small></span>`
-      : '';
-
-  const type = t(`key.vessel.${category === 'default' ? 'other' : category}`);
-  const sub = lengthM !== null ? `${escapeHtml(type)} · ${lengthM} m` : escapeHtml(type);
-
-  return `
-    <div class="tip__row">
-      <span class="tip__name">${escapeHtml(name)}</span>
-      ${speed}
-    </div>
-    <div class="tip__sub">${sub}</div>`;
-}
-
-export function closePopup(): void {
-  popup?.remove();
-  popup = null;
-  openFeatureId = null;
-  hoverTip?.remove();
-  hoverTip = null;
-}
-
-function coordsOf(f: MapGeoJSONFeature, fallback: maplibregl.LngLat): maplibregl.LngLatLike {
-  if (f.geometry.type === 'Point') {
-    const [lon, lat] = f.geometry.coordinates as [number, number];
-    return [lon, lat];
-  }
-  return fallback;
-}
-
-/** Jaama popup: nimi, tüüp, vanus ja kõik mõõdetud väärtused. */
-function stationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
-  const p = f.properties as Record<string, unknown>;
-  const { t, speedUnit } = ctx;
-
-  let values: Partial<Record<Variable, number | null>> = {};
-  try {
-    values = JSON.parse(String(p.values ?? '{}')) as typeof values;
-  } catch {
-    // Vigane JSON ei tohi popupi katki teha — näitame vähemalt nime.
-  }
-
-  const kind = String(p.kind ?? 'coastal');
-  const ageSeconds = Number(p.ageSeconds);
-  const freshness = String(p.freshness ?? 'none');
-
-  const rows = (Object.entries(values) as [Variable, number | null][])
-    .filter(([, v]) => v !== null && v !== undefined)
-    .map(
-      ([variable, v]) => `
-        <tr>
-          <th>${escapeHtml(t(`var.${variable}`))}</th>
-          <td>${escapeHtml(formatValue(variable, v, speedUnit))}
-            <small>${escapeHtml(unitLabel(variable, speedUnit))}</small></td>
-        </tr>`,
-    )
-    .join('');
-
-  return `
-    <div class="popup">
-      <div class="popup__head">
-        <strong>${escapeHtml(String(p.name ?? ''))}</strong>
-        <span class="popup__kind">${escapeHtml(t(`station.kind.${kind}`))}</span>
-      </div>
-      <div class="popup__age popup__age--${escapeHtml(freshness)}">
-        ${escapeHtml(formatAge(ageSeconds, t))}
-      </div>
-      ${rows ? `<table class="popup__table">${rows}</table>` : `<p class="popup__empty">${escapeHtml(t('station.noData'))}</p>`}
-      <div class="popup__source">${escapeHtml(String(p.providerId ?? ''))}</div>
     </div>`;
 }
 

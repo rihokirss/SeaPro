@@ -41,6 +41,14 @@ export interface WeatherProvider {
   /** Väli kaardikihi jaoks. Ainult kui `caps.supportsGrid`. */
   grid?(q: GridQuery): Promise<GridFrame>;
 
+  /**
+   * Kogu ööpäev korraga.
+   *
+   * Klient hoiab need mälus ja vahetab tunde ilma võrguta — ajaliuguri
+   * liigutamine peab olema hetkeline, mitte HTTP-ringi taga.
+   */
+  gridDay?(q: GridQuery): Promise<GridFrame[]>;
+
   /** Mõõtejaamad koos viimaste väärtustega. Ainult kui `caps.supportsStations`. */
   stations?(): Promise<StationReading[]>;
 

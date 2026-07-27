@@ -93,11 +93,17 @@ interface OmResponse {
  *  3. Allika enda 429 paneb jahtumise peale. Ilma selleta pommitas iga
  *     kliendipäring allikat edasi ja meie eelarve sulas — täpselt see
  *     juhtuski, kui Open-Meteo tunnilimiit täis sai.
+ *  4. Õnnestumine LÕPETAB jahtumise. Muidu istuks rakendus ooteajas ka siis,
+ *     kui allikas on juba taastunud (nt IP vahetus).
  */
 async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
   rateLimiter.spend('open-meteo', cost);
   try {
-    return await fetchJson<T>(url);
+    const result = await fetchJson<T>(url);
+    // Õnnestunud vastus tähendab, et allikas on taas saadaval — kui me olime
+    // jahtumises, pole selle hoidmine enam põhjendatud.
+    rateLimiter.recovered('open-meteo');
+    return result;
   } catch (err) {
     rateLimiter.refund('open-meteo', cost);
     if (err instanceof HttpError && err.status === 429) {
@@ -149,7 +155,44 @@ export class OpenMeteoProvider implements WeatherProvider {
     return mergeByModel(atmo, marine, models);
   }
 
+  /** Üks tund. Ehitatud sama ööpäevase ploki pealt mis `gridDay`. */
   async grid(q: GridQuery): Promise<GridFrame> {
+    const frames = await this.gridDay(q);
+    const wanted = new Date(q.time);
+    wanted.setUTCMinutes(0, 0, 0);
+    const target = wanted.getTime();
+
+    let best: GridFrame | undefined;
+    let bestDiff = Infinity;
+    for (const f of frames) {
+      const diff = Math.abs(new Date(f.time).getTime() - target);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = f;
+      }
+    }
+
+    return (
+      best ?? {
+        providerId: this.caps.id,
+        modelId: q.modelId,
+        time: q.time,
+        variables: q.variables,
+        points: [],
+      }
+    );
+  }
+
+  /**
+   * KÕIK ööpäeva tunnid ühe päringuga.
+   *
+   * Server tõmbas ööpäevase ploki juba varem, aga andis kliendile ühe tunni
+   * korraga — iga ajaliuguri samm tähendas uut HTTP-ringi ja kaardikiht
+   * uuenes nähtava viivitusega. Terve plokk korraga tähendab, et kerimine
+   * käib mälust ja on hetkeline. Andmemaht on väike: 64 punkti x 24 tundi
+   * x paar välja.
+   */
+  async gridDay(q: GridQuery): Promise<GridFrame[]> {
     const [south, west, north, east] = q.bbox;
 
     // Open-Meteo loeb mitmepunktilise päringu IGA PUNKTI eraldi kutseks.
@@ -192,9 +235,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     const byVariable = isMarine ? MARINE_BY_VARIABLE : ATMO_BY_VARIABLE;
 
     const apiVars = q.variables.map((v) => byVariable[v]).filter((x): x is string => !!x);
-    if (apiVars.length === 0) {
-      return { providerId: this.caps.id, time: q.time, variables: q.variables, points: [] };
-    }
+    if (apiVars.length === 0) return [];
 
     // Ööpäevane plokk, mis sisaldab küsitud tundi. UTC-päeva piirile joondamine
     // hoiab vahemäluvõtme stabiilsena — muidu tekiks iga tunni kohta oma plokk.
@@ -235,51 +276,47 @@ export class OpenMeteoProvider implements WeatherProvider {
     // Mitme punkti korral tagastab Open-Meteo massiivi, ühe punkti korral objekti.
     const responses = Array.isArray(value) ? value : [value];
 
-    const points: GridPoint[] = [];
+    // Ajaveerg on kõigil punktidel sama, seega piisab esimesest vastusest.
+    const times = (Array.isArray(value) ? value[0] : value)?.hourly?.time as string[] | undefined;
+    if (!times || times.length === 0) return [];
 
-    // Vastus katab terve ööpäeva; leiame küsitud tunni indeksi ajaveerust.
-    // Otsime ajatempli järgi, mitte ei arvuta nihet — nii ei lagune asi, kui
-    // Open-Meteo peaks akna servi ümardama.
-    const firstTimes = (Array.isArray(value) ? value[0] : value)?.hourly?.time as
-      | string[]
-      | undefined;
-    const hourIndex = findHourIndex(firstTimes, q.time);
-    if (hourIndex < 0) {
-      return { providerId: this.caps.id, modelId: q.modelId, time: q.time, variables: q.variables, points: [] };
-    }
+    const frames: GridFrame[] = times.map((rawTime) => ({
+      providerId: this.caps.id,
+      modelId: q.modelId,
+      time: normalizeTime(rawTime),
+      variables: q.variables,
+      points: [] as GridPoint[],
+    }));
 
     responses.forEach((res, i) => {
       const hourly = res.hourly;
       if (!hourly) return;
 
-      const values: GridPoint['values'] = {};
-      let any = false;
-      for (const [apiName, mine] of Object.entries(varMap)) {
-        const col = hourly[apiName] as (number | null)[] | undefined;
-        if (!col || col.length === 0) continue;
-        const v = round(col[hourIndex], 2);
-        values[mine] = v;
-        if (v !== null) any = true;
-      }
-      // Maismaapunktidel pole lainekõrgust — jätame need kaardilt hoopis välja,
-      // muidu joonistaks valevärvi-kiht üle Eesti nulli.
-      if (!any) return;
-
       // Kasutame KÜSITUD koordinaati, mitte vastuses tagastatud oma.
       // Open-Meteo tagastab mudeli lahtri keskme, mille tõttu mitu naaberpunkti
       // saavad identse koordinaadi — nooled kuhjuksid üksteise otsa ja
-      // valevärvi-välja ruudustik laguneks. Vastused tulevad küsimise
-      // järjekorras, seega indeks on usaldusväärne.
-      points.push({ lat: lats[i] ?? res.latitude, lon: lons[i] ?? res.longitude, values });
+      // valevärvi-välja ruudustik laguneks.
+      const lat = lats[i] ?? res.latitude;
+      const lon = lons[i] ?? res.longitude;
+
+      for (let h = 0; h < frames.length; h++) {
+        const values: GridPoint['values'] = {};
+        let any = false;
+        for (const [apiName, mine] of Object.entries(varMap)) {
+          const col = hourly[apiName] as (number | null)[] | undefined;
+          if (!col || col.length === 0) continue;
+          const v = round(col[h], 2);
+          values[mine] = v;
+          if (v !== null) any = true;
+        }
+        // Maismaapunktidel pole lainekõrgust — jätame need kaardilt hoopis
+        // välja, muidu joonistaks valevärvi-kiht üle Eesti nulli.
+        if (!any) continue;
+        frames[h]!.points.push({ lat, lon, values });
+      }
     });
 
-    return {
-      providerId: this.caps.id,
-      modelId: q.modelId,
-      time: q.time,
-      variables: q.variables,
-      points,
-    };
+    return frames;
   }
 
   async #fetchSeries(

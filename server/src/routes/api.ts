@@ -187,7 +187,17 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const snapped = snapBbox([south, west, north, east]);
     const time = snapHour(typeof q.time === 'string' && q.time ? q.time : new Date().toISOString());
 
+    // `window=day` annab kogu ööpäeva korraga. Server tõmbas selle niikuinii
+    // ühe päringuga; ühe tunni kaupa väljastamine tähendas kliendile uut
+    // HTTP-ringi iga ajaliuguri sammu peale ja nähtavat viivitust.
+    const wantDay = String(q.window ?? '') === 'day' && Boolean(provider.gridDay);
+
     try {
+      if (wantDay) {
+        const frames = await provider.gridDay!({ bbox: snapped, steps, variables, time, modelId });
+        reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+        return { frames };
+      }
       const frame = await provider.grid({ bbox: snapped, steps, variables, time, modelId });
       reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
       return frame;

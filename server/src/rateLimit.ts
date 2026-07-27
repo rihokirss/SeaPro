@@ -26,9 +26,21 @@ interface Budget {
    * lõpetame päringud kohe, ilma võrku puutumata.
    */
   cooldownUntil: number;
+  /**
+   * Millal tohib jahtumise ajal ÜKS proovipäring läbi lasta.
+   *
+   * Jäik jahtumine kuni täistunnini eeldab, et allikas taastub täpselt siis.
+   * Tegelikkuses võib ta taastuda varem — näiteks kui IP vahetub või limiit
+   * käib mõne muu arvestuse järgi. Ilma proovita jääks rakendus istuma ja
+   * ütlema "oota", kuigi andmed oleksid juba saadaval.
+   */
+  probeAfter: number;
 }
 
 const HOUR_MS = 3600_000;
+
+/** Kui tihti tohib jahtumise ajal proovipäringut teha. */
+const PROBE_INTERVAL_MS = 60_000;
 
 export class RateLimitError extends Error {
   constructor(
@@ -53,7 +65,13 @@ class RateLimiter {
    * välist IP-d.
    */
   register(source: string, limit: number): void {
-    this.#budgets.set(source, { limit, spent: 0, windowStart: Date.now(), cooldownUntil: 0 });
+    this.#budgets.set(source, {
+      limit,
+      spent: 0,
+      windowStart: Date.now(),
+      cooldownUntil: 0,
+      probeAfter: 0,
+    });
   }
 
   /**
@@ -67,8 +85,13 @@ class RateLimiter {
     const now = Date.now();
 
     // Allikas ütles ise, et aitab — ära puuduta võrku enne, kui aeg möödub.
+    // Erand: aeg-ajalt laseme ÜHE proovipäringu läbi, et märgata varasemat
+    // taastumist. Õnnestumisel kutsub kutsuja `recovered()` ja jahtumine kaob.
     if (budget.cooldownUntil > now) {
-      throw new RateLimitError(source, Math.ceil((budget.cooldownUntil - now) / 1000));
+      if (now < budget.probeAfter) {
+        throw new RateLimitError(source, Math.ceil((budget.cooldownUntil - now) / 1000));
+      }
+      budget.probeAfter = now + PROBE_INTERVAL_MS;
     }
 
     // Aken järgib tegelikku täistundi, sest Open-Meteo lähtestab samamoodi.
@@ -106,7 +129,17 @@ class RateLimiter {
   cooldown(source: string, seconds: number): void {
     const budget = this.#budgets.get(source);
     if (!budget) return;
-    budget.cooldownUntil = Math.max(budget.cooldownUntil, Date.now() + seconds * 1000);
+    const now = Date.now();
+    budget.cooldownUntil = Math.max(budget.cooldownUntil, now + seconds * 1000);
+    budget.probeAfter = now + PROBE_INTERVAL_MS;
+  }
+
+  /** Allikas vastas edukalt — jahtumine pole enam põhjendatud. */
+  recovered(source: string): void {
+    const budget = this.#budgets.get(source);
+    if (!budget || budget.cooldownUntil === 0) return;
+    budget.cooldownUntil = 0;
+    budget.probeAfter = 0;
   }
 
   /** Kas eelarves on veel ruumi? Kasulik enne kalli päringu koostamist. */

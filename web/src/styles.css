@@ -1899,9 +1899,12 @@ textarea {
 }
 
 .tip .maplibregl-popup-content {
-  padding: 6px 10px !important;
-  border-radius: var(--radius-pill) !important;
+  padding: 7px 11px !important;
+  border-radius: var(--radius) !important;
   box-shadow: var(--shadow-sm) !important;
+  /* Vihje on kaks tihedat rida, mitte lõiketekst. Keha päritud reakõrgus
+     (1.45) ajas nime ja alarea lahku ning vihje näis lohisev. */
+  line-height: 1.25;
 }
 
 .tip .maplibregl-popup-tip {
@@ -1911,33 +1914,41 @@ textarea {
 .tip__row {
   display: flex;
   align-items: baseline;
-  gap: var(--s2, 8px);
+  gap: var(--s3, 12px);
   white-space: nowrap;
+  line-height: 1.25;
 }
 
 .tip__name {
   font-size: var(--t-small, 13px);
   font-weight: var(--w-bold, 650);
+  line-height: inherit;
   color: var(--text);
 }
 
 .tip__value {
   margin-left: auto;
-  font-family: var(--num);
   font-size: var(--t-small, 13px);
   font-weight: var(--w-med, 550);
   font-variant-numeric: tabular-nums;
+  line-height: inherit;
   color: var(--text);
 }
 
+/* Ühik ei tohi rea kõrgust kasvatada ega baasjoont nihutada, seega on ta
+   omaette reavooluta element, mitte lihtsalt väiksem tekst. */
 .tip__value small {
+  display: inline-block;
   margin-left: 2px;
   font-size: var(--t-micro, 10px);
+  line-height: 1;
   color: var(--text-faint);
 }
 
 .tip__sub {
+  margin-top: 1px;
   font-size: var(--t-micro, 11px);
+  line-height: 1.25;
   color: var(--text-faint);
   white-space: nowrap;
 }

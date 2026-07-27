@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import {
   addHours,
@@ -83,7 +83,13 @@ export function TimeSlider({
     return () => window.removeEventListener('keydown', onKey);
   }, [step, onChange]);
 
-  const now = floorToHour();
+  /**
+   * `floorToHour()` annab iga renderi ajal UUE Date-objekti. Kuna päevasakid
+   * sõltuvad sellest useMemo kaudu, arvutati need lohistamise ajal iga sammu
+   * peale uuesti — puhas raiskamine, mis lisas liuguri tõmblemisele hoogu.
+   * Tund vahetub kord tunnis; siduda see renderdusega pole vaja.
+   */
+  const now = useMemo(() => floorToHour(), [origin]);
   const isNow = value.getTime() === now.getTime();
 
   /** Päevasakid — üks nupp iga ööpäeva kohta liuguri ulatuses. */
@@ -127,6 +133,23 @@ export function TimeSlider({
   }, [days, origin, value]);
 
   const trackRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Kas kasutaja lohistab parasjagu pöialt.
+   *
+   * Kontrollitud `<input type="range">` võitleb lohistamise ajal brauseri enda
+   * pöidlaga: brauser liigutab pöidla kohe, React renderdab hetk hiljem oma
+   * `value`-ga ja pöial nõksatab korraks tagasi. Lohistamise ajal laseme
+   * brauseril pöialt ise juhtida ja sünkroonime alles lõpus.
+   */
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    if (dragging || !trackRef.current) return;
+    // Väljastpoolt tulnud muutus (päevasakk, klaviatuur, graafik) jõuab
+    // liugurile alles siis, kui keegi teda parasjagu ei hoia.
+    trackRef.current.value = String(index);
+  }, [index, dragging]);
 
   return (
     <div className="timebar" role="group" aria-label={t('time.selected')}>

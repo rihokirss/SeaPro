@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { BASE_LAYERS, OVERLAY_LAYERS, baseStyle, type RasterLayerDef } from './basemaps';
+import {
+  BASE_LAYERS,
+  DEFAULT_BASE_ID,
+  OVERLAY_LAYERS,
+  baseStyle,
+  type RasterLayerDef,
+} from './basemaps';
 import { registerIcons } from './icons';
 import { LAYER_ORDER } from './layerOrder';
 import type { Position } from '../lib/geolocation';
@@ -129,7 +135,14 @@ export function MapView({
 
     const initLayers = (): void => {
       registerIcons(map);
-      for (const def of BASE_LAYERS) addRaster(map, def);
+      for (const def of BASE_LAYERS) {
+        addRaster(map, def);
+        // Mõlemad aluskaardid lisatakse kohe, aga nähtav on ainult üks.
+        // Nii on vahetus hetkeline ega nõua kihi ehitamist lennult.
+        if (def.id !== DEFAULT_BASE_ID) {
+          map.setLayoutProperty(def.id, 'visibility', 'none');
+        }
+      }
       // Oma asukoha allikas luuakse kohe, et kiht oleks õiges järjekorras
       // olemas ka enne esimest GPS-fixi.
       map.addSource('own-position', {

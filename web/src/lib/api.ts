@@ -107,6 +107,30 @@ export const api = {
     );
   },
 
+  /** Kogu ööpäev korraga — ajaliuguri kerimine käib siis mälust. */
+  gridDay(
+    opts: {
+      bbox: [number, number, number, number];
+      steps: number;
+      vars: Variable[];
+      time: string;
+      provider?: string;
+      model?: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<{ frames: GridFrame[] }> {
+    const p = new URLSearchParams({
+      bbox: opts.bbox.map((n) => n.toFixed(3)).join(','),
+      steps: String(opts.steps),
+      vars: opts.vars.join(','),
+      time: opts.time,
+      window: 'day',
+    });
+    if (opts.provider) p.set('provider', opts.provider);
+    if (opts.model) p.set('model', opts.model);
+    return get<{ frames: GridFrame[] }>(`/api/grid?${p}`, signal);
+  },
+
   harbours(bbox: [number, number, number, number], signal?: AbortSignal) {
     const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
     return get<{ harbours: Harbour[] }>(`/api/harbours?${p}`, signal);
