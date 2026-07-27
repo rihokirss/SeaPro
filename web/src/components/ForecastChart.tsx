@@ -155,15 +155,35 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
                   minute: '2-digit',
                 }),
         },
-        ...usable.map((s, i) => ({
-          label: s.modelId && s.modelId !== 'best_match' ? `${s.providerId} · ${s.modelId}` : s.providerId,
-          stroke: SERIES_COLORS[i % SERIES_COLORS.length]!,
-          width: 2,
-          // Katkendlikud read (puuduvad tunnid) jäävad katki, mitte ei valeta
-          // sirge joonega üle augu.
-          spanGaps: false,
-          points: { show: false },
-        })),
+        ...usable.map((s, i) => {
+          const samples = s.steps.filter((st) => st.values[variable] != null).length;
+          // Kui allikal on ajateljel hõre katvus, on ta oma sammuga hõre —
+          // mitte katkine. Siis on punktid ainus viis teda üldse näha.
+          const sparse = samples < times.length * 0.5;
+
+          return {
+            label:
+              s.modelId && s.modelId !== 'best_match'
+                ? `${s.providerId} · ${s.modelId}`
+                : s.providerId,
+            stroke: SERIES_COLORS[i % SERIES_COLORS.length]!,
+            width: 2,
+            /**
+             * Ühendame allika enda järjestikused mõõtmised.
+             *
+             * Varem oli siin `spanGaps: false` mõttega, et katkine rida ei
+             * tohi sirge joonega üle augu valetada. Ühise ajateljega koos
+             * tähendas see aga, et IGA jämedama sammuga allikas kadus täiesti
+             * ära: Windfinder annab väärtuse iga 3 tunni tagant, seega kaks
+             * kolmandikku telje punktidest olid tal null ja ühtki lõiku ei
+             * joonistatud. METOC-il on üks vaatlus ja see jäi nähtamatuks
+             * punktiks. Allika oma samm EI OLE auk, ja punktid näitavad,
+             * kus tegelikud mõõtmised on.
+             */
+            spanGaps: true,
+            points: { show: sparse, size: samples <= 2 ? 8 : 5 },
+          };
+        }),
       ],
       legend: { show: true, live: true },
       cursor: {
