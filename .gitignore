@@ -1,0 +1,19 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Saladused — EI tohi kunagi repos olla
+.env
+.env.local
+.env.*.local
+
+# Runtime
+*.log
+data/
+.cache/
+coverage/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/

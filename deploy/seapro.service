@@ -1,0 +1,39 @@
+[Unit]
+Description=SeaPro — mereilma kaardirakendus
+Documentation=https://github.com/itk/seapro
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Muuda kasutaja ja kataloog oma serveri järgi
+User=seapro
+Group=seapro
+WorkingDirectory=/opt/seapro
+
+# .env sisaldab AISSTREAM_KEY-d — hoia õigused 600 ja omanik sama mis User=
+EnvironmentFile=/opt/seapro/.env
+ExecStart=/usr/bin/node server/dist/index.js
+
+Restart=always
+RestartSec=5
+# Kui allikas (nt METOC) on pikalt maas, ei tohi see teenust tappa
+StartLimitIntervalSec=0
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=seapro
+
+# Turve: rakendus ei vaja kirjutusõigust kuhugi peale oma cache-kataloogi
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/seapro/data
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

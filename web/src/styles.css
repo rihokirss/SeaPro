@@ -1,0 +1,1526 @@
+/* ==========================================================================
+   SeaPro — merevibe kujundus
+
+   Meeleolu: pilditav navigatsiooniinstrument. Sügav ookeanisinine, messingist
+   aktsent (nagu sekstant või kompassiroos), matt klaas paneelidel, sügavus-
+   jooned taustal. Numbrid on tabelnumbritega ja monospace'i-laadsed, sest
+   need on näidud, mitte tekst.
+
+   Piirangud, mis kujundust juhivad:
+   - kaatris on käed märjad ja paat liigub  -> puutealad >= 44 px
+   - ekraani vaadatakse otsese päikese käes -> kõrge kontrast, paks tekst
+   - telefoni lõuaosa katab alumise serva   -> safe-area kõikjal
+   ========================================================================== */
+
+:root {
+  /* Ookeani sügavusskaala — tume teema on vaikimisi, sest kaardil on hele
+     merepind ja tume raam annab pildile "instrumendi" tunde. */
+  --abyss: #04121c;
+  --deep: #082334;
+  --sea: #0d3049;
+  --shoal: #14425f;
+  --foam: #e8f4fa;
+
+  --bg: var(--abyss);
+  --surface: rgba(10, 38, 55, 0.82);
+  --surface-solid: #0a2637;
+  --surface-2: rgba(20, 66, 95, 0.55);
+  --surface-3: rgba(20, 66, 95, 0.9);
+
+  --text: var(--foam);
+  --text-dim: #8fb2c7;
+  --text-faint: #5d8299;
+
+  --line: rgba(150, 205, 235, 0.16);
+  --line-strong: rgba(150, 205, 235, 0.3);
+
+  /* Messing — navigatsiooniinstrumendi aktsent. Kasutame seda ainult
+     tegevustele, mitte dekoratsioonile, et see jääks tähenduslikuks. */
+  --brass: #e0a94f;
+  --brass-dim: #b78436;
+
+  --accent: #3fb6d8;
+  --accent-strong: #1f8fb5;
+  --accent-glow: rgba(63, 182, 216, 0.35);
+
+  --danger: #f0603f;
+  --warn: #e0a83f;
+  --ok: #4fc98a;
+
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 2px 8px rgba(2, 12, 20, 0.45);
+  --shadow: 0 8px 30px rgba(2, 12, 20, 0.55);
+  --shadow-lg: 0 20px 60px rgba(2, 12, 20, 0.65);
+
+  --blur: blur(18px) saturate(1.4);
+
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  --num: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
+}
+
+/* Hele teema — päikeses loetav, aga hoiab sama merepaleti. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #dfeaf1;
+    --surface: rgba(255, 255, 255, 0.86);
+    --surface-solid: #ffffff;
+    --surface-2: rgba(13, 48, 73, 0.07);
+    --surface-3: rgba(255, 255, 255, 0.96);
+
+    --text: #072030;
+    --text-dim: #456075;
+    --text-faint: #7794a8;
+
+    --line: rgba(7, 32, 48, 0.14);
+    --line-strong: rgba(7, 32, 48, 0.26);
+
+    --brass: #a9762a;
+    --brass-dim: #8a5f1f;
+
+    --accent: #1f8fb5;
+    --accent-strong: #14708f;
+    --accent-glow: rgba(31, 143, 181, 0.25);
+
+    --shadow-sm: 0 2px 8px rgba(20, 50, 70, 0.14);
+    --shadow: 0 8px 30px rgba(20, 50, 70, 0.18);
+    --shadow-lg: 0 20px 60px rgba(20, 50, 70, 0.24);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.map-container {
+  position: absolute;
+  inset: 0;
+}
+
+/* Vinjett — tõmbab pilgu kaardi keskele ja annab sügavuse. Ei püüa hiirt. */
+.app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    transparent 55%,
+    rgba(4, 18, 28, 0.28) 100%
+  );
+}
+
+@media (prefers-color-scheme: light) {
+  .app::after {
+    background: radial-gradient(ellipse at 50% 45%, transparent 60%, rgba(20, 50, 70, 0.12) 100%);
+  }
+}
+
+/* Ühine klaaspind. */
+.glass {
+  background: var(--surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+}
+
+/* ==========================================================================
+   Ülariba
+   ========================================================================== */
+
+.topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 14px
+    calc(12px + var(--safe-left));
+  background: linear-gradient(to bottom, rgba(4, 18, 28, 0.68) 0%, rgba(4, 18, 28, 0) 100%);
+  pointer-events: none;
+  flex-wrap: wrap;
+}
+
+.topbar > * {
+  pointer-events: auto;
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px 7px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Kompassiroos logo asemel — üks SVG, ei vaja fonti ega pilti. */
+.topbar__mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: var(--brass);
+}
+
+.topbar__brand strong {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+.topbar__brand span {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.topbar__notice {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  background: rgba(224, 168, 63, 0.16);
+  border: 1px solid rgba(224, 168, 63, 0.45);
+  color: var(--warn);
+  font-size: 13px;
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+}
+
+/* ==========================================================================
+   Nupud
+   ========================================================================== */
+
+.icon-btn {
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--text);
+  background: var(--surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.14s var(--ease), background 0.18s, border-color 0.18s,
+    box-shadow 0.18s;
+}
+
+.icon-btn:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.icon-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-btn.is-active {
+  background: var(--accent-strong);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-sm);
+}
+
+.icon-btn--primary {
+  background: linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
+.icon-btn--brass.is-active {
+  background: linear-gradient(160deg, var(--brass) 0%, var(--brass-dim) 100%);
+  border-color: transparent;
+  box-shadow: 0 0 0 3px rgba(224, 169, 79, 0.25), var(--shadow-sm);
+  color: #26170a;
+}
+
+/* Pulseeriv rõngas GPS-nupul, kui asukohta otsitakse. */
+.icon-btn.is-seeking::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid var(--accent);
+  animation: ping 1.5s var(--ease) infinite;
+}
+
+@keyframes ping {
+  0% { opacity: 0.8; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.lang-select {
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.lang-select option {
+  background: var(--surface-solid);
+  color: var(--text);
+}
+
+/* ==========================================================================
+   Rippmenüü (lemmikud)
+   ========================================================================== */
+
+.topbar__fav {
+  position: relative;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--surface-3);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 30;
+  animation: drop-in 0.16s var(--ease);
+}
+
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dropdown li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 10px;
+}
+
+.dropdown li:hover {
+  background: var(--surface-2);
+}
+
+.dropdown__item {
+  flex: 1;
+  min-height: 42px;
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.dropdown__coords {
+  display: block;
+  font-family: var(--num);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.dropdown__remove {
+  min-width: 34px;
+  min-height: 34px;
+  color: var(--text-faint);
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dropdown__remove:hover {
+  color: var(--danger);
+}
+
+.dropdown .muted {
+  margin: 6px 8px;
+}
+
+/* ==========================================================================
+   Külgpaneel
+   ========================================================================== */
+
+.panel-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  background: rgba(2, 12, 20, 0.55);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s var(--ease);
+}
+
+.panel-scrim.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  width: min(390px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-3);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(101%);
+  transition: transform 0.28s var(--ease);
+  padding-right: var(--safe-right);
+}
+
+.panel.is-open {
+  transform: translateX(0);
+}
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(12px + var(--safe-top)) 14px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel__head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.panel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 14px calc(20px + var(--safe-bottom));
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.panel__body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel__body::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+
+.panel__section {
+  margin-bottom: 22px;
+}
+
+.panel__section h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--text-faint);
+}
+
+/* Joon pealkirja järel — merekaardi ruudustiku vihje. */
+.panel__section h3::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
+}
+
+.panel__subhead {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.panel__hint {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   Lülitid
+   ========================================================================== */
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 0 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.toggle:hover {
+  background: var(--surface-2);
+}
+
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle__box {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 25px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  position: relative;
+  transition: background 0.2s var(--ease), border-color 0.2s;
+}
+
+.toggle__box::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: transform 0.2s var(--ease), background 0.2s;
+}
+
+.toggle input:checked + .toggle__box {
+  background: linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border-color: transparent;
+}
+
+.toggle input:checked + .toggle__box::after {
+  transform: translateX(19px);
+  background: #fff;
+}
+
+.toggle input:focus-visible + .toggle__box {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.toggle__text {
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.toggle__text small {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   Kiibid
+   ========================================================================== */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.chip {
+  min-height: 38px;
+  padding: 7px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s var(--ease);
+}
+
+.chip:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.chip:active {
+  transform: scale(0.96);
+}
+
+.chip.is-active {
+  background: linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 10px var(--accent-glow);
+}
+
+.chips--tight .chip {
+  min-height: 34px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   Värviskaala legend
+   ========================================================================== */
+
+.scalebar {
+  margin-top: 12px;
+}
+
+.scalebar__bar {
+  height: 14px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.scalebar__labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-family: var(--num);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   Alumine leht (punktiprognoos)
+   ========================================================================== */
+
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 22;
+  max-height: 74vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-3);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border-top: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(102%);
+  transition: transform 0.3s var(--ease);
+  will-change: transform;
+}
+
+.sheet.is-open {
+  transform: translateY(0);
+}
+
+.sheet__grip {
+  width: 44px;
+  height: 4px;
+  margin: 9px auto 2px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.sheet__coords {
+  margin: 3px 0 0;
+  font-family: var(--num);
+  font-size: 12px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet__actions {
+  display: flex;
+  gap: 7px;
+  flex: none;
+}
+
+.sheet__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px calc(16px + var(--safe-bottom));
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.sheet__body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sheet__body::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+
+/* --- Kiirülevaate plaadid (valitud hetke põhinäidud) --------------------- */
+
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.readout {
+  position: relative;
+  padding: 9px 10px 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Värviriba plaadi vasakus servas — tuule tugevus ühe pilguga. */
+.readout__accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+
+.readout__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.readout__value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--num);
+  font-size: 21px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.readout__unit {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+/* Suunanool näidu sees. */
+.readout__arrow {
+  display: inline-block;
+  font-size: 14px;
+  color: var(--accent);
+  transform-origin: center;
+}
+
+/* ==========================================================================
+   Vahelehed
+   ========================================================================== */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.tab {
+  flex: 1;
+  min-height: 38px;
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  border-radius: 9px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+
+.tab.is-active {
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ==========================================================================
+   Võrdlustabel
+   ========================================================================== */
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare th,
+.compare td {
+  padding: 8px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.compare tr:last-child th,
+.compare tr:last-child td {
+  border-bottom: 0;
+}
+
+.compare td {
+  font-family: var(--num);
+}
+
+.compare thead th {
+  position: sticky;
+  top: 0;
+  text-align: right;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  font-weight: 650;
+  background: var(--surface-3);
+  backdrop-filter: var(--blur);
+}
+
+.compare thead th span {
+  display: block;
+}
+
+.compare thead th .sub {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.compare tbody th {
+  text-align: left;
+  font-weight: 500;
+  position: sticky;
+  left: 0;
+  background: var(--surface-3);
+  backdrop-filter: var(--blur);
+}
+
+.compare tbody tr:nth-child(even) td {
+  background: rgba(150, 205, 235, 0.04);
+}
+
+.compare tbody th small {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   Graafik
+   ========================================================================== */
+
+.forecast-chart {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 4px 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text-dim);
+}
+
+.forecast-chart .u-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.forecast-chart .u-legend {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.forecast-chart .u-legend .u-marker {
+  border-radius: 2px;
+}
+
+/* ==========================================================================
+   Teated
+   ========================================================================== */
+
+.muted {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.source-errors {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  list-style: none;
+  background: rgba(224, 168, 63, 0.12);
+  border: 1px solid rgba(224, 168, 63, 0.35);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.source-errors li + li {
+  margin-top: 3px;
+}
+
+.source-errors li.is-parse {
+  color: var(--danger);
+}
+
+/* Laadimisriba — õhuke, ei hüppa layout'i. */
+.loading-bar {
+  height: 2px;
+  margin: -12px -14px 12px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: sweep 1.1s linear infinite;
+}
+
+@keyframes sweep {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
+
+/* ==========================================================================
+   Kaardi juhtelemendid
+   ========================================================================== */
+
+.maplibregl-ctrl-top-right {
+  margin-top: calc(64px + var(--safe-top));
+  margin-right: calc(10px + var(--safe-right));
+}
+
+.maplibregl-ctrl-bottom-left,
+.maplibregl-ctrl-bottom-right {
+  margin-bottom: calc(104px + var(--safe-bottom));
+}
+
+.maplibregl-ctrl-group {
+  background: var(--surface) !important;
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-sm) !important;
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group button {
+  width: 40px !important;
+  height: 40px !important;
+  background: transparent !important;
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--line) !important;
+}
+
+.maplibregl-ctrl-group button span {
+  filter: invert(1) brightness(1.6);
+}
+
+@media (prefers-color-scheme: light) {
+  .maplibregl-ctrl-group button span {
+    filter: none;
+  }
+}
+
+.maplibregl-ctrl-scale {
+  background: var(--surface) !important;
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--line) !important;
+  border-top: 0 !important;
+  border-radius: 0 0 8px 8px;
+  color: var(--text-dim) !important;
+  font-family: var(--num);
+  font-size: 11px !important;
+  padding: 2px 6px !important;
+}
+
+.maplibregl-ctrl-attrib {
+  background: var(--surface) !important;
+  backdrop-filter: var(--blur);
+  border-radius: var(--radius-pill) !important;
+  font-size: 11px;
+}
+
+.maplibregl-ctrl-attrib a,
+.maplibregl-ctrl-attrib {
+  color: var(--text-faint) !important;
+}
+
+.maplibregl-popup-content {
+  background: var(--surface-3) !important;
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  color: var(--text);
+  padding: 10px 12px !important;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: var(--surface-3) !important;
+  border-bottom-color: var(--surface-3) !important;
+}
+
+/* ==========================================================================
+   Lauaarvuti
+   ========================================================================== */
+
+@media (min-width: 880px) {
+  .time-slider {
+    left: 18px;
+    right: 452px;
+    bottom: 18px;
+  }
+
+  .sheet {
+    left: auto;
+    right: 18px;
+    bottom: 18px;
+    top: auto;
+    width: 420px;
+    max-height: calc(100vh - 150px);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line-strong);
+    transform: translateY(0) translateX(calc(100% + 24px));
+  }
+
+  .sheet.is-open {
+    transform: translateX(0);
+  }
+
+  .sheet__grip {
+    display: none;
+  }
+
+  .sheet__head {
+    padding-top: 14px;
+  }
+
+  .map-legend {
+    bottom: calc(126px + var(--safe-bottom));
+  }
+
+  .maplibregl-ctrl-bottom-left {
+    margin-bottom: calc(118px + var(--safe-bottom));
+  }
+}
+
+/* Väga kitsas ekraan — hoia ajaliugur kasutatav. */
+@media (max-width: 380px) {
+  .time-slider__now {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .topbar__brand span {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Ajariba — poolläbipaistev, kaks taset: tunnid + päevad
+   ========================================================================== */
+
+.timebar {
+  position: absolute;
+  left: calc(10px + var(--safe-left));
+  right: calc(10px + var(--safe-right));
+  bottom: calc(10px + var(--safe-bottom));
+  z-index: 15;
+  padding: 8px 10px 8px;
+  background: var(--surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+/* Peen messingjoon ülaservas — instrumendi serv. */
+.timebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--brass-dim), transparent);
+  opacity: 0.5;
+}
+
+.timebar__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timebar__step {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 20px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.12s var(--ease);
+}
+
+.timebar__step:hover {
+  background: var(--surface-3);
+}
+
+.timebar__step:active {
+  transform: scale(0.93);
+}
+
+.timebar__scrub {
+  flex: 1;
+  min-width: 0;
+}
+
+.timebar__readout {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 0 2px 1px;
+  min-height: 22px;
+}
+
+.timebar__time {
+  font-family: var(--num);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.timebar__badge {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(79, 201, 138, 0.18);
+  border: 1px solid rgba(79, 201, 138, 0.42);
+  color: var(--ok);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Mudel ja uuendusaeg — usaldusinfo, mitte dekoratsioon.
+   Kitsal ekraanil kaovad, sest kellaaeg on tähtsam. */
+.timebar__model,
+.timebar__updated {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timebar__model {
+  margin-left: auto;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.timebar__track-wrap {
+  position: relative;
+  height: 26px;
+}
+
+.timebar__track {
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: grab;
+}
+
+.timebar__track:active {
+  cursor: grabbing;
+}
+
+.timebar__track::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--shoal) 100%);
+  border: 1px solid var(--line);
+}
+
+.timebar__track::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--shoal) 100%);
+  border: 1px solid var(--line);
+}
+
+.timebar__track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8fdcf4, var(--accent-strong));
+  border: 3px solid var(--surface-solid);
+  box-shadow: 0 0 0 1px var(--line-strong), 0 3px 10px rgba(0, 0, 0, 0.45);
+  transition: transform 0.12s var(--ease);
+}
+
+.timebar__track:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.timebar__track::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8fdcf4, var(--accent-strong));
+  border: 3px solid var(--surface-solid);
+}
+
+.timebar__track:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px var(--accent-glow), 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+.timebar__nowmark {
+  position: absolute;
+  top: 4px;
+  width: 2px;
+  height: 18px;
+  border-radius: 1px;
+  background: var(--brass);
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* --- Päevasakid --------------------------------------------------------- */
+
+.timebar__days {
+  display: flex;
+  gap: 4px;
+  margin-top: 7px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.timebar__days::-webkit-scrollbar {
+  display: none;
+}
+
+.timebar__day {
+  flex: 1 0 auto;
+  min-width: 62px;
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  border-radius: 9px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.timebar__day:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.timebar__day.is-active {
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* "Nüüd" on tegevus, mitte päev — messing eristab selle päevasakkidest. */
+.timebar__day--now {
+  flex: 0 0 auto;
+  min-width: 56px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.timebar__day--now.is-active {
+  background: linear-gradient(160deg, var(--brass) 0%, var(--brass-dim) 100%);
+  color: #26170a;
+}
+
+/* ==========================================================================
+   Vertikaalne legend
+   ========================================================================== */
+
+.legend {
+  position: absolute;
+  left: calc(10px + var(--safe-left));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 7px;
+  background: var(--surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  animation: drop-in 0.2s var(--ease);
+  pointer-events: none;
+}
+
+.legend__unit {
+  font-family: var(--num);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.legend__scale {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.legend__step {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 15px;
+}
+
+.legend__swatch {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.legend__value {
+  font-family: var(--num);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-dim);
+  min-width: 20px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pealkiri püsti — hoiab legendi kitsana, mis on telefonis oluline. */
+.legend__title {
+  margin-top: 3px;
+  max-height: 130px;
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Osakeste canvas kaardi peal. */
+.wind-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Lauaarvuti — ajariba ja leht kõrvuti
+   ========================================================================== */
+
+@media (min-width: 880px) {
+  .timebar {
+    left: 18px;
+    right: 452px;
+    bottom: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Kitsal ekraanil on kellaaeg tähtsam kui mudeli nimi. */
+  .timebar__model,
+  .timebar__updated {
+    display: none;
+  }
+
+  .legend {
+    left: calc(6px + var(--safe-left));
+    padding: 6px 5px;
+  }
+
+  .legend__value {
+    min-width: 16px;
+    font-size: 9px;
+  }
+}

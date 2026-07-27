@@ -1,0 +1,254 @@
+[
+  {
+    "id": "dirhami",
+    "name": "Dirhami",
+    "kind": "coastal",
+    "lat": 59.209444,
+    "lon": 23.498333
+  },
+  {
+    "id": "eisma",
+    "name": "Eisma Harbour",
+    "kind": "coastal",
+    "lat": 59.569724,
+    "lon": 26.30291
+  },
+  {
+    "id": "haademeeste",
+    "name": "Häädemeeste",
+    "kind": "coastal",
+    "lat": 58.036667,
+    "lon": 24.456111
+  },
+  {
+    "id": "haapsalu",
+    "name": "Haapsalu",
+    "kind": "coastal",
+    "lat": 58.944444,
+    "lon": 23.555
+  },
+  {
+    "id": "heltermaa",
+    "name": "Heltermaa",
+    "kind": "coastal",
+    "lat": 58.866545,
+    "lon": 23.047793
+  },
+  {
+    "id": "kelnase",
+    "name": "Kelnase",
+    "kind": "coastal",
+    "lat": 59.637197,
+    "lon": 25.012872
+  },
+  {
+    "id": "keri",
+    "name": "Keri",
+    "kind": "offshore",
+    "lat": 59.699298,
+    "lon": 25.020338
+  },
+  {
+    "id": "kihnu",
+    "name": "Kihnu (SL)",
+    "kind": "coastal",
+    "lat": 58.098628,
+    "lon": 23.970181
+  },
+  {
+    "id": "kihnu2",
+    "name": "Kihnu",
+    "kind": "coastal",
+    "lat": 58.14217,
+    "lon": 24.022308
+  },
+  {
+    "id": "kuivastu",
+    "name": "Kuivastu",
+    "kind": "coastal",
+    "lat": 58.57361,
+    "lon": 23.396509
+  },
+  {
+    "id": "kunda",
+    "name": "Kunda",
+    "kind": "coastal",
+    "lat": 59.517906,
+    "lon": 26.544697
+  },
+  {
+    "id": "laaksaare",
+    "name": "Laaksaare",
+    "kind": "coastal",
+    "lat": 58.338714,
+    "lon": 27.417953
+  },
+  {
+    "id": "leppneeme",
+    "name": "Leppneeme",
+    "kind": "coastal",
+    "lat": 59.551332,
+    "lon": 24.867579
+  },
+  {
+    "id": "loksa",
+    "name": "Loksa",
+    "kind": "coastal",
+    "lat": 59.583333,
+    "lon": 25.698611
+  },
+  {
+    "id": "montu",
+    "name": "Mõntu",
+    "kind": "coastal",
+    "lat": 57.948611,
+    "lon": 22.123611
+  },
+  {
+    "id": "munalaid",
+    "name": "Munalaid",
+    "kind": "coastal",
+    "lat": 58.227968,
+    "lon": 24.118525
+  },
+  {
+    "id": "muuga",
+    "name": "Muuga Harbour",
+    "kind": "coastal",
+    "lat": 59.499075,
+    "lon": 24.962994
+  },
+  {
+    "id": "narvajoesuu",
+    "name": "Narva-Jõesuu",
+    "kind": "coastal",
+    "lat": 59.464368,
+    "lon": 28.045521
+  },
+  {
+    "id": "pakri",
+    "name": "Pakri",
+    "kind": "coastal",
+    "lat": 59.372836,
+    "lon": 24.040081
+  },
+  {
+    "id": "paldiski",
+    "name": "Paldiski South Harbour",
+    "kind": "coastal",
+    "lat": 59.334075,
+    "lon": 24.075323
+  },
+  {
+    "id": "papissaare",
+    "name": "Papissaare",
+    "kind": "coastal",
+    "lat": 58.36,
+    "lon": 21.986111
+  },
+  {
+    "id": "parnu",
+    "name": "Pärnu",
+    "kind": "coastal",
+    "lat": 58.378877,
+    "lon": 24.465695
+  },
+  {
+    "id": "ristna",
+    "name": "Ristna",
+    "kind": "coastal",
+    "lat": 58.920953,
+    "lon": 22.0663
+  },
+  {
+    "id": "rohukyla",
+    "name": "Rohuküla",
+    "kind": "coastal",
+    "lat": 58.907719,
+    "lon": 23.418741
+  },
+  {
+    "id": "rohuneeme",
+    "name": "Rohuneeme",
+    "kind": "coastal",
+    "lat": 59.5625,
+    "lon": 24.794444
+  },
+  {
+    "id": "roomassaare",
+    "name": "Roomassaare",
+    "kind": "coastal",
+    "lat": 58.217222,
+    "lon": 22.504444
+  },
+  {
+    "id": "ruhnu",
+    "name": "Ruhnu",
+    "kind": "coastal",
+    "lat": 57.783394,
+    "lon": 23.258883
+  },
+  {
+    "id": "saaremaa",
+    "name": "Saaremaa Harbour",
+    "kind": "coastal",
+    "lat": 58.537044,
+    "lon": 22.237353
+  },
+  {
+    "id": "soru",
+    "name": "Sõru",
+    "kind": "coastal",
+    "lat": 58.690671,
+    "lon": 22.521409
+  },
+  {
+    "id": "sorve",
+    "name": "Sõrve",
+    "kind": "coastal",
+    "lat": 57.913594,
+    "lon": 22.057908
+  },
+  {
+    "id": "tallinnamadal",
+    "name": "Tallinnamadal",
+    "kind": "offshore",
+    "lat": 59.71205,
+    "lon": 24.7315
+  },
+  {
+    "id": "triigi",
+    "name": "Triigi",
+    "kind": "coastal",
+    "lat": 58.590972,
+    "lon": 22.717406
+  },
+  {
+    "id": "vaindloo",
+    "name": "Vaindloo",
+    "kind": "offshore",
+    "lat": 59.818838,
+    "lon": 26.360214
+  },
+  {
+    "id": "vanasadam",
+    "name": "Tallinn Harbour",
+    "kind": "coastal",
+    "lat": 59.449435,
+    "lon": 24.774416
+  },
+  {
+    "id": "vilsandi",
+    "name": "Vilsandi",
+    "kind": "coastal",
+    "lat": 58.382794,
+    "lon": 21.814167
+  },
+  {
+    "id": "virtsusadam",
+    "name": "Virtsu",
+    "kind": "coastal",
+    "lat": 58.576208,
+    "lon": 23.508225
+  }
+]
