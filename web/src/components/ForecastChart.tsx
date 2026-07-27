@@ -5,7 +5,6 @@ import type { TimeSeries, Variable } from '@seapro/shared';
 import { convertSpeed } from '@seapro/shared';
 import { useI18n } from '../i18n';
 import { unitLabel, type SpeedUnit } from '../lib/units';
-import { formatDay } from '../lib/time';
 
 interface Props {
   series: TimeSeries[];
@@ -21,22 +20,37 @@ interface Props {
  *
  * Terve viiepäevane prognoos ühel teljel surub tunnid nii kokku, et päevasest
  * käigust (hommikune vaikus, pärastlõunane tugevnemine) ei saa enam aru —
- * just see aga otsustab, kas välja minna. Aken katab valitud ööpäeva pluss
- * servad, ja nooltega liigutakse päev kaupa edasi.
+ * just see aga otsustab, kas välja minna.
+ *
+ * Aken algab valitud hetkest veidi VARASEMALT ja ulatub kaks ööpäeva ette:
+ * minevik on kontekst, tulevik on see, mida vaadatakse. Seetõttu istub
+ * "praegu" vasakus servas, mitte keskel.
+ *
+ * Kaugemale liigutakse LOHISTAMISEGA, mitte nuppudega — kaardirakenduses on
+ * lohistamine niikuinii peamine žest ja nupud nõuaksid täpset sihtimist.
  */
-const WINDOW_LEAD_HOURS = 3;
-const WINDOW_HOURS = 33;
+const WINDOW_LEAD_HOURS = 4;
+const WINDOW_HOURS = 48;
 
 /** Iga allikas saab oma püsiva värvi, et graafik ja legend kokku langeksid. */
 const SERIES_COLORS = ['#2f7fd1', '#e07a3c', '#3faa72', '#a05ccc', '#c94f6d', '#5f9ea0'];
 
 const SPEED_VARS = new Set<Variable>(['wind_speed', 'wind_gust', 'current_speed']);
 
+/**
+ * Telgede font. uPlot joonistab teljed canvas'ele, seega CSS neid ei puuduta
+ * ja font tuleb siin sõnaselgelt öelda — vaikimisi oleks see brauseri
+ * canvas-font, mis ei sobi ülejäänud liidesega kokku.
+ */
+const AXIS_FONT = '500 11px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+
 export function ForecastChart({ series, variable, speedUnit, selectedTime, onPickTime }: Props) {
   // Aken liigub PÄEVA, mitte tunni kaupa — tunni kaupa uuesti ehitamine
   // tähendaks graafiku vilkumist iga liuguri sammu peale.
   const dayKey = new Date(selectedTime).setHours(0, 0, 0, 0);
   const host = useRef<HTMLDivElement>(null);
+  /** Nähtav ajaaken. Ref, mitte state — lohistamine peab olema kaadrisünkroonne. */
+  const win = useRef({ start: 0, span: WINDOW_HOURS * 3600, dataMin: 0, dataMax: 0 });
   const plot = useRef<uPlot | null>(null);
   const onPick = useRef(onPickTime);
   onPick.current = onPickTime;
@@ -78,11 +92,16 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
 
     const label = `${t(`var.${variable}`)} (${unitLabel(variable, speedUnit)})`;
 
-    // Aken algab valitud päeva algusest (kohalikus ajas), veidi varem.
-    const dayStart = new Date(selectedTimeRef.current);
-    dayStart.setHours(0, 0, 0, 0);
-    const winStart = dayStart.getTime() / 1000 - WINDOW_LEAD_HOURS * 3600;
-    const winEnd = winStart + WINDOW_HOURS * 3600;
+    // Aken algab valitud hetkest veidi varem; "praegu" jääb vasakusse serva.
+    const anchor = Math.floor(selectedTimeRef.current.getTime() / 1000 / 3600) * 3600;
+    const dataMin = times[0]!;
+    const dataMax = times[times.length - 1]!;
+    const span = WINDOW_HOURS * 3600;
+
+    const clamp = (start: number): number =>
+      Math.min(Math.max(start, dataMin), Math.max(dataMin, dataMax - span));
+
+    win.current = { start: clamp(anchor - WINDOW_LEAD_HOURS * 3600), span, dataMin, dataMax };
 
     const opts: uPlot.Options = {
       width: el.clientWidth || 600,
@@ -91,8 +110,8 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
       scales: {
         x: {
           time: true,
-          // Fikseeritud aken, mitte kogu andmehulk — vt WINDOW_HOURS.
-          range: () => [winStart, winEnd] as [number, number],
+          // Fikseeritud, lohistatav aken — vt WINDOW_HOURS ja pan-käsitlejat.
+          range: () => [win.current.start, win.current.start + win.current.span] as [number, number],
         },
       },
       axes: [
@@ -110,15 +129,32 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
               }
               return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
             }),
+          font: AXIS_FONT,
         },
         {
           grid: { show: true, stroke: 'rgba(120,140,155,0.18)' },
           stroke: 'currentColor',
           size: 44,
+          font: AXIS_FONT,
         },
       ],
       series: [
-        { label: t('chart.time') },
+        {
+          label: t('chart.time'),
+          // uPlot'i vaikimisi ajavorming on masinlik ("2026-07-31 6:00am").
+          // Legendi esimene rida on täislaiuses (vt CSS), seega mahub siia
+          // inimlik kuju: nädalapäev, kuupäev ja kellaaeg kohalikus vormingus.
+          value: (_u, raw) =>
+            raw == null
+              ? '—'
+              : new Date(raw * 1000).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+        },
         ...usable.map((s, i) => ({
           label: s.modelId && s.modelId !== 'best_match' ? `${s.providerId} · ${s.modelId}` : s.providerId,
           stroke: SERIES_COLORS[i % SERIES_COLORS.length]!,
@@ -142,12 +178,58 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
         ],
         ready: [
           (u) => {
+            // Klõps valib aja — aga ainult siis, kui see polnud lohistamine.
+            let downX: number | null = null;
+            let dragged = false;
+
             u.over.addEventListener('click', () => {
+              if (dragged) return;
               const idx = u.cursor.idx;
               if (idx == null || !onPick.current) return;
               const tv = times[idx];
               if (tv !== undefined) onPick.current(new Date(tv * 1000));
             });
+
+            // --- Lohistamine ajas ---
+            const onDown = (e: PointerEvent): void => {
+              downX = e.clientX;
+              dragged = false;
+              u.over.setPointerCapture(e.pointerId);
+              u.over.style.cursor = 'grabbing';
+            };
+
+            const onMove = (e: PointerEvent): void => {
+              if (downX === null) return;
+              const dx = e.clientX - downX;
+              if (Math.abs(dx) > 3) dragged = true;
+              downX = e.clientX;
+
+              // Piksel -> sekund praeguse akna mastaabis.
+              const secPerPx = win.current.span / u.bbox.width * devicePixelRatio;
+              const next = win.current.start - dx * secPerPx;
+
+              // Ära lase aknal andmetest välja libiseda.
+              const maxStart = Math.max(win.current.dataMin, win.current.dataMax - win.current.span);
+              win.current.start = Math.min(Math.max(next, win.current.dataMin), maxStart);
+
+              u.setScale('x', {
+                min: win.current.start,
+                max: win.current.start + win.current.span,
+              });
+            };
+
+            const onUp = (e: PointerEvent): void => {
+              downX = null;
+              u.over.style.cursor = 'grab';
+              if (u.over.hasPointerCapture(e.pointerId)) u.over.releasePointerCapture(e.pointerId);
+            };
+
+            u.over.style.cursor = 'grab';
+            u.over.style.touchAction = 'pan-y';
+            u.over.addEventListener('pointerdown', onDown);
+            u.over.addEventListener('pointermove', onMove);
+            u.over.addEventListener('pointerup', onUp);
+            u.over.addEventListener('pointercancel', onUp);
           },
         ],
       },
@@ -184,25 +266,10 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
     plot.current?.redraw(false, false);
   }, [selectedTime]);
 
-  const shiftDay = (days: number): void => {
-    if (!onPickTime) return;
-    onPickTime(new Date(selectedTime.getTime() + days * 24 * 3600_000));
-  };
-
   return (
     <div className="forecast-chart">
       <div ref={host} className="forecast-chart__plot" />
-      {onPickTime ? (
-        <div className="forecast-chart__nav">
-          <button type="button" onClick={() => shiftDay(-1)} aria-label={t('chart.prevDay')}>
-            ‹
-          </button>
-          <span>{formatDay(selectedTime, lang)}</span>
-          <button type="button" onClick={() => shiftDay(1)} aria-label={t('chart.nextDay')}>
-            ›
-          </button>
-        </div>
-      ) : null}
+      <p className="forecast-chart__hint">{t('chart.dragHint')}</p>
     </div>
   );
 }

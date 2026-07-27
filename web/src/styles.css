@@ -1985,73 +1985,91 @@ textarea {
   pointer-events: none;
 }
 
-/* --- Graafiku legend: stabiilne laius -------------------------------------
-   uPlot uuendab legendi väärtusi kursori liikumisel. Kuna numbrid on eri
-   pikkusega ("5" vs "10.2"), muutus tabeli veerulaius iga hiireliigutusega ja
-   legend tõmbles. Fikseeritud tabelipaigutus + tabelnumbrid + ette antud
-   laius hoiavad selle paigal, ilma live-legendist loobumata (see on kasulik —
-   näitab kõigi allikate väärtust korraga). */
+
+/* --- Graafiku legend ------------------------------------------------------
+   Kaks probleemi lahendatud korraga:
+
+   1. Väärtused olid monospace-fondis, mis mõjus liidese kõrval võõrkehana.
+      Sama efekti (numbrid ei nihku) annab tabular-nums tavafondis.
+   2. Kuupäev ja kellaaeg olid seeriate väärtustega samal real ja jäid kitsaks.
+      Esimene rida on nüüd täislaiuses oma rida.
+
+   Laius on fikseeritud, sest uPlot uuendab väärtusi kursori liikumisel ja
+   muutuv numbrilaius pani legendi tõmblema. */
+
+.forecast-chart__plot {
+  width: 100%;
+}
 
 .forecast-chart .u-legend {
   width: 100%;
-  table-layout: fixed;
+  margin-top: var(--s2, 8px);
+  font-family: inherit;
+  font-size: var(--t-small, 12px);
   font-variant-numeric: tabular-nums;
+  border-collapse: collapse;
+}
+
+/* Esimene rida on aja rida — täislaius ja rõhutatud. */
+.forecast-chart .u-legend tr:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2, 8px);
+  padding-bottom: var(--s1, 4px);
+  margin-bottom: var(--s1, 4px);
+  border-bottom: 1px solid var(--line);
+}
+
+.forecast-chart .u-legend tr:first-child th {
+  font-size: var(--t-micro, 10px);
+  font-weight: var(--w-med, 550);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.forecast-chart .u-legend tr:first-child .u-value {
+  min-width: 0;
+  font-size: var(--t-body, 13px);
+  font-weight: var(--w-bold, 650);
+  color: var(--text);
+}
+
+/* Seeriad kahes veerus, et pikk allikanimi ei suruks numbrit välja. */
+.forecast-chart .u-legend tr:not(:first-child) {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s1, 4px);
+  margin-right: var(--s3, 12px);
 }
 
 .forecast-chart .u-legend th,
 .forecast-chart .u-legend td {
-  padding: 1px 4px;
+  padding: 0;
 }
 
 .forecast-chart .u-legend .u-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
 .forecast-chart .u-legend .u-value {
   display: inline-block;
-  min-width: 6ch;
+  min-width: 4ch;
   text-align: right;
-  font-family: var(--num);
+  font-family: inherit;
+  font-weight: var(--w-med, 550);
+  color: var(--text);
   white-space: nowrap;
 }
 
-/* Ühe seeria korral on legend rida, mitte tabel — sama kohtlemine. */
-.forecast-chart .u-inline .u-value {
-  min-width: 6ch;
+.forecast-chart .u-legend .u-marker {
+  border-radius: 2px;
 }
 
-/* Graafiku päevanavigatsioon */
-.forecast-chart__nav {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s3, 12px);
-  margin-top: var(--s1, 4px);
-}
-
-.forecast-chart__nav button {
-  min-width: 44px;
-  min-height: 36px;
-  color: var(--text-dim);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm, 8px);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.forecast-chart__nav button:hover {
-  color: var(--text);
-  background: var(--surface-3);
-}
-
-.forecast-chart__nav span {
-  min-width: 9ch;
+.forecast-chart__hint {
+  margin: var(--s1, 4px) 0 0;
+  font-size: var(--t-micro, 11px);
+  color: var(--text-faint);
   text-align: center;
-  font-size: var(--t-small, 13px);
-  font-weight: var(--w-med, 550);
-  color: var(--text);
 }
