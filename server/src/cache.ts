@@ -43,9 +43,25 @@ const MAX_PERSISTED_ENTRY = 512 * 1024;
 /** Kirjeid vanemad kui see, ei laadita tagasi — need on niikuinii kasutud. */
 const MAX_PERSISTED_AGE_MS = 24 * 3600 * 1000;
 
+/**
+ * Vahemälu faili versioon.
+ *
+ * Tõsta seda, kui MÕNE võtme kuju muutub. Näide, mille peale see sündis:
+ * võrgustikupäring läks ühetunniselt aknalt ööpäevasele plokile ja võtmesse
+ * läks uus `start_hour`/`end_hour` paar. Vanad kirjed jäid faili alles, ei
+ * tabanud enam kunagi ja hoidsid kettal 10 MB — mõõtmise järgi 158 kirjet
+ * 159-st.
+ */
+const CACHE_VERSION = 2;
+
 const here = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = resolve(here, '../../data');
 const CACHE_FILE = join(DATA_DIR, 'cache.json');
+
+interface PersistedFile {
+  version: number;
+  entries: PersistedEntry[];
+}
 
 interface PersistedEntry {
   key: string;
@@ -152,7 +168,16 @@ export class Cache {
     }
 
     try {
-      const entries = JSON.parse(raw) as PersistedEntry[];
+      const parsed = JSON.parse(raw) as PersistedFile | PersistedEntry[];
+
+      // Vana vorming oli paljas massiiv ilma versioonita — see on definitsiooni
+      // järgi aegunud kuju ja läheb tervikuna prügikasti.
+      if (Array.isArray(parsed) || parsed.version !== CACHE_VERSION) {
+        log?.('Vahemälu vorming on muutunud — alustan tühjalt');
+        return;
+      }
+
+      const entries = parsed.entries;
       const now = Date.now();
       const cutoff = now - MAX_PERSISTED_AGE_MS;
       let loaded = 0;
@@ -228,7 +253,8 @@ export class Cache {
       // Kirjuta ajutisse faili ja nimeta ümber — nii ei jää poolik fail alles,
       // kui protsess kirjutamise ajal tapetakse.
       const tmp = `${CACHE_FILE}.tmp`;
-      writeFileSync(tmp, JSON.stringify(out), 'utf8');
+      const file: PersistedFile = { version: CACHE_VERSION, entries: out };
+      writeFileSync(tmp, JSON.stringify(file), 'utf8');
       renameSync(tmp, CACHE_FILE);
       this.#dirty = false;
       log?.(`Vahemälu kettale: ${out.length} kirjet`);

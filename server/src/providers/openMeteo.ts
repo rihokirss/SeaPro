@@ -224,10 +224,10 @@ export class OpenMeteoProvider implements WeatherProvider {
     });
     if (q.modelId && q.modelId !== 'best_match') params.set('models', q.modelId);
 
-    // Võrgustiku kaadrid on kallid ja mudel ise uueneb harvemini kui tund;
-    // hoiame neid mälus tunduvalt kauem kui punktiprognoose.
+    // Sama TTL mis punktiprognoosil: mõlemad tulevad samast mudelijooksust,
+    // seega pole põhjust neid erineva värskusega hoida.
     const key = `om:grid:${params.toString()}`;
-    const { value } = await cache.get(key, config.ttl.openMeteo * 4, () =>
+    const { value } = await cache.get(key, config.ttl.openMeteo, () =>
       // Iga võrgupunkt on Open-Meteo arvestuses eraldi kutse.
       fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, lats.length),
     );

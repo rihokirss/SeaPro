@@ -55,7 +55,13 @@ export const config = {
   aisstreamKey: str('AISSTREAM_KEY', ''),
 
   ttl: {
-    openMeteo: num('CACHE_TTL_OPENMETEO', 900),
+    /**
+     * Open-Meteo mudelijooksud uuenevad PARIMAL juhul kord tunnis (MET Nordic;
+     * ICON-EU iga 3 h, GFS iga 6 h). Lühem TTL ei anna värskemat prognoosi,
+     * kulutab ainult päringueelarvet — ja see eelarve on tänu punktipõhisele
+     * arvestusele kitsas. Tund on siin andmete oma tempo, mitte oletus.
+     */
+    openMeteo: num('CACHE_TTL_OPENMETEO', 3600),
     metNo: num('CACHE_TTL_METNO', 1200),
     metoc: num('CACHE_TTL_METOC', 240),
     lainepoiss: num('CACHE_TTL_LAINEPOISS', 300),
