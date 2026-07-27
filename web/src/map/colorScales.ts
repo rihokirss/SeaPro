@@ -37,22 +37,25 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     // Astmed järgivad Beauforti piire, nii et kaardi värv ja Bft-number
     // tähendavad sama asja.
     //
-    // Läbipaistvus kasvab koos tuulega SIHILIKULT: tuulevaikne meri on see,
-    // kus kaarti on vaja näha (faarvaater, sügavused, navigatsioonimärgid),
-    // torm on see, kus on vaja tuult näha. Ühtlane alfa muudaks vaikse ilmaga
-    // terve kaardi piimjaks uduks.
+    // Läbipaistvus kasvab koos tuulega, aga algab NÄHTAVAST tasemest.
+    //
+    // Esimene katse algas alfaga 40/255 mõttega, et tuulevaikne meri peab
+    // kaardi (faarvaatrid, sügavused, märgid) vabaks jätma. Praktikas
+    // tähendas see, et Läänemere tavalise 1–3 m/s juures polnud välja üldse
+    // näha ja kiht paistis katki. Nõrga tuule alumine ots on nüüd selgelt
+    // nähtav ja kasvab tormiks peaaegu läbipaistmatuks.
     stops: [
-      s(0, 130, 190, 220, 40),
-      s(3.4, 90, 180, 210, 90),
-      s(5.5, 63, 181, 156, 130),
-      s(8.0, 92, 191, 106, 160),
-      s(10.8, 168, 201, 68, 180),
-      s(13.9, 232, 185, 60, 200),
-      s(17.2, 239, 143, 52, 215),
-      s(20.8, 230, 97, 47, 225),
-      s(24.5, 212, 53, 53, 235),
-      s(28.5, 184, 40, 95, 240),
-      s(32.7, 102, 38, 143, 245),
+      s(0, 150, 205, 230, 125),
+      s(3.4, 96, 186, 214, 150),
+      s(5.5, 63, 181, 156, 170),
+      s(8.0, 92, 191, 106, 185),
+      s(10.8, 168, 201, 68, 200),
+      s(13.9, 232, 185, 60, 215),
+      s(17.2, 239, 143, 52, 225),
+      s(20.8, 230, 97, 47, 235),
+      s(24.5, 212, 53, 53, 240),
+      s(28.5, 184, 40, 95, 245),
+      s(32.7, 102, 38, 143, 250),
     ],
   },
 

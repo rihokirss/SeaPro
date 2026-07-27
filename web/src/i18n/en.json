@@ -124,5 +124,8 @@
   "key.vessel.other": "Other or unknown",
   "key.vessels.note": "Close in, vessels are drawn to real size. A vessel without heading is a dot.",
   "key.windArrow": "Wind direction",
-  "key.wind.note": "The arrow shows where the wind is blowing to. Speed comes from the colour field."
+  "key.wind.note": "The arrow shows where the wind is blowing to. Speed comes from the colour field.",
+  "source.scope": "These sources apply to the point forecast (tap the map). Map layers come from the model chosen below.",
+  "source.mapLayer": "Map layer model",
+  "source.mapLayer.hint": "Wind arrows and the colour field come from Open-Meteo — the only source that serves a grid rather than single points."
 }

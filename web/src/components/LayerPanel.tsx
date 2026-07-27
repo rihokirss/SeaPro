@@ -206,6 +206,12 @@ export function LayerPanel({
 
           <section className="panel__section">
             <h3>{t('action.sources')}</h3>
+            {/* Ainult Open-Meteo pakub võrgustikupäringut; ülejäänud on
+                punktiallikad (met.no ToS keelab võrgustiku tõmbamise,
+                Windfinder ja jaamad annavad ühe koha korraga). Seetõttu
+                mõjutab see valik ainult punktipaneeli ja seda tuleb ka
+                öelda — muidu paistab, et kaart lihtsalt ignoreerib valikut. */}
+            <p className="panel__hint">{t('source.scope')}</p>
 
             <h4 className="panel__subhead">{t('source.kind.forecast')}</h4>
             {forecastProviders.map((p) => (
@@ -236,7 +242,8 @@ export function LayerPanel({
 
           {models.length > 0 ? (
             <section className="panel__section">
-              <h3>Open-Meteo mudel</h3>
+              <h3>{t('source.mapLayer')}</h3>
+              <p className="panel__hint">{t('source.mapLayer.hint')}</p>
               <div className="chips">
                 {models.map((m) => (
                   <button
