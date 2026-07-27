@@ -81,10 +81,27 @@ interface OmResponse {
   hourly_units?: Record<string, string>;
 }
 
+function secondsToNextHour(): number {
+  return Math.ceil((3600_000 - (Date.now() % 3600_000)) / 1000);
+}
+
+function secondsToUtcMidnight(): number {
+  const now = new Date();
+  const midnight = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() + 1,
+    0,
+    0,
+    0,
+  );
+  return Math.ceil((midnight - now.getTime()) / 1000);
+}
+
 /**
  * Kutsub Open-Meteot, hoides päringueelarvet ausana.
  *
- * Kolm asja, mis siin koos peavad olema:
+ * Neli asja, mis siin koos peavad olema:
  *
  *  1. Eelarve broneeritakse ENNE päringut — muidu võiks kümme samaaegset
  *     päringut limiidist üle joosta.
@@ -107,12 +124,67 @@ async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
   } catch (err) {
     rateLimiter.refund('open-meteo', cost);
     if (err instanceof HttpError && err.status === 429) {
-      // Open-Meteo lähtestab tunni piiril; ootame järgmise aknani.
-      const secondsToNextHour = Math.ceil((3600_000 - (Date.now() % 3600_000)) / 1000);
-      rateLimiter.cooldown('open-meteo', secondsToNextHour);
+      // Open-Meteol on KAKS limiiti ja need lähtestuvad eri ajal. Vastuse keha
+      // ütleb, kumma vastu jooksti:
+      //   "Hourly API request limit exceeded"  -> järgmine täistund
+      //   "Daily API request limit exceeded"   -> järgmine UTC-kesköö
+      //
+      // Enne eeldas kood alati tunnilimiiti. Päevalimiidi puhul tähendas see,
+      // et proovipäring läks iga minut uuesti välja ja sai iga kord 429 —
+      // terve päeva jooksul sadu asjatuid päringuid allikale, mis oli meid
+      // just üle koormamise eest hoiatanud.
+      const daily = /daily/i.test(err.body ?? '');
+      rateLimiter.cooldown('open-meteo', daily ? secondsToUtcMidnight() : secondsToNextHour());
     }
     throw err;
   }
+}
+
+/**
+ * Miks fikseeritud võre, mitte vaatest arvutatud võrgustik.
+ *
+ * Open-Meteo loeb mitmepunktilise päringu IGA PUNKTI eraldi kutseks. Meie
+ * saadame terve välja ühe HTTP-päringuga, aga kutseid kulub ikka punktide arvu
+ * jagu — 64 punkti = 64 kutset. Tunnilimiit sai seetõttu kiiresti täis.
+ *
+ * Tegelik raiskamine ei olnud aga päringu suurus, vaid see, et punktid
+ * arvutati NÄHTAVAST alast: iga nihe andis 64 uut koordinaati, mis olid
+ * eelmistest paarsada meetrit eemal, aga vahemälu jaoks täiesti uued. Sisuliselt
+ * sama ala maksti kinni ikka ja jälle.
+ *
+ * Nüüd on punktid absoluutsel võrel (kordsed `spacing`-ust, alguspunkt 0°) ja
+ * kimpudes ehk paanides. Sama paan tähendab sama vahemäluvõtit sõltumata
+ * sellest, kust kasutaja vaatab. Nihutamine maksab ainult uue serva paanid,
+ * tagasi nihutamine ei maksa midagi.
+ *
+ * Pikkuskraadi samm on kahekordne, sest Läänemere laiuskraadidel on
+ * pikkuskraad ~2x kitsam — nii tulevad lahtrid kilomeetrites ligikaudu ruudud.
+ */
+export const TILE_N = 4;
+const MAX_TILES = 4;
+const GRID_TARGET_POINTS = 8;
+const LAT_SPACINGS = [0.05, 0.1, 0.25, 0.5, 1, 2];
+const LON_FACTOR = 2;
+
+interface TileIndex {
+  ti: number;
+  tj: number;
+}
+
+/** Kõik paanid, mis vaadet katavad. Indeksid on absoluutsed, mitte vaatepõhised. */
+export function coveringTiles(
+  [south, west, north, east]: [number, number, number, number],
+  spacing: number,
+): TileIndex[] {
+  const tileLat = TILE_N * spacing;
+  const tileLon = TILE_N * spacing * LON_FACTOR;
+  const out: TileIndex[] = [];
+  for (let ti = Math.floor(south / tileLat); ti <= Math.floor(north / tileLat); ti++) {
+    for (let tj = Math.floor(west / tileLon); tj <= Math.floor(east / tileLon); tj++) {
+      out.push({ ti, tj });
+    }
+  }
+  return out;
 }
 
 const ALL_VARIABLES: Variable[] = [
@@ -195,40 +267,6 @@ export class OpenMeteoProvider implements WeatherProvider {
   async gridDay(q: GridQuery): Promise<GridFrame[]> {
     const [south, west, north, east] = q.bbox;
 
-    // Open-Meteo loeb mitmepunktilise päringu IGA PUNKTI eraldi kutseks.
-    // 16x16 võrk oleks 256 kutset ühe kaardikaadri kohta ja tunnilimiit (5000)
-    // saaks täis kümnekonna kaadriga — arenduses juhtus täpselt see.
-    //
-    // Kaks piirajat:
-    //   GRID_MAX_STEPS hoiab ühe kaadri kulu <= 64 kutset
-    //   MIN_CELL_DEG väldib mudeli lahutusest tihedama võrgu küsimist, mis
-    //   tagastaks lihtsalt korduvaid lahtreid
-    const GRID_MAX_STEPS = 8;
-    const MIN_CELL_DEG = 0.05;
-    const spanLat = north - south;
-    const spanLon = east - west;
-    const maxUseful = Math.ceil(Math.max(spanLat, spanLon) / MIN_CELL_DEG);
-    const steps = Math.max(2, Math.min(GRID_MAX_STEPS, Math.min(q.steps, maxUseful)));
-
-    // Ühtlane võrgustik. Läänemere laiuskraadidel on üks pikkuskraad ~2x kitsam
-    // kui laiuskraad, seega korrigeerime, et nooled ei tuleks välja venitatud võrgus.
-    const latSpan = north - south;
-    const lonSpan = east - west;
-    const cosLat = Math.cos(((north + south) / 2) * (Math.PI / 180));
-    const aspect = (lonSpan * cosLat) / latSpan;
-
-    const cols = aspect >= 1 ? steps : Math.max(2, Math.round(steps * aspect));
-    const rows = aspect >= 1 ? Math.max(2, Math.round(steps / aspect)) : steps;
-
-    const lats: number[] = [];
-    const lons: number[] = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        lats.push(round(south + (latSpan * (r + 0.5)) / rows, 4)!);
-        lons.push(round(west + (lonSpan * (c + 0.5)) / cols, 4)!);
-      }
-    }
-
     const isMarine = q.variables.every((v) => MARINE_BY_VARIABLE[v]);
     const url = isMarine ? MARINE_URL : FORECAST_URL;
     const varMap = isMarine ? MARINE_VARS : ATMO_VARS;
@@ -241,43 +279,56 @@ export class OpenMeteoProvider implements WeatherProvider {
     // hoiab vahemäluvõtme stabiilsena — muidu tekiks iga tunni kohta oma plokk.
     const { blockStart, blockEnd } = dayBlock(q.time);
 
-    const params = new URLSearchParams({
-      latitude: lats.join(','),
-      longitude: lons.join(','),
-      hourly: apiVars.join(','),
-      wind_speed_unit: 'ms',
-      timeformat: 'iso8601',
-      timezone: 'GMT',
-      // Küsime terve ÖÖPÄEVA korraga, mitte ühte tundi.
-      //
-      // Varem oli siin start_hour = end_hour = valitud tund. See tähendas, et
-      // iga ajaliuguri samm tekitas uue 64-punktilise päringu ja uue
-      // vahemäluvõtme — tunnieelarve sõi end läbi lihtsalt ajas edasi-tagasi
-      // kerides. Ööpäevane plokk maksab sama arvu kutseid (kutseid loetakse
-      // punktide, mitte tundide järgi), aga katab 24 tundi, nii et kerimine
-      // on pärast esimest tõmmet tasuta ja hetkeline.
-      start_hour: blockStart,
-      end_hour: blockEnd,
-      // Merevälju küsime merelahtritest; tuult ja õhku aga tavapärasest
-      // lähimast lahtrist — "sea" jätaks rannikupunktid tühjaks ja kaardile
-      // tekiksid augud sinna, kus kasutaja tegelikult sõidab.
-      cell_selection: isMarine ? 'sea' : 'nearest',
-    });
-    if (q.modelId && q.modelId !== 'best_match') params.set('models', q.modelId);
+    // Vali võresamm nii, et vaatesse jääks ~GRID_TARGET_POINTS punkti servas,
+    // ja kui paane tuleb siiski liiga palju, jämeneda kuni mahub.
+    const cosLat = Math.cos(((north + south) / 2) * (Math.PI / 180)) || 1;
+    const maxSpanDeg = Math.max(north - south, (east - west) * cosLat);
+    let spacing =
+      LAT_SPACINGS.find((s) => maxSpanDeg / s <= GRID_TARGET_POINTS) ??
+      LAT_SPACINGS[LAT_SPACINGS.length - 1]!;
+    let tiles = coveringTiles(q.bbox, spacing);
+    while (tiles.length > MAX_TILES) {
+      const next = LAT_SPACINGS[LAT_SPACINGS.indexOf(spacing) + 1];
+      if (next === undefined) break;
+      spacing = next;
+      tiles = coveringTiles(q.bbox, spacing);
+    }
 
-    // Sama TTL mis punktiprognoosil: mõlemad tulevad samast mudelijooksust,
-    // seega pole põhjust neid erineva värskusega hoida.
-    const key = `om:grid:${params.toString()}`;
-    const { value } = await cache.get(key, config.ttl.openMeteo, () =>
-      // Iga võrgupunkt on Open-Meteo arvestuses eraldi kutse.
-      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, lats.length),
+    // Paanid tõmmatakse eraldi, sest just see teebki nihutamise odavaks:
+    // ühine osa tuleb vahemälust ja maksma läheb ainult uus serv.
+    const fetched = await Promise.all(
+      tiles.map((tile) =>
+        this.#fetchGridTile({
+          url,
+          apiVars,
+          isMarine,
+          modelId: q.modelId,
+          spacing,
+          tile,
+          blockStart,
+          blockEnd,
+        }).catch((err) => {
+          // Üks ebaõnnestunud paan ei tohi tervet välja tühjaks teha —
+          // parem osaline kaart kui tühi.
+          if (!(err instanceof HttpError)) throw err;
+          return null;
+        }),
+      ),
     );
 
-    // Mitme punkti korral tagastab Open-Meteo massiivi, ühe punkti korral objekti.
-    const responses = Array.isArray(value) ? value : [value];
+    const lats: number[] = [];
+    const lons: number[] = [];
+    const responses: OmResponse[] = [];
+    for (const part of fetched) {
+      if (!part) continue;
+      lats.push(...part.lats);
+      lons.push(...part.lons);
+      responses.push(...(Array.isArray(part.value) ? part.value : [part.value]));
+    }
+    if (responses.length === 0) return [];
 
     // Ajaveerg on kõigil punktidel sama, seega piisab esimesest vastusest.
-    const times = (Array.isArray(value) ? value[0] : value)?.hourly?.time as string[] | undefined;
+    const times = responses[0]?.hourly?.time as string[] | undefined;
     if (!times || times.length === 0) return [];
 
     const frames: GridFrame[] = times.map((rawTime) => ({
@@ -317,6 +368,59 @@ export class OpenMeteoProvider implements WeatherProvider {
     });
 
     return frames;
+  }
+
+  /**
+   * Üks paan: TILE_N x TILE_N võrepunkti, üks HTTP-päring, üks vahemäluvõti.
+   *
+   * Võti sõltub AINULT paani indeksist, sammust, muutujatest, mudelist ja
+   * ööpäevaplokist — mitte kaadri asendist. Just see teeb nihutamise odavaks.
+   */
+  async #fetchGridTile(opts: {
+    url: string;
+    apiVars: string[];
+    isMarine: boolean;
+    modelId?: string;
+    spacing: number;
+    tile: TileIndex;
+    blockStart: string;
+    blockEnd: string;
+  }): Promise<{ lats: number[]; lons: number[]; value: OmResponse | OmResponse[] }> {
+    const { url, apiVars, isMarine, modelId, spacing, tile, blockStart, blockEnd } = opts;
+    const lats: number[] = [];
+    const lons: number[] = [];
+    for (let r = 0; r < TILE_N; r++) {
+      for (let c = 0; c < TILE_N; c++) {
+        lats.push(round((tile.ti * TILE_N + r) * spacing, 4)!);
+        lons.push(round((tile.tj * TILE_N + c) * spacing * LON_FACTOR, 4)!);
+      }
+    }
+
+    const params = new URLSearchParams({
+      latitude: lats.join(','),
+      longitude: lons.join(','),
+      hourly: apiVars.join(','),
+      wind_speed_unit: 'ms',
+      timeformat: 'iso8601',
+      timezone: 'GMT',
+      // Terve ÖÖPÄEV korraga. Kutseid loetakse punktide, mitte tundide järgi,
+      // seega maksab 24 tundi sama palju kui üks — ja ajaliuguri kerimine on
+      // pärast esimest tõmmet tasuta ja hetkeline.
+      start_hour: blockStart,
+      end_hour: blockEnd,
+      // Merevälju küsime merelahtritest; tuult ja õhku aga lähimast lahtrist —
+      // "sea" jätaks rannikupunktid tühjaks ja kaardile tekiksid augud sinna,
+      // kus kasutaja tegelikult sõidab.
+      cell_selection: isMarine ? 'sea' : 'nearest',
+    });
+    if (modelId && modelId !== 'best_match') params.set('models', modelId);
+
+    const key = `om:tile:${params.toString()}`;
+    const { value } = await cache.get(key, config.ttl.openMeteo, () =>
+      // Iga võrepunkt on Open-Meteo arvestuses eraldi kutse.
+      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, lats.length),
+    );
+    return { lats, lons, value };
   }
 
   async #fetchSeries(

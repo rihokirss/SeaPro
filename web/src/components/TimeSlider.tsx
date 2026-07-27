@@ -155,17 +155,11 @@ export function TimeSlider({
           Igal tükil on oma taust, nende vahelt paistab kaart. */}
       <div className="timebar__row">
         <div className="timebar__readout timebar__pod">
+          {/* Ainult kell. Eraldi NÜÜD-silti siin ei ole: sama info annab juba
+              all olev NÜÜD-nupp oma aktiivse olekuga, ja silt tõi kaasa vea —
+              tingimuslikult renderdatuna muutis ta näidukasti laiust ja lükkas
+              liugurit, mis paistis pöidla tõmblemisena. */}
           <span className="timebar__time">{formatTime(value, lang)}</span>
-          {/* NÜÜD-silt hoiab oma laiust ka siis, kui teda ei näidata. Kui ta
-              päriselt DOM-ist kaob, kitseneb näidukast ja liugur nihkub
-              vasakule — pöial paistab "tõmblevat", kuigi väärtus on õige.
-              See oli tõmblemise tegelik põhjus, mitte liuguri väärtusloogika. */}
-          <span
-            className={`timebar__badge${isNow ? '' : ' is-hidden'}`}
-            aria-hidden={!isNow}
-          >
-            {t('time.now')}
-          </span>
         </div>
 
         <div className="timebar__track-wrap timebar__pod">

@@ -1278,22 +1278,6 @@ textarea {
   color: var(--text);
 }
 
-.timebar__badge {
-  padding: 1px var(--s3);
-  border-radius: var(--r-pill);
-  border: 1px solid var(--ok);
-  color: var(--ok);
-  font-size: var(--t-micro);
-  font-weight: var(--w-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/* `visibility`, mitte `display: none` — silt peab paigutuses oma laiuse
-   alles hoidma, muidu nihkub kogu liugur hetkel, mil ajast "nüüd" saab. */
-.timebar__badge.is-hidden {
-  visibility: hidden;
-}
 
 /* Mudel ja uuendusaeg — usaldusinfo, mitte dekoratsioon.
    Kitsal ekraanil kaovad, sest kellaaeg on tähtsam. */

@@ -5,6 +5,13 @@ export class HttpError extends Error {
     message: string,
     readonly status: number,
     readonly url: string,
+    /**
+     * Vastuse keha 429 korral. Allikad ütlevad just siin, KUMMA limiidi vastu
+     * jooksti — Open-Meteo eristab tunni- ja päevalimiiti ning ainult keha
+     * põhjal saab valida õige ooteaja. Ilma selleta ootaks päevalimiidi puhul
+     * järgmise täistunnini ja prooviks siis terve päeva asjatult edasi.
+     */
+    readonly body?: string,
   ) {
     super(message);
     this.name = 'HttpError';
@@ -66,10 +73,13 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
       // vahemälu annab kutsujale viimase eduka vastuse.
       if (res.status === 429) {
         const retryAfter = res.headers.get('retry-after');
+        const body = await res.text().catch(() => '');
         throw new HttpError(
-          `Päringulimiit ületatud (429)${retryAfter ? `, proovi ${retryAfter} s pärast` : ''}`,
+          `Päringulimiit ületatud (429)${retryAfter ? `, proovi ${retryAfter} s pärast` : ''}` +
+            (body ? `: ${body.slice(0, 200)}` : ''),
           429,
           url,
+          body,
         );
       }
 
