@@ -31,6 +31,11 @@ interface Props {
  * nuppu sõid ribalt laiust, mida liugur paremini ära kasutab. Täpne
  * tunnikaupa liikumine on alles klaviatuuril (nooled, Shift+nooled, Home).
  *
+ * Riba ei ole üks paneel, vaid mitu eraldi hõljuvat tükki (näit, rada, NÜÜD,
+ * päevad). Ühtne kast kattis kaardi alumise viiendiku kinni — just selle osa,
+ * kus rannajoon ja sadamaalad on. Tükkide vahelt paistab kaart läbi ja iga
+ * tükk on täpselt oma sisu laiune, mitte riba laiune.
+ *
  * Ajarida on juba tervikuna laaditud, seega liuguri liigutamine ei tekita
  * ühtki võrgupäringut; ainult kaardiväli tõmmatakse valitud tunni kohta ja
  * seegi tuleb enamasti vahemälust.
@@ -126,14 +131,15 @@ export function TimeSlider({
   return (
     <div className="timebar" role="group" aria-label={t('time.selected')}>
       {/* Üks rida: näit vasakul, liugur keskel, usaldusinfo paremal. Kolme
-          rea asemel üks — riba jääb madalaks, ilma et ükski puuteala kahaneks. */}
-      <div className="timebar__top">
-        <div className="timebar__readout">
+          rea asemel üks — riba jääb madalaks, ilma et ükski puuteala kahaneks.
+          Igal tükil on oma taust, nende vahelt paistab kaart. */}
+      <div className="timebar__row">
+        <div className="timebar__readout timebar__pod">
           <span className="timebar__time">{formatTime(value, lang)}</span>
           {isNow ? <span className="timebar__badge">{t('time.now')}</span> : null}
         </div>
 
-        <div className="timebar__track-wrap">
+        <div className="timebar__track-wrap timebar__pod">
           <input
             ref={trackRef}
             className="timebar__track"
@@ -146,16 +152,20 @@ export function TimeSlider({
             aria-label={t('time.selected')}
             aria-valuetext={formatTime(value, lang)}
           />
-          {/* Messingviip "praegu" kohal — püsiv orientiir liugurile. */}
+          {/* Viip "praegu" kohal — püsiv orientiir liugurile. Arvutus arvestab
+              nii aluse serva- kui pideme laiusega: pide ei ulatu kunagi raja
+              päris otsani, seega ei tohi ka viip protsenti otse rajalt võtta. */}
           <span
             className="timebar__nowmark"
-            style={{ left: `${(pastHours / total) * 100}%` }}
+            style={{
+              left: `calc(26px + (100% - 52px) * ${pastHours / total})`,
+            }}
             aria-hidden="true"
           />
         </div>
 
         {modelLabel || updatedAt ? (
-          <div className="timebar__meta">
+          <div className="timebar__meta timebar__pod">
             {modelLabel ? <span className="timebar__model">{modelLabel}</span> : null}
             {updatedAt ? (
               <span className="timebar__updated">
@@ -166,25 +176,30 @@ export function TimeSlider({
         ) : null}
       </div>
 
-      <div className="timebar__days">
+      {/* NÜÜD on tegevus, päevasakid on navigatsioon — seepärast eraldi
+          tükkidena, mitte ühes ribas. Nii ei satu tagasihüppe nupp kunagi
+          kogemata sirvimisliigutuse teele. */}
+      <div className="timebar__row">
         <button
           type="button"
-          className={`timebar__day timebar__day--now${isNow ? ' is-active' : ''}`}
+          className={`timebar__now timebar__pod${isNow ? ' is-active' : ''}`}
           onClick={() => onChange(floorToHour())}
           title={t('action.now')}
         >
           {t('action.now')}
         </button>
-        {days.map((d) => (
-          <button
-            key={d.key}
-            type="button"
-            className={`timebar__day${activeDay === d.key && !isNow ? ' is-active' : ''}`}
-            onClick={() => onChange(addHours(origin, d.index))}
-          >
-            {d.label}
-          </button>
-        ))}
+        <div className="timebar__days timebar__pod">
+          {days.map((d) => (
+            <button
+              key={d.key}
+              type="button"
+              className={`timebar__day${activeDay === d.key && !isNow ? ' is-active' : ''}`}
+              onClick={() => onChange(addHours(origin, d.index))}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

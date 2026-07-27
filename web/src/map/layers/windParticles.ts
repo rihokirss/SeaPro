@@ -20,14 +20,25 @@ import { windColor } from '../../lib/units';
 /** Mitu osakest 1000x1000 px ala kohta. Skaleerub ekraani suurusega. */
 const PARTICLE_DENSITY = 1400;
 
-/** Osakese eluiga kaadrites — pärast seda tekib ta juhuslikku kohta uuesti. */
-const MAX_AGE = 90;
+/**
+ * Osakese eluiga kaadrites — pärast seda tekib ta juhuslikku kohta uuesti.
+ * Aeglasema tempo juures peab eluiga olema pikem, muidu kaoks osake enne,
+ * kui ta jõuab nähtava vahemaa läbida.
+ */
+const MAX_AGE = 200;
 
 /** Kui palju eelmisest kaadrist alles jääb (jälje pikkus). */
-const TRAIL_FADE = 0.94;
+const TRAIL_FADE = 0.96;
 
-/** Kraadi liikumist sekundis 1 m/s kohta. Puhtalt visuaalne tempo. */
-const SPEED_FACTOR = 0.55;
+/**
+ * Visuaalne tempo: kraadi liikumist kaadris 1 m/s kohta.
+ *
+ * See EI OLE füüsikaliselt õige kiirus — päris tuul liigub kaardil nii
+ * aeglaselt, et animatsioon paistaks seisvat. Väärtus on valitud silma järgi:
+ * piisavalt, et voolu suund oleks kohe loetav, aga mitte nii kiiresti, et
+ * pilt muutuks rahutuks ja kaardi lugemist segaks.
+ */
+const SPEED_FACTOR = 0.18;
 
 interface Particle {
   x: number;

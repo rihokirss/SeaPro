@@ -3,6 +3,7 @@ import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibr
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { BASE_LAYERS, OVERLAY_LAYERS, baseStyle, type RasterLayerDef } from './basemaps';
 import { registerIcons } from './icons';
+import { LAYER_ORDER } from './layerOrder';
 import type { Position } from '../lib/geolocation';
 
 export interface MapViewProps {
@@ -17,24 +18,6 @@ export interface MapViewProps {
   onPick(lat: number, lon: number): void;
 }
 
-/**
- * Kaardikihtide järjekord alt üles. MapLibre lisab uue kihi vaikimisi kõige
- * peale, seega peame andmekihid alati üle rasterkihtide hoidma — muidu kaob
- * tuulenoolte kiht merekaardi alla.
- */
-const DATA_LAYER_IDS = [
-  'scalar-field',
-  'wind-arrows',
-  'tracks-line',
-  'vessel-hulls',
-  'vessel-hulls-line',
-  'vessels',
-  'vessels-labels',
-  'stations-dots',
-  'stations-labels',
-  'own-position-accuracy',
-  'own-position',
-];
 
 /**
  * Suurim täpsus (meetrites), mille juures täpsusringi veel joonistame.
@@ -117,6 +100,18 @@ export function MapView({
     });
     mapRef.current = map;
 
+    // Arendusrežiimis anna kaart konsoolile KOHE, mitte alles pärast kihtide
+    // loomist — muidu pole kaardi enda käivitusprobleeme kuidagi uurida.
+    if (import.meta.env.DEV) {
+      (window as unknown as { seaproMap?: MapLibreMap }).seaproMap = map;
+    }
+
+    map.on('error', (e) => {
+      // MapLibre'i vaikimisi käitumine on vead alla neelata. Kaardikihtide
+      // ja allikate vead on siin ainus koht, kus nad üldse nähtavaks saavad.
+      console.error('[SeaPro] MapLibre:', e.error?.message ?? e);
+    });
+
     map.touchZoomRotate.disableRotation();
 
     map.addControl(
@@ -132,7 +127,7 @@ export function MapView({
       'top-right',
     );
 
-    map.on('load', () => {
+    const initLayers = (): void => {
       registerIcons(map);
       for (const def of BASE_LAYERS) addRaster(map, def);
       // Oma asukoha allikas luuakse kohe, et kiht oleks õiges järjekorras
@@ -183,14 +178,9 @@ export function MapView({
       });
 
       setStyleReady(true);
-      // Arendusrežiimis anna kaart konsoolile — kihtide ja allikate
-      // kontrollimine brauserist on muidu võimatu.
-      if (import.meta.env.DEV) {
-        (window as unknown as { seaproMap?: MapLibreMap }).seaproMap = map;
-      }
       cb.current.onReady(map);
       emitMove(map);
-    });
+    };
 
     const emitMove = (m: MapLibreMap): void => {
       const b = m.getBounds();
@@ -200,13 +190,30 @@ export function MapView({
       );
     };
 
+    map.on('load', () => {
+      // MapLibre neelab `load` käsitleja erandid vaikselt alla. Ilma selle
+      // püüdmiseta jääb rakendus poolikuks — aluskaart on ekraanil, aga
+      // andmekihte ei tule kunagi ja konsool vaikib. Üks vale avaldis
+      // paint-reeglis maksis täpselt selle diagnoosimise.
+      try {
+        initLayers();
+      } catch (err) {
+        console.error('[SeaPro] kaardikihtide loomine ebaõnnestus:', err);
+        // Anna rakendusele siiski teada, et kaart on olemas — parem
+        // osaliselt töötav kaart kui täiesti tühi ekraan.
+        setStyleReady(true);
+        cb.current.onReady(map);
+        emitMove(map);
+      }
+    });
+
     map.on('moveend', () => emitMove(map));
 
     map.on('click', (e) => {
       // Kui klikk tabas mõnda andmekihti (jaam, laev), tegeleb sellega
       // vastav kihi enda käsitleja — siin ei tohi punktipaneeli avada.
       const hits = map.queryRenderedFeatures(e.point, {
-        layers: DATA_LAYER_IDS.filter((id) => map.getLayer(id)),
+        layers: LAYER_ORDER.filter((id) => map.getLayer(id)),
       });
       if (hits.length > 0) return;
       cb.current.onPick(e.lngLat.lat, e.lngLat.lng);
@@ -231,7 +238,7 @@ export function MapView({
 
       if (wanted && !exists) {
         // Lisa esimese andmekihi ETTE, et andmed jääksid alati peale.
-        const before = DATA_LAYER_IDS.find((id) => map.getLayer(id));
+        const before = LAYER_ORDER.find((id) => map.getLayer(id));
         addRaster(map, def, before);
       } else if (!wanted && exists) {
         map.removeLayer(def.id);

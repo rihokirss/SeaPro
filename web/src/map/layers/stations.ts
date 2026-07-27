@@ -2,6 +2,7 @@ import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { StationReading, Variable } from '@seapro/shared';
 import { freshnessOf } from '@seapro/shared';
 import { stationIcon } from '../icons';
+import { insertBefore } from '../layerOrder';
 import { convertSpeed } from '@seapro/shared';
 import type { SpeedUnit } from '../../lib/units';
 
@@ -97,7 +98,7 @@ export function updateStations(
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
       },
-    });
+    }, insertBefore(map, STATIONS_LAYER));
   }
 
   if (!map.getLayer(STATIONS_LABEL_LAYER)) {
@@ -128,7 +129,7 @@ export function updateStations(
         'text-halo-color': 'rgba(255,255,255,0.95)',
         'text-halo-width': 1.6,
       },
-    });
+    }, insertBefore(map, STATIONS_LABEL_LAYER));
   }
 
   setStationsVisible(map, true);

@@ -42,6 +42,16 @@
   --line: rgba(150, 205, 235, 0.16);
   --line-strong: rgba(150, 205, 235, 0.32);
 
+  /* Hõljuvad juhtnupud kaardi peal (ajariba tükid) on paneelidest hõredamad:
+     seal on vähe teksti ja palju kaarti, mida ei tohi kinni katta. Loetavuse
+     hoiab hägu ja tugevam piirjoon, mitte täidis. */
+  --float: rgba(6, 27, 41, 0.7);
+  --float-line: rgba(150, 205, 235, 0.28);
+
+  /* Vt .maplibregl-ctrl-group button span — kaardi enda ikoonid on tumedad
+     pildid, mitte teksti värvi, ja käivad seetõttu paletiga kaasa filtriga. */
+  --ctrl-icon-filter: invert(1) brightness(1.6);
+
   /* Messing — navigatsiooniinstrumendi aktsent. Ainult tegevustele ja
      orientiiridele, mitte dekoratsioonile, et see jääks tähenduslikuks. */
   --brass: #e0a94f;
@@ -129,6 +139,11 @@
 
     --line: rgba(7, 32, 48, 0.15);
     --line-strong: rgba(7, 32, 48, 0.3);
+
+    --float: rgba(255, 255, 255, 0.74);
+    --float-line: rgba(7, 32, 48, 0.22);
+
+    --ctrl-icon-filter: none;
 
     --brass: #9a6a1e;
     --brass-dim: #7c5416;
@@ -1134,14 +1149,13 @@ textarea {
   background: var(--surface-2) !important;
 }
 
+/* MapLibre'i + ja − on sissepõimitud SVG-d püsiva tumeda joonevärviga, seega
+   saab neid tumedal pinnal loetavaks teha ainult filtriga. Filter tuleb
+   muutujast koos ülejäänud paletiga (--ctrl-icon-filter), mitte eraldi
+   meediapäringust: nii ei jää ikoonid vale värvi, kui teemat kunagi ka käsitsi
+   valida saab — muutujad ja ikoonid vahetuvad siis ühes kohas. */
 .maplibregl-ctrl-group button span {
-  filter: invert(1) brightness(1.6);
-}
-
-@media (prefers-color-scheme: light) {
-  .maplibregl-ctrl-group button span {
-    filter: none;
-  }
+  filter: var(--ctrl-icon-filter);
 }
 
 .maplibregl-ctrl-scale {
@@ -1199,7 +1213,13 @@ textarea {
 }
 
 /* ==========================================================================
-   Ajariba — üks rida näit + liugur, all päevasakid
+   Ajariba — eraldi hõljuvad tükid kaardi kohal
+
+   Erinevalt paneelidest (kihivalik, leht, popupid) ei ole ajariba lugemispind,
+   vaid juhtnupp: seal on vähe teksti ja all palju kaarti. Üks suur läbipaistmatu
+   kast sõi kaardi alumise viiendiku; nüüd on iga osa oma väike poolläbipaistev
+   tükk ja nende vahelt paistab kaart läbi. Loetavuse hoiab hägu + tihe piirjoon,
+   mitte täidise tihedus.
    ========================================================================== */
 
 .timebar {
@@ -1208,27 +1228,45 @@ textarea {
   right: calc(var(--s4) + var(--safe-right));
   bottom: calc(var(--s4) + var(--safe-bottom));
   z-index: 15;
-  padding: var(--s3) var(--s4);
-  background: var(--surface);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  /* Konteiner ise on läbi kliki: tükkide vahelt jääb kaart tavaliseks
+     kaardiks, mida saab lohistada ja klikkida. */
+  pointer-events: none;
 }
 
-.timebar__top {
+/* stretch, mitte center: ühe rea tükid peavad olema täpselt sama kõrged,
+   muidu paistab kõrvutiste kapslite serv paigast ära. Kõrguse annab kõige
+   kõrgem tükk, mitte käsitsi kirjutatud arv. */
+.timebar__row {
   display: flex;
-  align-items: center;
-  gap: var(--s5);
+  align-items: stretch;
+  gap: var(--s3);
+  width: 100%;
+  min-width: 0;
+}
+
+/* Ühine hõljuva tüki pind. Alfa on madalam kui paneelidel (0.93) sihilikult —
+   siin on eesmärk kaarti näidata, mitte teksti mahutada. */
+.timebar__pod {
+  pointer-events: auto;
+  background: var(--float);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--float-line);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-sm);
 }
 
 .timebar__readout {
   flex: none;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--s3);
-  padding-left: var(--s1);
+  min-height: var(--touch);
+  padding: 0 var(--s5);
 }
 
 .timebar__time {
@@ -1257,16 +1295,25 @@ textarea {
   flex: none;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: flex-end;
   gap: 1px;
-  max-width: 130px;
+  min-height: var(--touch);
+  padding: 0 var(--s5);
+  max-width: 150px;
+  /* Kaherealine sisu kapslikujus näeb välja nagu venitatud nupp — sellel
+     tükil on seepärast pehme ristkülik, mitte pill. */
+  border-radius: var(--r-md);
 }
 
+/* Hõredal alusel murdub kõige nõrgem tekst esimesena, seega on siin
+   --text-dim, mitte --text-faint: sama hierarhia, aga kaardi kirju taust
+   ei söö seda ära. */
 .timebar__model,
 .timebar__updated {
   font-size: var(--t-micro);
   line-height: 1.3;
-  color: var(--text-faint);
+  color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1279,17 +1326,26 @@ textarea {
   font-weight: var(--w-med);
 }
 
-/* Rada on visuaalselt 6 px, aga haardeala 44 px kogu riba laiuses: märja
+/* Rada on visuaalselt 6 px, aga haardeala 44 px kogu tüki laiuses: märja
    käega paadis ei taba keegi 6 px joont, ja liugur on nüüd ainus viis
-   tundi valida (−/+ nupud on kadunud). */
+   tundi valida (−/+ nupud on kadunud). Tükk ise on kitsas alus, mis annab
+   rajale kaardi vastu kontrasti — ilma selleta kaob 6 px joon rannajoonde. */
 .timebar__track-wrap {
   position: relative;
   flex: 1;
   min-width: 0;
   height: var(--touch);
+  padding: 0 var(--s5);
 }
 
 .timebar__track {
+  /* Raja ja pideme mõõdud on ühes kohas, sest neid tuleb korrata kahes
+     brauserispetsiifilises pseudoelemendis, mida ei saa ühte reeglisse panna. */
+  --track-h: 8px;
+  --thumb-w: 28px;
+  --thumb-h: 34px;
+
+  display: block;
   width: 100%;
   height: var(--touch);
   margin: 0;
@@ -1304,73 +1360,71 @@ textarea {
 }
 
 .timebar__track::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 3px;
+  height: var(--track-h);
+  border-radius: var(--r-pill);
   background: linear-gradient(90deg, var(--line) 0%, var(--line-strong) 100%);
   border: 1px solid var(--line-strong);
 }
 
 .timebar__track::-moz-range-track {
-  height: 6px;
-  border-radius: 3px;
+  height: var(--track-h);
+  border-radius: var(--r-pill);
   background: linear-gradient(90deg, var(--line) 0%, var(--line-strong) 100%);
   border: 1px solid var(--line-strong);
 }
 
-/* Pide = instrumendi reguleerimisnupp: kitsas kapsel kahe messinghaarde-
-   joonega. Kapsel on püstine, sest liugur liigub horisontaalselt — püstine
-   vorm näitab täpset kohta rajal palju teravamalt kui ümar ketas. */
+/* Pide = instrumendi reguleerimisnupp: peaaegu aluse kõrgune kapsel kolme
+   haardejoonega, nagu raadio häälestusnupp. Ta on sihilikult suur — märja
+   käega paadis on ta ainus viis tundi valida, ja hõredamal alusel peab ta
+   olema see, mis silma haarab. Püstine vorm näitab täpset kohta rajal
+   teravamalt kui ümar ketas. */
 .timebar__track::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 28px;
-  margin-top: -11px;
+  width: var(--thumb-w);
+  height: var(--thumb-h);
+  margin-top: calc((var(--track-h) - var(--thumb-h)) / 2);
   border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   background-image:
-    linear-gradient(
+    repeating-linear-gradient(
       90deg,
-      transparent calc(50% - 3px),
-      rgba(255, 255, 255, 0.55) calc(50% - 3px) calc(50% - 2px),
-      transparent calc(50% - 2px) calc(50% + 2px),
-      rgba(255, 255, 255, 0.55) calc(50% + 2px) calc(50% + 3px),
-      transparent calc(50% + 3px)
+      rgba(255, 255, 255, 0.6) 0 1px,
+      transparent 1px 5px
     ),
     linear-gradient(180deg, #9fe2f6 0%, var(--accent) 45%, var(--accent-strong) 100%);
-  background-size: 100% 12px, 100% 100%;
+  background-size: 16px 16px, 100% 100%;
   background-position: center, center;
   background-repeat: no-repeat;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), var(--shadow-sm);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(2, 12, 20, 0.25), var(--shadow-sm);
   transition: transform 0.12s var(--ease), box-shadow 0.16s;
 }
 
 /* Lohistamise tagasiside: pide kasvab veidi ja saab helenduse. */
 .timebar__track:active::-webkit-slider-thumb {
-  transform: scale(1.1);
-  box-shadow: 0 0 0 4px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.5),
+  transform: scale(1.06);
+  box-shadow: 0 0 0 4px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.55),
     var(--shadow-sm);
 }
 
 .timebar__track::-moz-range-thumb {
-  width: 16px;
-  height: 28px;
+  width: var(--thumb-w);
+  height: var(--thumb-h);
   border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   background-image:
-    linear-gradient(
+    repeating-linear-gradient(
       90deg,
-      transparent calc(50% - 3px),
-      rgba(255, 255, 255, 0.55) calc(50% - 3px) calc(50% - 2px),
-      transparent calc(50% - 2px) calc(50% + 2px),
-      rgba(255, 255, 255, 0.55) calc(50% + 2px) calc(50% + 3px),
-      transparent calc(50% + 3px)
+      rgba(255, 255, 255, 0.6) 0 1px,
+      transparent 1px 5px
     ),
     linear-gradient(180deg, #9fe2f6 0%, var(--accent) 45%, var(--accent-strong) 100%);
-  background-size: 100% 12px, 100% 100%;
+  background-size: 16px 16px, 100% 100%;
   background-position: center, center;
   background-repeat: no-repeat;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), var(--shadow-sm);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(2, 12, 20, 0.25), var(--shadow-sm);
 }
 
 .timebar__track:focus-visible {
@@ -1389,9 +1443,9 @@ textarea {
    tähendab kogu ribal ühte ja sama asja, seega ka üht ja sama värvi. */
 .timebar__nowmark {
   position: absolute;
-  top: calc(50% - 8px);
+  top: calc(50% - 10px);
   width: 2px;
-  height: 16px;
+  height: 20px;
   border-radius: 1px;
   background: var(--ok);
   transform: translateX(-50%);
@@ -1400,14 +1454,15 @@ textarea {
 
 /* --- Päevasakid --------------------------------------------------------- */
 
+/* Sakigrupp on täpselt oma sisu laiune, mitte ekraani laiune: laiali venitatud
+   sakid tegid tühjast ruumist täisplokki, mis kattis kaardi ära. Üle ääre
+   minnes kerib grupp ise. */
 .timebar__days {
   display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
   gap: var(--s1);
-  margin-top: var(--s2);
   padding: var(--s1);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1419,14 +1474,14 @@ textarea {
 /* 44 px kõrgus on puutepiirang, mitte kujundusvalik — märja käega ei taba
    keegi madalamat sakki. Kompaktsus tuleb siin kitsusest, mitte madalusest. */
 .timebar__day {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   min-width: 58px;
   min-height: var(--touch);
   padding: 0 var(--s4);
   color: var(--text-dim);
   background: none;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-pill);
   font-size: var(--t-md);
   font-weight: var(--w-med);
   white-space: nowrap;
@@ -1445,22 +1500,32 @@ textarea {
   box-shadow: var(--shadow-sm);
 }
 
-/* "Nüüd" on tegevus, mitte päev. Eristub kirjaviisi ja täidise, mitte oma
-   värviperekonna kaudu — varasem messingnupp oli ribal ainus soe plekk ja
-   tõmbas tähelepanu rohkem kui kellaaeg ise. */
-.timebar__day--now {
+/* "Nüüd" on tegevus, mitte päev — seepärast oma tükk sakigrupi kõrval.
+   Eristub kirjaviisi ja täidise, mitte oma värviperekonna kaudu: varasem
+   messingnupp oli ribal ainus soe plekk ja tõmbas rohkem tähelepanu kui
+   kellaaeg ise. */
+.timebar__now {
   flex: 0 0 auto;
-  min-width: 52px;
+  min-width: 60px;
+  min-height: var(--touch);
+  padding: 0 var(--s5);
+  color: var(--text-dim);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-size: var(--t-sm);
   font-weight: var(--w-bold);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
-.timebar__day--now.is-active {
+.timebar__now:hover {
+  color: var(--text);
+}
+
+.timebar__now.is-active {
   background: linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border-color: var(--accent-strong);
   color: var(--on-accent);
-  box-shadow: none;
 }
 
 /* ==========================================================================
@@ -1554,6 +1619,13 @@ textarea {
     bottom: var(--s6);
   }
 
+  /* Lauaarvutis on ruumi küll, aga sakigrupp ei tohi ikkagi kogu laiust
+     täita — vaba ruum riba paremas otsas ongi see, mille kaudu kaart
+     hõljuvate tükkide vahelt paistab. */
+  .timebar__days {
+    max-width: 100%;
+  }
+
   .sheet {
     left: auto;
     right: var(--s6);
@@ -1622,4 +1694,112 @@ textarea {
   .timebar__time {
     font-size: var(--t-lg);
   }
+}
+
+/* ==========================================================================
+   Kaardimarkerite popupid (jaamad, laevad)
+   ========================================================================== */
+
+.popup {
+  min-width: 180px;
+}
+
+.popup__head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: var(--s2, 6px);
+}
+
+.popup__head strong {
+  font-size: var(--t-body, 14px);
+  font-weight: var(--w-bold, 650);
+  line-height: 1.25;
+}
+
+.popup__kind {
+  font-size: var(--t-micro, 10px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Vanus värvitakse sama loogikaga mis markeri ise — number ja marker
+   peavad ütlema sama asja. */
+.popup__age {
+  display: inline-block;
+  margin-bottom: var(--s2, 6px);
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  font-size: var(--t-micro, 10px);
+  font-weight: var(--w-med, 550);
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+
+.popup__age--fresh {
+  background: rgba(79, 201, 138, 0.16);
+  color: var(--ok);
+}
+
+.popup__age--stale {
+  background: rgba(224, 168, 63, 0.16);
+  color: var(--warn);
+}
+
+.popup__age--old,
+.popup__age--none {
+  background: rgba(240, 96, 63, 0.14);
+  color: var(--danger);
+}
+
+.popup__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small, 13px);
+  font-variant-numeric: tabular-nums;
+}
+
+.popup__table th {
+  padding: 2px 0;
+  text-align: left;
+  font-weight: var(--w-reg, 400);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.popup__table td {
+  padding: 2px 0 2px 12px;
+  text-align: right;
+  font-family: var(--num);
+  white-space: nowrap;
+}
+
+.popup__table small {
+  color: var(--text-faint);
+  font-size: var(--t-micro, 10px);
+}
+
+.popup__empty {
+  margin: 0;
+  font-size: var(--t-small, 13px);
+  color: var(--text-faint);
+}
+
+.popup__source {
+  margin-top: var(--s2, 6px);
+  padding-top: var(--s2, 6px);
+  border-top: 1px solid var(--line);
+  font-size: var(--t-micro, 10px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Sulgemisnupp peab olema puutetav, MapLibre'i vaikimisi oma on 18 px. */
+.maplibregl-popup-close-button {
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  color: var(--text-dim);
 }

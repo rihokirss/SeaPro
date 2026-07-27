@@ -1,6 +1,7 @@
 import type { CanvasSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { GridFrame, Variable } from '@seapro/shared';
 import { COLOR_SCALES, sampleScale, type ColorScale } from '../colorScales';
+import { insertBefore } from '../layerOrder';
 
 /**
  * Üldine valevärvi-väli.
@@ -17,8 +18,6 @@ import { COLOR_SCALES, sampleScale, type ColorScale } from '../colorScales';
 
 const SOURCE_ID = 'scalar-field-src';
 const LAYER_ID = 'scalar-field';
-/** Nooltekiht, mille alla väli kuulub. */
-const WIND_ARROWS_LAYER = 'wind-arrows';
 
 /** Kui palju servadest välja venitada, et kiht ei lõppeks järsult ekraani serval. */
 const EDGE_PAD = 0.5;
@@ -189,9 +188,8 @@ export function updateScalarField(
   }
 
   if (!map.getLayer(LAYER_ID)) {
-    // Väli peab jääma noolte ALLA: nool kannab suunda ja peab olema loetav
-    // ka tugeva värvi peal. MapLibre lisab uue kihi vaikimisi kõige peale,
-    // seega ütleme sõnaselgelt, kuhu.
+    // Väli on kontekst, mitte objekt: ta peab jääma KÕIGE alla, ka noolte,
+    // laevade ja jaamade alla. Vt layerOrder.ts.
     map.addLayer(
       {
       id: LAYER_ID,
@@ -204,7 +202,7 @@ export function updateScalarField(
         'raster-fade-duration': 0,
       },
       },
-      map.getLayer(WIND_ARROWS_LAYER) ? WIND_ARROWS_LAYER : undefined,
+      insertBefore(map, LAYER_ID),
     );
   }
   map.setLayoutProperty(LAYER_ID, 'visibility', 'visible');

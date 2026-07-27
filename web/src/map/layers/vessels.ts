@@ -1,6 +1,7 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { Feature, FeatureCollection } from 'geojson';
 import type { Vessel } from '@seapro/shared';
+import { insertBefore } from '../layerOrder';
 import {
   MIN_HULL_LENGTH_PX,
   hullDimensions,
@@ -149,7 +150,7 @@ function ensureHullLayers(map: MapLibreMap): void {
         'fill-color': ['get', 'color'],
         'fill-opacity': 0.75,
       },
-    });
+    }, insertBefore(map, VESSEL_HULL_FILL));
   }
   if (!map.getLayer(VESSEL_HULL_LINE)) {
     map.addLayer({
@@ -161,7 +162,7 @@ function ensureHullLayers(map: MapLibreMap): void {
         'line-color': 'rgba(8, 26, 40, 0.85)',
         'line-width': 1,
       },
-    });
+    }, insertBefore(map, VESSEL_HULL_LINE));
   }
 }
 
@@ -187,7 +188,7 @@ function ensureIconLayers(map: MapLibreMap): void {
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
       },
-    });
+    }, insertBefore(map, VESSELS_LAYER));
   }
 
   if (!map.getLayer(VESSELS_LABEL_LAYER)) {
@@ -211,7 +212,7 @@ function ensureIconLayers(map: MapLibreMap): void {
         'text-halo-color': 'rgba(255,255,255,0.9)',
         'text-halo-width': 1.4,
       },
-    });
+    }, insertBefore(map, VESSELS_LABEL_LAYER));
   }
 }
 

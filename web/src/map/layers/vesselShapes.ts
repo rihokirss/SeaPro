@@ -76,19 +76,25 @@ export function hullDimensions(v: Vessel): HullDimensions {
 export function hullPolygon(v: Vessel, dims: HullDimensions): [number, number][] {
   const { lengthM, beamM, toBowM, toPortM } = dims;
 
-  const halfBeamPort = toPortM;
-  const halfBeamStbd = beamM - toPortM;
+  // Laevakoordinaadid: x tüürpoordi suunas, y vööri suunas, nullpunkt ANTENNIS.
+  const portEdge = -toPortM;
+  const starboardEdge = beamM - toPortM;
   const toSternM = lengthM - toBowM;
 
   const bowStraight = toBowM - lengthM * BOW_FRACTION;
 
-  // Laevakoordinaadid: x paremale (tüürpoord), y ette (vöör).
+  // Vööritipp läheb kere KESKTELJELE, mitte antenni kohale. Antenn asub sageli
+  // pardast nihkes (C ei võrdu D-ga) ja tipu jätmine x=0 juurde annaks viltuse,
+  // mittevõrdhaarse nina — laev näeks kaardil välja, nagu ta oleks kokku
+  // põrganud.
+  const centrelineX = (portEdge + starboardEdge) / 2;
+
   const shape: [number, number][] = [
-    [-halfBeamPort, bowStraight], // pakpoordi vööripiir
-    [0, toBowM], // vööritipp
-    [halfBeamStbd, bowStraight], // tüürpoordi vööripiir
-    [halfBeamStbd, -toSternM], // tüürpoordi ahter
-    [-halfBeamPort, -toSternM], // pakpoordi ahter
+    [portEdge, bowStraight], // pakpoordi vööripiir
+    [centrelineX, toBowM], // vööritipp keskteljel
+    [starboardEdge, bowStraight], // tüürpoordi vööripiir
+    [starboardEdge, -toSternM], // tüürpoordi ahter
+    [portEdge, -toSternM], // pakpoordi ahter
   ];
 
   // Kurss: eelista tegelikku vööri suunda, muidu kurss üle põhja.

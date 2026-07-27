@@ -38,9 +38,15 @@ const OUTLINE = 'rgba(8, 26, 40, 0.85)';
  * Tuulenool. Tipp on ülal (0°); MapLibre pöörab selle `icon-rotate`'iga
  * suunda, KUHU tuul puhub.
  *
- * Kitsas ja hele: kiiruse kannab värviväli noole all, nool ütleb ainult
- * suunda. Peenike valge joon tumeda kontuuriga püsib loetav nii heleda
- * merepinna kui tumeda tormivärvi peal.
+ * Kitsas ja TUME heleda haloga, mitte vastupidi.
+ *
+ * Valge nool kadus heleda merepinna peal praktiliselt ära — meri on kaardil
+ * hele ja tuulevälja gradient on nõrga tuule korral peaaegu läbipaistev, nii
+ * et noolel polnud millegi vastu joonistuda. Tume kere loeb heleda vee peal
+ * hästi, ja hele halo hoiab ta loetavana ka siis, kui alla jääb tugeva tuule
+ * tume punane või lilla väli.
+ *
+ * Kiiruse kannab värviväli noole all — nool ütleb ainult suunda.
  */
 function windArrow(): ImageData {
   const size = 30;
@@ -49,23 +55,31 @@ function windArrow(): ImageData {
   const mid = size / 2;
 
   ctx.translate(mid, mid);
-  ctx.beginPath();
-  // Peenike vars + kompaktne nooleots.
-  ctx.moveTo(0, -11);
-  ctx.lineTo(4.2, -4.5);
-  ctx.lineTo(1.25, -4.5);
-  ctx.lineTo(1.25, 11);
-  ctx.lineTo(-1.25, 11);
-  ctx.lineTo(-1.25, -4.5);
-  ctx.lineTo(-4.2, -4.5);
-  ctx.closePath();
 
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(8, 26, 40, 0.55)';
-  ctx.lineWidth = 0.9;
+  const trace = (): void => {
+    ctx.beginPath();
+    // Peenike vars + kompaktne nooleots.
+    ctx.moveTo(0, -11);
+    ctx.lineTo(4.2, -4.5);
+    ctx.lineTo(1.25, -4.5);
+    ctx.lineTo(1.25, 11);
+    ctx.lineTo(-1.25, 11);
+    ctx.lineTo(-1.25, -4.5);
+    ctx.lineTo(-4.2, -4.5);
+    ctx.closePath();
+  };
+
+  // Hele halo joonistatakse laia joonena kuju ALLA, mitte peale — nii ei
+  // muutu nool jämedaks, vaid saab endale õhukese valgusserva.
+  trace();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = 2.4;
   ctx.lineJoin = 'round';
   ctx.stroke();
+
+  trace();
+  ctx.fillStyle = '#12283a';
+  ctx.fill();
 
   return toImageData(c);
 }

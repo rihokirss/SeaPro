@@ -1,5 +1,6 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { sampleWind, type Field } from '../interpolate';
+import { insertBefore } from '../layerOrder';
 
 const SOURCE_ID = 'wind-arrows-src';
 const LAYER_ID = 'wind-arrows';
@@ -115,7 +116,7 @@ export function updateWindArrows(
           14, 1,
         ],
       },
-    });
+    }, insertBefore(map, LAYER_ID));
   }
   map.setLayoutProperty(LAYER_ID, 'visibility', 'visible');
 }
