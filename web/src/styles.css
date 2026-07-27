@@ -1811,12 +1811,14 @@ textarea {
 .mapkey {
   position: absolute;
   right: calc(12px + var(--safe-right));
-  bottom: calc(148px + var(--safe-bottom));
+  /* Mobiilis katab ajariba terve laiuse, seega nupp peab jääma sellest kõrgemale. */
+  bottom: calc(124px + var(--safe-bottom));
   z-index: 16;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--s2, 8px);
+  transition: right 0.24s var(--ease), bottom 0.24s var(--ease);
 }
 
 .mapkey__panel {
@@ -1940,9 +1942,22 @@ textarea {
   white-space: nowrap;
 }
 
-/* Lauaarvutil on ajariba kitsam, seega tingmärgid mahuvad madalamale. */
 @media (min-width: 880px) {
+  /* Lauaarvutil lõpeb ajariba enne paremat serva, seega nupp mahub päris alla.
+     Jätame ruumi ainult OSM-i atributsioonile, mis on kohustuslik. */
   .mapkey {
-    bottom: calc(140px + var(--safe-bottom));
+    bottom: calc(56px + var(--safe-bottom));
+  }
+
+  /* Punktiprognoosi paneel istub samas nurgas — nihuta nupp sellest vasakule,
+     muidu jääks ta paneeli alla kättesaamatuks. */
+  .mapkey.is-shifted {
+    right: calc(456px + var(--safe-right));
+  }
+
+  /* Paneel avaneb nupust ülespoole ja peab mahtuma ekraanile ka siis, kui
+     nupp on päris all. */
+  .mapkey__panel {
+    max-height: min(70vh, 560px);
   }
 }

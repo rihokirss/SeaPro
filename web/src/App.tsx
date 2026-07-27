@@ -401,7 +401,11 @@ export function App() {
 
         <MapLegend variable={layers.scalarField} speedUnit={speedUnit} />
 
-        <MapKey showVessels={layers.vessels} showStations={layers.stations} />
+        <MapKey
+          showVessels={layers.vessels}
+          showStations={layers.stations}
+          sheetOpen={picked !== null}
+        />
 
         <TimeSlider
           value={selectedTime}

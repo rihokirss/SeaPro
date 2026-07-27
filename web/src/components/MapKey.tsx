@@ -19,9 +19,14 @@ interface Props {
   /** Kas laevakiht on sees — muidu pole mõtet laevamärke seletada. */
   showVessels: boolean;
   showStations: boolean;
+  /**
+   * Kas punktiprognoosi paneel on lahti. Lauaarvutil istub see paneel samas
+   * alumises paremas nurgas ja kataks nupu ära, seega nihutame nupu kõrvale.
+   */
+  sheetOpen: boolean;
 }
 
-export function MapKey({ showVessels, showStations }: Props) {
+export function MapKey({ showVessels, showStations, sheetOpen }: Props) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -47,7 +52,7 @@ export function MapKey({ showVessels, showStations }: Props) {
   }, [open]);
 
   return (
-    <div className="mapkey" ref={wrapRef}>
+    <div className={`mapkey${sheetOpen ? ' is-shifted' : ''}`} ref={wrapRef}>
       {open ? (
         <div className="mapkey__panel" role="dialog" aria-label={t('key.title')}>
           <h3>{t('key.title')}</h3>

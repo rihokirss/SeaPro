@@ -32,8 +32,22 @@ interface StoredPosition {
   receivedAt: number;
 }
 
-/** Positsioon, mis on vanem kui see, ei ole enam "kus laev on". */
-const MAX_AGE_MS = 20 * 60 * 1000;
+/**
+ * Kui kaua hoiame positsiooni mälus pärast selle SAABUMIST.
+ * Kaitseb registrit kasvamast, kui allikas lakkab laeva mainimast.
+ */
+const MAX_RECEIVED_AGE_MS = 20 * 60 * 1000;
+
+/**
+ * Kui vana tohib laeva ENDA ajatempel olla, et teda kaardil näidata.
+ *
+ * See on eraldi ülemisest piirist ja tegelikult tähtsam. Digitraffic tagastab
+ * igal pollimisel ka need laevad, kes on ammu vaikinud — meie saame nende
+ * kirje iga 30 s tagant "värskelt", aga positsioon ise võib olla tunde vana.
+ * Ilma selle kontrollita joonistas kaart laeva kohta, kus ta oli kaheksa
+ * tundi tagasi. Navigatsioonipildil on see halvem kui laeva mitte näidata.
+ */
+const MAX_POSITION_AGE_MS = 30 * 60 * 1000;
 
 /** Metaandmeid hoiame kauem — laeva nimi ei vanane. */
 const MAX_META_AGE_MS = 24 * 3600 * 1000;
@@ -76,13 +90,18 @@ class VesselRegistry {
   /** Laevad antud alas, metaandmetega rikastatult. */
   query(bbox: [number, number, number, number]): Vessel[] {
     const [south, west, north, east] = bbox;
-    const cutoff = Date.now() - MAX_AGE_MS;
+    const now = Date.now();
+    const receivedCutoff = now - MAX_RECEIVED_AGE_MS;
+    const positionCutoff = now - MAX_POSITION_AGE_MS;
     const out: Vessel[] = [];
 
     for (const { vessel, receivedAt } of this.#positions.values()) {
-      if (receivedAt < cutoff) continue;
+      if (receivedAt < receivedCutoff) continue;
       if (vessel.lat < south || vessel.lat > north) continue;
       if (vessel.lon < west || vessel.lon > east) continue;
+
+      const reported = new Date(vessel.timestamp).getTime();
+      if (Number.isFinite(reported) && reported < positionCutoff) continue;
 
       const meta = this.#meta.get(vessel.mmsi);
       out.push(meta ? { ...vessel, ...stripUndefined(meta) } : vessel);
@@ -93,7 +112,7 @@ class VesselRegistry {
 
   /** Eemaldab vananenud kirjed. Kutsutakse taustatööst. */
   prune(): void {
-    const posCutoff = Date.now() - MAX_AGE_MS;
+    const posCutoff = Date.now() - MAX_RECEIVED_AGE_MS;
     for (const [mmsi, entry] of this.#positions) {
       if (entry.receivedAt < posCutoff) this.#positions.delete(mmsi);
     }
