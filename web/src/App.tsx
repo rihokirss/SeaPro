@@ -17,6 +17,7 @@ import { floorToHour } from './lib/time';
 import { MapView } from './map/MapView';
 import { hideWindArrows, updateWindArrows } from './map/layers/windArrows';
 import { hideScalarField, updateScalarField } from './map/layers/scalarField';
+import { setBasemapMuted } from './map/basemapTone';
 import { WindParticleLayer } from './map/layers/windParticles';
 import { setStationsVisible, updateStations } from './map/layers/stations';
 import { setVesselsVisible, updateVessels } from './map/layers/vessels';
@@ -193,6 +194,11 @@ export function App() {
     const frame = fieldVar === 'wind_speed' ? gridFrame : fieldFrame;
     if (fieldVar) updateScalarField(map, frame, fieldVar);
     else hideScalarField(map);
+
+    // Värviline OSM ja värviline väli võitleksid teineteisega — tuhmistame
+    // aluskaardi, kui väli on peal. Merekaart ja märgid jäävad puutumata,
+    // sest nende värv kannab tähendust.
+    setBasemapMuted(map, fieldVar !== null);
   }, [fieldFrame, gridFrame, fieldVar, mapReady]);
 
   // --- Animeeritud tuulevoog ----------------------------------------------
