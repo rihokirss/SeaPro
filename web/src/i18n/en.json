@@ -130,5 +130,6 @@
   "source.mapLayer.hint": "Wind arrows and the colour field come from Open-Meteo — the only source that serves a grid rather than single points.",
   "layer.rateLimited": "Wind layer paused — Open-Meteo hourly limit reached, resumes in {min} min. The map shows the last data fetched.",
   "layer.failed": "Wind layer not updating — source not responding. The map shows the last data fetched.",
-  "chart.dragHint": "Drag the chart to move through time"
+  "chart.dragHint": "Drag the chart to move through time",
+  "layer.showingTime": "The map is showing {time}."
 }

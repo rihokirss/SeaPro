@@ -13,7 +13,7 @@ import { RateLimitedError, api, type AppConfig } from './lib/api';
 import { useGeolocation } from './lib/geolocation';
 import { useFavorites } from './lib/favorites';
 import { loadSpeedUnit, saveSpeedUnit, type SpeedUnit } from './lib/units';
-import { floorToHour } from './lib/time';
+import { floorToHour, formatDateTime } from './lib/time';
 import { MapView } from './map/MapView';
 import { hideWindArrows, updateWindArrows } from './map/layers/windArrows';
 import { hideScalarField, updateScalarField } from './map/layers/scalarField';
@@ -239,7 +239,10 @@ export function App() {
     layer.setField(windField);
     if (layers.windDisplay === 'animated' && windField) layer.start();
     else layer.stop();
-  }, [windField, layers.windDisplay]);
+    // `mapReady` on sõltuvustes sihilikult: kiht luuakse alles kaardi
+    // valmimisel ja ilma selleta jääks juba saabunud väli talle edastamata
+    // kuni järgmise andmemuutuseni.
+  }, [windField, layers.windDisplay, mapReady]);
 
   // --- Mõõtejaamad ja poid -------------------------------------------------
   const [stations, setStations] = useState<StationReading[]>([]);
@@ -398,6 +401,20 @@ export function App() {
 
   const center: [number, number] = [config?.defaultLat ?? 59.0, config?.defaultLon ?? 23.5];
 
+  /**
+   * Kui kaardikiht ei saanud valitud aja kohta andmeid, jääb ekraanile eelmine
+   * kaader. Siin arvutame, MIS aega see kaader tegelikult näitab, et seda
+   * saaks kasutajale öelda.
+   */
+  const staleFieldTime = useMemo(() => {
+    if (!layerNotice || !gridFrame) return null;
+    const shown = new Date(gridFrame.time);
+    if (Number.isNaN(shown.getTime())) return null;
+    const diffHours = Math.abs(shown.getTime() - selectedTime.getTime()) / 3600_000;
+    if (diffHours < 1) return null;
+    return formatDateTime(shown, lang);
+  }, [layerNotice, gridFrame, selectedTime, lang]);
+
   const modelLabel = useMemo(() => {
     const models = providers.find((p) => p.id === 'open-meteo')?.models;
     return models?.find((m) => m.id === activeModel)?.label;
@@ -431,6 +448,12 @@ export function App() {
                   min: Math.max(1, Math.ceil(layerNotice.retryAfterSeconds / 60)),
                 })
               : t('layer.failed')}
+            {/* Kui kaardil on mõne muu tunni andmed, tuleb see VÄLJA ÖELDA.
+                Vaikselt vale aja näitamine on mereilmakaardil ohtlikum kui
+                andmete puudumine — kasutaja usub kella, mida ta näeb. */}
+            {staleFieldTime ? (
+              <strong> {t('layer.showingTime', { time: staleFieldTime })}</strong>
+            ) : null}
           </div>
         ) : null}
 
