@@ -131,5 +131,22 @@
   "layer.rateLimited": "Wind layer paused — Open-Meteo hourly limit reached, resumes in {min} min. The map shows the last data fetched.",
   "layer.failed": "Wind layer not updating — source not responding. The map shows the last data fetched.",
   "chart.dragHint": "Drag the chart to move through time",
-  "layer.showingTime": "The map is showing {time}."
+  "layer.showingTime": "The map is showing {time}.",
+  "layer.harbours": "Harbours",
+  "harbour.title": "Harbour",
+  "harbour.maxDraught": "Max draught",
+  "harbour.capacity": "Berths",
+  "harbour.services": "Services",
+  "harbour.power": "power",
+  "harbour.sanitaryDump": "pump-out",
+  "harbour.fuel": "fuel",
+  "harbour.water": "drinking water",
+  "harbour.phone": "Phone",
+  "harbour.operator": "Operator",
+  "harbour.website": "Website",
+  "harbour.registry": "Harbour registry",
+  "key.harbours": "Harbours",
+  "key.harbour.full": "Harbour with services",
+  "key.harbour.basic": "Mooring, no facilities",
+  "key.harbours.note": "Data from OpenStreetMap; many Estonian harbours link to the national registry."
 }

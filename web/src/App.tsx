@@ -4,6 +4,7 @@ import type {
   GridFrame,
   PointResult,
   ProviderCapabilities,
+  Harbour,
   StationReading,
   Variable,
   Vessel,
@@ -21,6 +22,7 @@ import { setBasemapMuted } from './map/basemapTone';
 import { WindParticleLayer } from './map/layers/windParticles';
 import { setStationsVisible, updateStations } from './map/layers/stations';
 import { setVesselsVisible, updateVessels } from './map/layers/vessels';
+import { setHarboursVisible, updateHarbours } from './map/layers/harbours';
 import { closePopup, registerPopups } from './map/popups';
 import { buildWindField, type Field } from './map/interpolate';
 import { LayerPanel, type LayerState } from './components/LayerPanel';
@@ -38,6 +40,7 @@ const DEFAULT_LAYERS: LayerState = {
   scalarField: 'wind_speed',
   stations: true,
   vessels: true,
+  harbours: true,
 };
 
 /**
@@ -287,6 +290,31 @@ export function App() {
     }
   }, [stations, layers.stations, layers.scalarField, speedUnit, mapReady]);
 
+  // --- Sadamad -------------------------------------------------------------
+  const [harbours, setHarbours] = useState<Harbour[]>([]);
+
+  useEffect(() => {
+    if (!layers.harbours || !view) return;
+
+    const ac = new AbortController();
+    api
+      .harbours(view.bbox, ac.signal)
+      .then((res) => setHarbours(res.harbours))
+      .catch(() => {
+        // Overpass on koormatud ja vastab aeg-ajalt 504-ga. Sadamad ei liigu,
+        // seega vana nimekiri jääb ekraanile ja miski muu ei katke.
+      });
+    return () => ac.abort();
+    // Sõltub AINULT bbox'ist, mitte ajast: sadamad ei muutu tundide kaupa.
+  }, [layers.harbours, view?.bbox.join(',')]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (layers.harbours && harbours.length > 0) updateHarbours(map, harbours);
+    else setHarboursVisible(map, false);
+  }, [harbours, layers.harbours, mapReady]);
+
   // --- Laevad (AIS) --------------------------------------------------------
   const [vessels, setVessels] = useState<Vessel[]>([]);
 
@@ -462,6 +490,7 @@ export function App() {
         <MapKey
           showVessels={layers.vessels}
           showStations={layers.stations}
+          showHarbours={layers.harbours}
           sheetOpen={picked !== null}
         />
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
-import { FRESHNESS_COLORS, VESSEL_COLORS } from '../map/icons';
+import { FRESHNESS_COLORS, HARBOUR_COLORS, VESSEL_COLORS } from '../map/icons';
 
 /**
  * Tingmärkide seletus.
@@ -19,6 +19,7 @@ interface Props {
   /** Kas laevakiht on sees — muidu pole mõtet laevamärke seletada. */
   showVessels: boolean;
   showStations: boolean;
+  showHarbours: boolean;
   /**
    * Kas punktiprognoosi paneel on lahti. Lauaarvutil istub see paneel samas
    * alumises paremas nurgas ja kataks nupu ära, seega nihutame nupu kõrvale.
@@ -26,7 +27,7 @@ interface Props {
   sheetOpen: boolean;
 }
 
-export function MapKey({ showVessels, showStations, sheetOpen }: Props) {
+export function MapKey({ showVessels, showStations, showHarbours, sheetOpen }: Props) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -94,6 +95,23 @@ export function MapKey({ showVessels, showStations, sheetOpen }: Props) {
                   {t('station.noData')}
                 </li>
               </ul>
+            </section>
+          ) : null}
+
+          {showHarbours ? (
+            <section className="mapkey__section">
+              <h4>{t('key.harbours')}</h4>
+              <ul>
+                <li>
+                  <HarbourMark color={HARBOUR_COLORS.full} />
+                  {t('key.harbour.full')}
+                </li>
+                <li>
+                  <HarbourMark color={HARBOUR_COLORS.basic} />
+                  {t('key.harbour.basic')}
+                </li>
+              </ul>
+              <p className="mapkey__note">{t('key.harbours.note')}</p>
             </section>
           ) : null}
 
@@ -169,6 +187,19 @@ function StationMark({ shape, color }: { shape: 'circle' | 'square' | 'diamond';
       ) : (
         <path d="M10 2.5 17.5 10 10 17.5 2.5 10Z" fill={color} stroke="#fff" strokeWidth="2" />
       )}
+    </svg>
+  );
+}
+
+/** Sadamamärk — ankur ringi sees, sama kuju mis kaardil. */
+function HarbourMark({ color }: { color: string }) {
+  return (
+    <svg className="mapkey__mark" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="8" fill={color} stroke="#fff" strokeWidth="1.5" />
+      <g stroke="#fff" strokeWidth="1.4" fill="none" strokeLinecap="round">
+        <circle cx="10" cy="5.8" r="1.5" />
+        <path d="M10 7.3v6M7 9h6M6.4 11.8c.4 3 3.6 3 3.6 3s3.2 0 3.6-3" />
+      </g>
     </svg>
   );
 }

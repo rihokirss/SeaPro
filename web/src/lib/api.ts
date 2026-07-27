@@ -1,5 +1,6 @@
 import type {
   GridFrame,
+  Harbour,
   PointResult,
   ProviderCapabilities,
   ProviderError,
@@ -104,6 +105,11 @@ export const api = {
       `/api/stations${qs ? `?${qs}` : ''}`,
       signal,
     );
+  },
+
+  harbours(bbox: [number, number, number, number], signal?: AbortSignal) {
+    const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
+    return get<{ harbours: Harbour[] }>(`/api/harbours?${p}`, signal);
   },
 
   vessels(bbox: [number, number, number, number], signal?: AbortSignal) {

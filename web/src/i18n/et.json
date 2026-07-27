@@ -131,5 +131,22 @@
   "layer.rateLimited": "Tuulekiht ootab — Open-Meteo tunnilimiit on täis, uueneb {min} min pärast. Kaardil on viimased tõmmatud andmed.",
   "layer.failed": "Tuulekiht ei uuene — allikas ei vasta. Kaardil on viimased tõmmatud andmed.",
   "chart.dragHint": "Lohista graafikut ajas edasi-tagasi",
-  "layer.showingTime": "Kaardil on {time} seis."
+  "layer.showingTime": "Kaardil on {time} seis.",
+  "layer.harbours": "Sadamad",
+  "harbour.title": "Sadam",
+  "harbour.maxDraught": "Suurim süvis",
+  "harbour.capacity": "Kohti",
+  "harbour.services": "Teenused",
+  "harbour.power": "elekter",
+  "harbour.sanitaryDump": "septik",
+  "harbour.fuel": "kütus",
+  "harbour.water": "joogivesi",
+  "harbour.phone": "Telefon",
+  "harbour.operator": "Haldaja",
+  "harbour.website": "Koduleht",
+  "harbour.registry": "Sadamaregister",
+  "key.harbours": "Sadamad",
+  "key.harbour.full": "Teenustega sadam",
+  "key.harbour.basic": "Sildumiskoht, teenusteta",
+  "key.harbours.note": "Andmed OpenStreetMapist; osa Eesti sadamatest on seotud riikliku sadamaregistriga."
 }

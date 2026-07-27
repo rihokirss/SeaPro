@@ -204,6 +204,69 @@ function vesselDot(fill: string): ImageData {
   return toImageData(c);
 }
 
+/**
+ * Sadama marker — ankur ringi sees.
+ *
+ * Ankur on merekaardil sadama universaalne märk, seega ei pea seda õppima.
+ * Ring ümber eristab teda OpenSeaMapi ankrualade märkidest, mis on samuti
+ * ankrukujulised, aga ilma raamita.
+ */
+function harbourMarker(fill: string): ImageData {
+  const size = 26;
+  const c = makeCanvas(size);
+  const { ctx } = c;
+  const mid = size / 2;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(6, 22, 34, 0.45)';
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 1;
+  ctx.beginPath();
+  ctx.arc(mid, mid, 8, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(mid, mid, 8, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  // Ankur: rõngas, vars, põikpuu ja käpad.
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+
+  ctx.beginPath();
+  ctx.arc(mid, mid - 4.2, 1.6, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(mid, mid - 2.6);
+  ctx.lineTo(mid, mid + 4.6);
+  ctx.moveTo(mid - 3, mid - 1);
+  ctx.lineTo(mid + 3, mid - 1);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(mid - 3.6, mid + 1.8);
+  ctx.quadraticCurveTo(mid - 3.2, mid + 4.8, mid, mid + 4.8);
+  ctx.quadraticCurveTo(mid + 3.2, mid + 4.8, mid + 3.6, mid + 1.8);
+  ctx.stroke();
+
+  return toImageData(c);
+}
+
+export const HARBOUR_ICON = 'harbour';
+export const HARBOUR_ICON_BASIC = 'harbour-basic';
+
+/** Sadamamarkeri värvid: täisteenusega vs ilma. */
+export const HARBOUR_COLORS = {
+  full: '#2f7fd1',
+  basic: '#7a93a5',
+} as const;
+
 /** Jaama ikooninimi kuju ja värskuse järgi. */
 export function stationIcon(kind: string, freshness: string): string {
   const shape = kind === 'buoy' || kind === 'offshore' ? kind : 'coastal';
@@ -232,6 +295,8 @@ export function registerIcons(map: MapLibreMap): void {
   const icons: Record<string, ImageData> = {
     [WIND_ARROW_DARK]: windArrow('#14293a'),
     [WIND_ARROW_LIGHT]: windArrow('#ffffff'),
+    [HARBOUR_ICON]: harbourMarker(HARBOUR_COLORS.full),
+    [HARBOUR_ICON_BASIC]: harbourMarker(HARBOUR_COLORS.basic),
   };
 
   for (const kind of ['coastal', 'offshore', 'buoy'] as const) {

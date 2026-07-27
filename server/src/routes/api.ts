@@ -11,6 +11,7 @@ import { config } from '../config.js';
 import { HttpError } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { vessels } from '../ais/registry.js';
+import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
 import {
   coversPoint,
@@ -258,6 +259,20 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       vessels: list,
       sources: ['digitraffic', ...(aisstream.enabled ? ['aisstream'] : [])],
     };
+  });
+
+  /** Sadamad OpenStreetMapist. */
+  app.get('/api/harbours', async (req, reply) => {
+    const q = req.query as Record<string, unknown>;
+    const parts = String(q.bbox ?? '').split(',').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+      return reply.code(400).send({ error: 'bbox peab olema "lõuna,lääs,põhi,ida"' });
+    }
+
+    const harbours = await fetchHarbours(parts as [number, number, number, number]);
+    // Sadamad ei liigu — laseme brauseril neid julgelt hoida.
+    reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    return { harbours };
   });
 
   /** Trackid — liides on olemas, allikaid veel pole (Traccar / GPX tulevad hiljem). */

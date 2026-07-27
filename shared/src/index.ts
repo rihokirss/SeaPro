@@ -254,6 +254,45 @@ export interface Vessel {
 }
 
 // ---------------------------------------------------------------------------
+// Sadamad
+// ---------------------------------------------------------------------------
+
+/**
+ * Sadam või väikesadam OpenStreetMapist.
+ *
+ * Väljad on valitud selle järgi, mida kaatriga sadamasse minnes tegelikult
+ * teada tahetakse: kas ma mahun sisse (süvis), kas seal on elekter ja
+ * septikutühjendus, ja kellele helistada. Kõik peale nime ja asukoha on
+ * valikuline — OSM-i katvus on väljade kaupa väga erinev.
+ */
+export interface Harbour {
+  /** OSM tüüp ja id, nt "way/123456". */
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  /** seamark:harbour:category — "marina", "marina_no_facilities", "ferry" jne. */
+  category?: string;
+  phone?: string;
+  website?: string;
+  operator?: string;
+  /** Suurim süvis meetrites. */
+  maxDraught?: number;
+  /** Kohtade arv. */
+  capacity?: number;
+  powerSupply?: boolean;
+  sanitaryDump?: boolean;
+  fuel?: boolean;
+  drinkingWater?: boolean;
+  /** VHF-kanal. */
+  vhf?: string;
+  /** Link riiklikku sadamaregistrisse, kui OSM-is olemas. */
+  registryUrl?: string;
+  /** UN/LOCODE. */
+  locode?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Trackid (kaatri rajad) — liides valmis, implementatsioon tuleb hiljem
 // ---------------------------------------------------------------------------
 

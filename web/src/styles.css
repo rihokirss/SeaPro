@@ -2073,3 +2073,20 @@ textarea {
   color: var(--text-faint);
   text-align: center;
 }
+
+/* Sadama popupi lingid */
+.popup__links {
+  margin-top: var(--s2, 8px);
+  font-size: var(--t-small, 13px);
+}
+
+.popup__links a,
+.popup__table a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.popup__links a:hover,
+.popup__table a:hover {
+  text-decoration: underline;
+}

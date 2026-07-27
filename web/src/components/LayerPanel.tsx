@@ -21,6 +21,7 @@ export interface LayerState {
   scalarField: Variable | null;
   stations: boolean;
   vessels: boolean;
+  harbours: boolean;
 }
 
 interface Props {
@@ -161,6 +162,11 @@ export function LayerPanel({
               checked={layers.vessels}
               onChange={(v) => set({ vessels: v })}
               label={t('layer.vessels')}
+            />
+            <Toggle
+              checked={layers.harbours}
+              onChange={(v) => set({ harbours: v })}
+              label={t('layer.harbours')}
             />
           </section>
 

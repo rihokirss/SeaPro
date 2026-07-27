@@ -5,6 +5,7 @@ import type { Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import { STATIONS_LAYER } from './layers/stations';
 import { VESSEL_LAYERS } from './layers/vessels';
+import { HARBOURS_LAYER } from './layers/harbours';
 
 /**
  * Kaardimarkerite popupid.
@@ -100,8 +101,18 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     });
   }
 
+  map.on('click', HARBOURS_LAYER, (e) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    e.originalEvent.stopPropagation();
+    const id = `harbour:${String(f.properties?.id ?? '')}`;
+    if (show(id, coordsOf(f, e.lngLat), harbourHtml(f, getContext()))) {
+      hoverTip?.remove();
+    }
+  });
+
   // Kursor ja hover-vihje.
-  for (const layer of [STATIONS_LAYER, ...VESSEL_LAYERS]) {
+  for (const layer of [STATIONS_LAYER, HARBOURS_LAYER, ...VESSEL_LAYERS]) {
     map.on('mousemove', layer, (e) => {
       map.getCanvas().style.cursor = 'pointer';
 
@@ -113,7 +124,9 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
       const html =
         layer === STATIONS_LAYER
           ? stationTipHtml(f, getContext())
-          : vesselTipHtml(f, getContext());
+          : layer === HARBOURS_LAYER
+            ? harbourTipHtml(f, getContext())
+            : vesselTipHtml(f, getContext());
 
       if (!hoverTip) {
         hoverTip = new maplibregl.Popup({
@@ -161,6 +174,107 @@ function stationTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       ${reading}
     </div>
     <div class="tip__sub">${escapeHtml(t(`station.kind.${String(p.kind ?? 'coastal')}`))}</div>`;
+}
+
+/** Sadama vihje: nimi ja süvis — süvis otsustab, kas sinna üldse tasub minna. */
+function harbourTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
+  const p = f.properties as Record<string, unknown>;
+  const { t } = ctx;
+  const draught = p.maxDraught === null || p.maxDraught === undefined ? null : Number(p.maxDraught);
+
+  const value =
+    draught !== null
+      ? `<span class="tip__value">${draught.toFixed(1)}<small>m</small></span>`
+      : '';
+
+  return `
+    <div class="tip__row">
+      <span class="tip__name">${escapeHtml(String(p.name ?? ''))}</span>
+      ${value}
+    </div>
+    <div class="tip__sub">${escapeHtml(
+      draught !== null ? t('harbour.maxDraught') : t('harbour.title'),
+    )}</div>`;
+}
+
+/**
+ * Sadama popup.
+ *
+ * Väljad on järjestatud selle järgi, mis otsustab sissesõidu: kõigepealt
+ * SÜVIS (kas ma mahun), siis teenused, siis kontakt. Puuduvaid välju ei näidata
+ * tühjana — OSM-i katvus on väljade kaupa väga erinev ja tühjad read jätaksid
+ * mulje, et sadamas neid asju POLE, mitte et me ei tea.
+ */
+function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
+  const p = f.properties as Record<string, unknown>;
+  const { t } = ctx;
+
+  const num = (v: unknown): number | null =>
+    v === null || v === undefined || v === '' ? null : Number(v);
+  const bool = (v: unknown): boolean | null =>
+    v === null || v === undefined || v === '' ? null : Boolean(v);
+  const str = (v: unknown): string => String(v ?? '').trim();
+
+  const rows: string[] = [];
+
+  const draught = num(p.maxDraught);
+  if (draught !== null) rows.push(row(t('harbour.maxDraught'), draught.toFixed(1), 'm'));
+
+  const capacity = num(p.capacity);
+  if (capacity !== null) rows.push(row(t('harbour.capacity'), String(capacity), ''));
+
+  const services: string[] = [];
+  if (bool(p.powerSupply)) services.push(t('harbour.power'));
+  if (bool(p.sanitaryDump)) services.push(t('harbour.sanitaryDump'));
+  if (bool(p.fuel)) services.push(t('harbour.fuel'));
+  if (bool(p.drinkingWater)) services.push(t('harbour.water'));
+  if (services.length) rows.push(row(t('harbour.services'), escapeHtml(services.join(', ')), ''));
+
+  const vhf = str(p.vhf);
+  if (vhf) rows.push(row('VHF', escapeHtml(vhf), ''));
+
+  const phone = str(p.phone);
+  if (phone) {
+    rows.push(
+      row(t('harbour.phone'), `<a href="tel:${escapeHtml(phone)}">${escapeHtml(phone)}</a>`, ''),
+    );
+  }
+
+  const operator = str(p.operator);
+  if (operator) rows.push(row(t('harbour.operator'), escapeHtml(operator), ''));
+
+  const links: string[] = [];
+  const website = str(p.website);
+  if (website) {
+    links.push(
+      `<a href="${escapeHtml(website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+        t('harbour.website'),
+      )}</a>`,
+    );
+  }
+  const registry = str(p.registryUrl);
+  if (registry) {
+    links.push(
+      `<a href="${escapeHtml(registry)}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+        t('harbour.registry'),
+      )}</a>`,
+    );
+  }
+
+  const locode = str(p.locode);
+
+  return `
+    <div class="popup">
+      <div class="popup__head">
+        <strong>${escapeHtml(str(p.name))}</strong>
+        <span class="popup__kind">${escapeHtml(t('harbour.title'))}${
+          locode ? ` · ${escapeHtml(locode)}` : ''
+        }</span>
+      </div>
+      ${rows.length ? `<table class="popup__table">${rows.join('')}</table>` : ''}
+      ${links.length ? `<div class="popup__links">${links.join(' · ')}</div>` : ''}
+      <div class="popup__source">OpenStreetMap</div>
+    </div>`;
 }
 
 /** Laeva vihje: nimi ja tüüp, pluss kiirus kui liigub. */

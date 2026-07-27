@@ -34,6 +34,19 @@ const MUTED_BRIGHTNESS_MIN = 0.08;
 const MUTED_CONTRAST = -0.1;
 
 /**
+ * Ülemine heledus alla — kogu aluskaart läheb tumedamaks.
+ *
+ * Eesmärk on kontrast valevärvi-väljaga: hele kaart ja hele väli sulavad
+ * kokku, tume kaart laseb värvidel esile tulla.
+ *
+ * NB: see tumendab kaardi TERVIKUNA, mitte ainult merd. Rasterpaanil pole
+ * vee ja maa eristamiseks midagi käepärast — see nõuaks eraldi veepolügoone
+ * ehk vektorandmeid. Praktikas töötab tervikuna tumendamine sama eesmärgi
+ * nimel: kaart taandub taustaks ja väli tuleb esile.
+ */
+const MUTED_BRIGHTNESS_MAX = 0.72;
+
+/**
  * Lülitab aluskaardi tuhmi ja tavalise vahel.
  *
  * Üleminek on animeeritud (`*-transition`), sest järsk hüpe värvilise ja halli
@@ -46,9 +59,11 @@ export function setBasemapMuted(map: MapLibreMap, muted: boolean): void {
     map.setPaintProperty(def.id, 'raster-saturation', muted ? MUTED_SATURATION : 0);
     map.setPaintProperty(def.id, 'raster-brightness-min', muted ? MUTED_BRIGHTNESS_MIN : 0);
     map.setPaintProperty(def.id, 'raster-contrast', muted ? MUTED_CONTRAST : 0);
+    map.setPaintProperty(def.id, 'raster-brightness-max', muted ? MUTED_BRIGHTNESS_MAX : 1);
 
     map.setPaintProperty(def.id, 'raster-saturation-transition', { duration: 300 });
     map.setPaintProperty(def.id, 'raster-brightness-min-transition', { duration: 300 });
     map.setPaintProperty(def.id, 'raster-contrast-transition', { duration: 300 });
+    map.setPaintProperty(def.id, 'raster-brightness-max-transition', { duration: 300 });
   }
 }

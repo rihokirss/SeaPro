@@ -24,6 +24,8 @@ export const LAYER_ORDER = [
   'vessel-hulls-line',
   'vessels',
   'vessels-labels',
+  'harbours',
+  'harbours-labels',
   'stations-dots',
   'stations-labels',
   'own-position-accuracy',
