@@ -157,9 +157,16 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
         },
         ...usable.map((s, i) => {
           const samples = s.steps.filter((st) => st.values[variable] != null).length;
-          // Kui allikal on ajateljel hõre katvus, on ta oma sammuga hõre —
-          // mitte katkine. Siis on punktid ainus viis teda üldse näha.
-          const sparse = samples < times.length * 0.5;
+          /**
+           * Punkte näitame AINULT siis, kui allikal on nii vähe mõõtmisi, et
+           * joont ei tekigi — üks vaatlus (METOC, Ilmateenistus) jääks muidu
+           * täiesti nähtamatuks.
+           *
+           * Igal pool mujal on nad ainult müra: jämedama sammuga allikad
+           * (Windfinder, 3 h) joonistuvad `spanGaps` tõttu niikuinii ja
+           * punktid tegid graafiku kirjuks.
+           */
+          const needsPoints = samples <= 2;
 
           return {
             label:
@@ -181,7 +188,7 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
              * kus tegelikud mõõtmised on.
              */
             spanGaps: true,
-            points: { show: sparse, size: samples <= 2 ? 8 : 5 },
+            points: { show: needsPoints, size: 8 },
           };
         }),
       ],
