@@ -104,5 +104,8 @@
   "chart.time": "Aeg",
   "layer.field.none": "Väljas",
   "vessel.size": "Mõõtmed",
-  "vessel.length": "Pikkus"
+  "vessel.length": "Pikkus",
+  "layer.wind.off": "Väljas",
+  "layer.wind.arrows": "Nooled",
+  "layer.wind.animated": "Animatsioon"
 }

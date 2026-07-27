@@ -35,54 +35,43 @@ function toImageData({ canvas }: Ctx): ImageData {
 const OUTLINE = 'rgba(8, 26, 40, 0.85)';
 
 /**
- * Tuulenool. Tipp on ülal (0°); MapLibre pöörab selle `icon-rotate`'iga
- * suunda, KUHU tuul puhub.
+ * Tuulenool kahes variandis: tume ja hele, MÕLEMAD ilma ääriseta.
  *
- * Kitsas ja TUME heleda haloga, mitte vastupidi.
+ * Ääris tundus alguses ohutu valik — nool loeb siis igal taustal. Praktikas
+ * teeb ta noole jämedaks ja häguseks, ja tihedas võrgus muutub pilt müraks.
+ * Windfinderi lahendus on puhtam ja me võtame selle üle: nool on ühevärviline
+ * ja terav, ning VARIANT valitakse tausta järgi — tume nool heleda merepinna
+ * peal, hele nool tugeva värvivälja peal. Kumbki üksi ei kataks mõlemat
+ * olukorda, aga kahe vahel valides pole äärist üldse vaja.
  *
- * Valge nool kadus heleda merepinna peal praktiliselt ära — meri on kaardil
- * hele ja tuulevälja gradient on nõrga tuule korral peaaegu läbipaistev, nii
- * et noolel polnud millegi vastu joonistuda. Tume kere loeb heleda vee peal
- * hästi, ja hele halo hoiab ta loetavana ka siis, kui alla jääb tugeva tuule
- * tume punane või lilla väli.
- *
- * Kiiruse kannab värviväli noole all — nool ütleb ainult suunda.
+ * Valiku teeb `windArrowIcon()` värvivälja heleduse põhjal.
  */
-function windArrow(): ImageData {
+function windArrow(fill: string): ImageData {
   const size = 30;
   const c = makeCanvas(size);
   const { ctx } = c;
   const mid = size / 2;
 
   ctx.translate(mid, mid);
+  ctx.beginPath();
+  // Peenike vars + kompaktne nooleots.
+  ctx.moveTo(0, -11);
+  ctx.lineTo(4.2, -4.5);
+  ctx.lineTo(1.25, -4.5);
+  ctx.lineTo(1.25, 11);
+  ctx.lineTo(-1.25, 11);
+  ctx.lineTo(-1.25, -4.5);
+  ctx.lineTo(-4.2, -4.5);
+  ctx.closePath();
 
-  const trace = (): void => {
-    ctx.beginPath();
-    // Peenike vars + kompaktne nooleots.
-    ctx.moveTo(0, -11);
-    ctx.lineTo(4.2, -4.5);
-    ctx.lineTo(1.25, -4.5);
-    ctx.lineTo(1.25, 11);
-    ctx.lineTo(-1.25, 11);
-    ctx.lineTo(-1.25, -4.5);
-    ctx.lineTo(-4.2, -4.5);
-    ctx.closePath();
-  };
-
-  // Hele halo joonistatakse laia joonena kuju ALLA, mitte peale — nii ei
-  // muutu nool jämedaks, vaid saab endale õhukese valgusserva.
-  trace();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.lineWidth = 2.4;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-
-  trace();
-  ctx.fillStyle = '#12283a';
+  ctx.fillStyle = fill;
   ctx.fill();
 
   return toImageData(c);
 }
+
+export const WIND_ARROW_DARK = 'wind-arrow-dark';
+export const WIND_ARROW_LIGHT = 'wind-arrow-light';
 
 /** Jaama/poi marker. Kuju kodeerib tüübi, värv värskuse. */
 function stationMarker(kind: 'coastal' | 'offshore' | 'buoy', fill: string): ImageData {
@@ -187,7 +176,8 @@ const VESSEL_COLORS: Record<string, string> = {
 
 export function registerIcons(map: MapLibreMap): void {
   const icons: Record<string, ImageData> = {
-    'wind-arrow': windArrow(),
+    [WIND_ARROW_DARK]: windArrow('#14293a'),
+    [WIND_ARROW_LIGHT]: windArrow('#ffffff'),
   };
 
   for (const kind of ['coastal', 'offshore', 'buoy'] as const) {

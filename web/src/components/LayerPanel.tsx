@@ -4,11 +4,19 @@ import { OVERLAY_LAYERS } from '../map/basemaps';
 import { COLOR_SCALES, SCALAR_FIELDS, rgbaCss, sampleScale } from '../map/colorScales';
 import { SPEED_UNITS, type SpeedUnit } from '../lib/units';
 
+/**
+ * Kuidas tuult kaardil näidata.
+ *
+ * Üks väli, mitte kaks lülitit: nooled ja animatsioon näitavad SAMA asja
+ * kahel viisil ja korraga sisse lülitatuna võitlevad üksteisega. Kolmene
+ * valik teeb vigase vahepealse oleku lihtsalt olematuks, selle asemel et
+ * seda mujal koodis valvata.
+ */
+export type WindDisplay = 'off' | 'arrows' | 'animated';
+
 export interface LayerState {
   overlays: string[];
-  windArrows: boolean;
-  /** Animeeritud tuulevoog (osakesed). */
-  windParticles: boolean;
+  windDisplay: WindDisplay;
   /** Valevärvi-välja muutuja; null = väli välja lülitatud. */
   scalarField: Variable | null;
   stations: boolean;
@@ -129,17 +137,21 @@ export function LayerPanel({
           <section className="panel__section">
             <h3>{t('layer.group.data')}</h3>
 
-            <Toggle
-              checked={layers.windArrows}
-              onChange={(v) => set({ windArrows: v })}
-              label={t('layer.wind')}
-            />
-            <Toggle
-              checked={layers.windParticles}
-              onChange={(v) => set({ windParticles: v })}
-              label={t('layer.windAnimation')}
-              hint={t('layer.windAnimation.hint')}
-            />
+            <h4 className="panel__subhead">{t('layer.wind')}</h4>
+            <div className="chips">
+              {(['off', 'arrows', 'animated'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`chip${layers.windDisplay === mode ? ' is-active' : ''}`}
+                  onClick={() => set({ windDisplay: mode })}
+                  title={mode === 'animated' ? t('layer.windAnimation.hint') : undefined}
+                >
+                  {t(`layer.wind.${mode}`)}
+                </button>
+              ))}
+            </div>
+
             <Toggle
               checked={layers.stations}
               onChange={(v) => set({ stations: v })}

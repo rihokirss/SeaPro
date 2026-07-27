@@ -104,5 +104,8 @@
   "chart.time": "Time",
   "layer.field.none": "Off",
   "vessel.size": "Dimensions",
-  "vessel.length": "Length"
+  "vessel.length": "Length",
+  "layer.wind.off": "Off",
+  "layer.wind.arrows": "Arrows",
+  "layer.wind.animated": "Animated"
 }

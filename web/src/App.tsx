@@ -30,11 +30,10 @@ import { MapLegend } from './components/MapLegend';
 
 const DEFAULT_LAYERS: LayerState = {
   overlays: ['seamark'],
-  windArrows: true,
-  // Vaikimisi tuulevälja gradient: nool annab suuna, väli kiiruse.
+  // Vaikimisi nooled + tuulevälja gradient: nool annab suuna, väli kiiruse.
   // Koos loevad nad end ühe pilguga, kumbki eraldi mitte.
+  windDisplay: 'arrows',
   scalarField: 'wind_speed',
-  windParticles: false,
   stations: true,
   vessels: true,
 };
@@ -113,7 +112,8 @@ export function App() {
   const [gridFrame, setGridFrame] = useState<GridFrame | null>(null);
   const [fieldFrame, setFieldFrame] = useState<GridFrame | null>(null);
 
-  const needWind = layers.windArrows;
+  // Nii nooled kui animatsioon toituvad samast võrgustikupäringust.
+  const needWind = layers.windDisplay !== 'off';
   const fieldVar: Variable | null = layers.scalarField;
 
   useEffect(() => {
@@ -172,17 +172,18 @@ export function App() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    if (layers.windArrows && windField) {
+    if (layers.windDisplay === 'arrows' && windField) {
       const container = map.getContainer();
       updateWindArrows(map, windField, {
         bbox: view?.bbox ?? [0, 0, 0, 0],
         width: container.clientWidth,
         height: container.clientHeight,
+        fieldVariable: fieldVar,
       });
     } else {
       hideWindArrows(map);
     }
-  }, [windField, layers.windArrows, mapReady, view]);
+  }, [windField, layers.windDisplay, mapReady, view, fieldVar]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -210,9 +211,9 @@ export function App() {
     const layer = particlesRef.current;
     if (!layer) return;
     layer.setField(windField);
-    if (layers.windParticles && windField) layer.start();
+    if (layers.windDisplay === 'animated' && windField) layer.start();
     else layer.stop();
-  }, [windField, layers.windParticles]);
+  }, [windField, layers.windDisplay]);
 
   // --- Mõõtejaamad ja poid -------------------------------------------------
   const [stations, setStations] = useState<StationReading[]>([]);
