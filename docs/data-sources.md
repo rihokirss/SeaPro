@@ -166,6 +166,60 @@ lame ja stabiilne.
 Sama väli tuleb METOC-ist juba meetrites (36492) — vahe pole ilmne enne kui
 neid kõrvutada.
 
+### Ilmatieteen laitos (FMI) — `providers/fmi.ts`
+
+| | |
+|---|---|
+| Otspunkt | `opendata.fmi.fi/wfs` (WFS 2.0, salvestatud päringud) |
+| Võti | **ei vaja** — kontrollitud päris päringutega, kõik kolm vastavad 200-ga |
+| Litsents | CC BY 4.0 |
+| Katvus | Soome laht, Ahvenamaa, Saaristomeri; poid ja mareograafid kuni Perämereni |
+
+Täidab tühimiku, mille METOC ja Ilmateenistus jätavad: nemad lõpevad Eesti
+rannikul, FMI katab Soome lahe põhjakalda.
+
+Kolm salvestatud päringut, aga **üks vorming** (`multipointcoverage`), seega
+ka üks parser:
+
+| Päring | Mida annab | Mõõdetud |
+|---|---|---|
+| `fmi::observations::weather::multipointcoverage` | rannikujaamad (Utö, Nyhamn, Russarö, Kilpilahti sadam) | 64 jaama tuulega, 61 rõhuga, 44 nähtavusega |
+| `fmi::observations::wave::multipointcoverage` | lainepoid (Suomenlahti, Pohjois-Itämeri, Suomenlinna) | 6 poid lainekõrgusega |
+| `fmi::observations::mareograph::multipointcoverage` | veetase | 14 jaama |
+
+**Vorming.** Kolm paralleelset loendit: `<gml:Point>` (jaama nimi ja
+koordinaat), `<gmlcov:positions>` (read "lat lon unix_aeg") ja
+`<gml:doubleOrNilReasonTupleList>` (sama arv ridu, veerud `<swe:field>`
+järjekorras). Rida seotakse jaamaga **koordinaadi, mitte järjekorra kaudu** —
+loendite järjestus ei ole sama ja järjekorrale toetumine annaks vaikselt vale
+jaama väärtused.
+
+Puuduv mõõtmine on sõna-sõnalt `NaN`. Iga välja jaoks võetakse **eraldi**
+viimane mitte-NaN väärtus, sest parameetrid raporteerivad eri sammuga (tuul
+10 min, veetemperatuur 1 h) — ühe "viimase rea" võtmine jätaks poole väljadest
+tühjaks.
+
+**Ühikuteisendus:** mareograaf annab veetaseme MILLIMEETRITES (mõõdetud 199,
+302). Ilma teisenduseta näitaks kaart veetaset 199 meetrit. Sama lõks mis
+METOC-il, ainult et seal olid sentimeetrid — kolm allikat, kolm eri ühikut,
+mitte ükski neist meie oma. Nähtavus tuleb siin seevastu juba meetrites
+(35239, 75000), erinevalt Ilmateenistusest, kes annab kilomeetrites.
+
+**Kaks lõksu, mis maksid aega:**
+
+- `weather` päring nõuab `bbox`-i. Ilma selleta vastab ta **200-ga ja
+  `numberReturned="0"`**, mitte veaga — provider paistis töötavat, aga
+  ilmajaamu ei tulnud ühtegi.
+- Tundmatu nimi `parameters=` loendis annab **400 ja tapab terve päringu**,
+  mitte ei jäta ühte veergu vahele (nt `TW_PT1H_AVG` `weather` päringus).
+- `bbox`-i austab ainult `weather`. `wave` ja `mareograph` tagastavad kogu
+  Soome jaamad sõltumata sellest — mõõdetuna kuni Kemi Ajos 65.7 N. Me ei
+  filtreeri neid välja: Selkämeri ja Perämeri poid on ainsad mõõdetud lained
+  sealkandis.
+
+Kolm päringut käivad `Promise.allSettled` kaudu — ühe katkemine ei tohi
+ülejäänud jaamu kaardilt kustutada.
+
 ---
 
 ## AIS — laevade asukohad

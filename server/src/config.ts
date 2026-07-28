@@ -66,6 +66,8 @@ export const config = {
     metoc: num('CACHE_TTL_METOC', 240),
     lainepoiss: num('CACHE_TTL_LAINEPOISS', 300),
     ilmateenistus: num('CACHE_TTL_ILMATEENISTUS', 300),
+    // FMI jaamad raporteerivad 10 min sammuga, lainepoid 30 min.
+    fmi: num('CACHE_TTL_FMI', 300),
     windfinder: num('CACHE_TTL_WINDFINDER', 1800),
     ais: num('CACHE_TTL_AIS', 30),
   },
