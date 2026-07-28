@@ -23,7 +23,6 @@
   "layer.group.base": "Base map",
   "layer.group.overlay": "Map layers",
   "layer.group.data": "Data layers",
-  "layer.osm": "OpenStreetMap",
   "layer.chartEE": "Nautical chart (Estonia)",
   "layer.chartFI": "Nautical chart (Finland)",
   "layer.seamark": "Seamarks",

@@ -23,7 +23,6 @@
   "layer.group.base": "Aluskaart",
   "layer.group.overlay": "Kaardikihid",
   "layer.group.data": "Andmekihid",
-  "layer.osm": "OpenStreetMap",
   "layer.chartEE": "Merekaart (Eesti)",
   "layer.chartFI": "Merekaart (Soome)",
   "layer.seamark": "Navigatsioonimärgid",

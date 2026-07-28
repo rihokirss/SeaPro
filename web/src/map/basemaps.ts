@@ -22,24 +22,17 @@ export interface RasterLayerDef {
   opacity?: number;
 }
 
-export const BASE_LAYERS: RasterLayerDef[] = [
-  {
-    id: 'osm',
-    labelKey: 'layer.osm',
-    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-    attribution: '© OpenStreetMap contributors',
-    maxzoom: 19,
-  },
-];
-
 /**
- * Vaikimisi nähtav aluskaart.
+ * Aluskaarte SIIN EI OLE.
  *
- * Tume variant EI OLE siin: ta pole rasterpaanistik, vaid ise kokku pandud
- * vektorstiil (`darkBase.ts`), sest ainult nii saab vee maast tumedamaks
- * teha. Vt sealset kommentaari mõõtmiste ja kaalutud alternatiividega.
+ * Mõlemad — värviline ja tume — on vektorstiilid, mille me ise kokku paneme:
+ * `colorBase.ts` ja `darkBase.ts`. Rasterpaanistikuga ei saanud kumbagi nõuet
+ * täita: tumedal on vaja vett maast tumedamana (rasterkihil ei saa vett
+ * eraldi puutuda) ja värvilisel on vaja merd esiplaanile, mitte OSM-i
+ * maismaakeskset paletti.
+ *
+ * Siia jäävad ainult overlay'd, mis on päris rasterallikad (WMS ja paanid).
  */
-export const DEFAULT_BASE_ID = 'osm';
 
 export const OVERLAY_LAYERS: RasterLayerDef[] = [
   {

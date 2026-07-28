@@ -195,7 +195,16 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
       legend: { show: true, live: true },
       cursor: {
         drag: { x: false, y: false },
-        focus: { prox: 24 },
+        /**
+         * `focus: { prox }` on SIHILIKULT välja jäetud.
+         *
+         * uPlot tuhmistab selle peale kõik seeriad peale lähima ja teeb sama
+         * legendis. Mitme allika võrdlemise juures töötab see eesmärgi vastu:
+         * graafik on siin just selleks, et mudeleid KÕRVUTI näha, ja hiire
+         * väikseimgi liigutus vahetas, milline neist parajasti nähtav on.
+         * Kursorijoon ja legendi väärtused ütlevad niikuinii, millisel ajal
+         * ollakse — seeriate vilgutamine ei lisa sellele midagi.
+         */
       },
       hooks: {
         setCursor: [

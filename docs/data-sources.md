@@ -278,7 +278,7 @@ poleks ühtki kvooti ega võtmesõltuvust.
 
 | Kiht | Allikas | Märkus |
 |---|---|---|
-| Aluskaart | `tile.openstreetmap.org` | |
+| Aluskaart (värviline) | `tiles.openfreemap.org/planet` (vektor) | Oma stiil `web/src/map/colorBase.ts`. OSM-i rasterpaanid asendatud: nende palett on maismaakeskne (kollased teed, roheline mets) ja meri jääb lameda laiguna tagaplaanile |
 | Tume aluskaart | `tiles.openfreemap.org/planet` (vektor, OpenMapTiles skeem) | Valevärvi-välja alla. Oma stiil `web/src/map/darkBase.ts`: vesi tume, maa heledam. **Vektor on siin nõue, mitte eelistus** — vt allpool |
 | Merekaart (EE) | `gis.transpordiamet.ee/primar/wms_ip/TranspordiametNutimeri` | WMS, `layers=cells&styles=style-id-263`, bounds 57.45–60.1 N |
 | Merekaart (FI) | `einavigointiin.fi/map/{z}/{x}/{y}` | **CORS puudub → käib meie proxy kaudu** (`/api/tiles/chart-fi/{z}/{x}/{y}`) |

@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import {
-  BASE_LAYERS,
-  DEFAULT_BASE_ID,
-  OVERLAY_LAYERS,
-  baseStyle,
-  type RasterLayerDef,
-} from './basemaps';
+import { OVERLAY_LAYERS, baseStyle, type RasterLayerDef } from './basemaps';
+import { addColorBase } from './colorBase';
 import { addDarkBase } from './darkBase';
 import { registerIcons } from './icons';
 import { LAYER_ORDER } from './layerOrder';
@@ -136,16 +131,11 @@ export function MapView({
 
     const initLayers = (): void => {
       registerIcons(map);
-      for (const def of BASE_LAYERS) {
-        addRaster(map, def);
-        // Mõlemad aluskaardid lisatakse kohe, aga nähtav on ainult üks.
-        // Nii on vahetus hetkeline ega nõua kihi ehitamist lennult.
-        if (def.id !== DEFAULT_BASE_ID) {
-          map.setLayoutProperty(def.id, 'visibility', 'none');
-        }
-      }
-      // Tume aluskaart on vektorstiil, mitte paanistik — vt darkBase.ts.
-      // Lisatakse peidetuna kohe, et järjekord oleks paigas enne andmekihte.
+      // Mõlemad aluskaardid on vektorstiilid ja mõlemad lisatakse KOHE, aga
+      // nähtav on korraga ainult üks. Nii on vahetus hetkeline ega nõua kihi
+      // ehitamist lennult, ja järjekord on paigas enne andmekihte.
+      // Peidetud kihtide paane MapLibre ei tõmba, seega teine ei maksa midagi.
+      addColorBase(map);
       addDarkBase(map);
       // Oma asukoha allikas luuakse kohe, et kiht oleks õiges järjekorras
       // olemas ka enne esimest GPS-fixi.

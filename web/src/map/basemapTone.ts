@@ -1,5 +1,5 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { DEFAULT_BASE_ID } from './basemaps';
+import { setColorBaseVisible } from './colorBase';
 import { setDarkBaseVisible } from './darkBase';
 
 /**
@@ -27,8 +27,5 @@ import { setDarkBaseVisible } from './darkBase';
 
 export function setBasemapMuted(map: MapLibreMap, muted: boolean): void {
   setDarkBaseVisible(map, muted);
-
-  if (map.getLayer(DEFAULT_BASE_ID)) {
-    map.setLayoutProperty(DEFAULT_BASE_ID, 'visibility', muted ? 'none' : 'visible');
-  }
+  setColorBaseVisible(map, !muted);
 }
