@@ -16,8 +16,11 @@ import type { Variable } from '@seapro/shared';
  *     sest suurem väärtus on ka tähtsam;
  *   kahesuunalised (õhu- ja veetemp, rõhk, veetase) — ÜHTLANE 225, sest
  *     kumbki ots pole tähtsam ja kasvav alfa privilegeeriks suvaliselt ühte;
- *   lävendiga (pilved, sadu, hoovus, nähtavus) — "nähtust pole" jääb päris
+ *   lävendiga (sadu, hoovus, nähtavus) — "nähtust pole" jääb päris
  *     läbipaistvaks, aga kõik, mis lävendi ületab, on kohe täies tugevuses.
+ *
+ * Pilvisus on ainus erand: seal ON alfa ise andmed (30% katvust tähendabki,
+ * et taevast paistab läbi), seega tema ramp algab madalalt. Vt sealt.
  *
  * Nähtavus on tahtlikult tagurpidi: udu saab täisintensiivsuse ja hea
  * nähtavus kaob ära, sest kiht on hoiatus, mitte kirjeldus.
@@ -43,6 +46,15 @@ export interface ColorScale {
   stops: ColorStop[];
   /** Alla selle väärtuse ei joonista üldse (nt pilvitu taevas jääb läbipaistvaks). */
   transparentBelow?: number;
+  /**
+   * Kas väli on HELE?
+   *
+   * Enamik skaalasid on küllastunud ja tumedapoolsed, seega tuulenool on nende
+   * peal valge. Pilvisus on erand — ta läheb valge suunas, sest tumedal
+   * aluskaardil pole allapoole ruumi. Valge nool valgel väljal kaoks ära,
+   * seega nool valitakse skaala, mitte üksiku piksli järgi.
+   */
+  brightField?: boolean;
 }
 
 const s = (value: number, r: number, g: number, b: number, a = 255): ColorStop => ({
@@ -114,14 +126,36 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     unit: '%',
     // Selge taevas jääb läbipaistvaks — muidu kataks kiht terve kaardi valgega.
     transparentBelow: 10,
+    /**
+     * VALGE suunas, mitte halli ega tumedasse.
+     *
+     * Varem läks skaala valgest halliks (132,146,160). Tumedal aluskaardil
+     * jäi see loetamatuks: hall istub täpselt aluskaardi enda vahemikus
+     * (vesi 19, maa 92) ja pilvisuse aste ei olnud eristatav.
+     *
+     * Tumesinine suund oleks sama lõks teisest otsast — vesi on juba heledus
+     * 19 ja tumedamaks minna pole kuhugi, samas kui just merd sa selle kihiga
+     * vaatadki. Ainus vaba mõõde tumedal kaardil on heledus ÜLESPOOLE.
+     *
+     * Lisaks langeb see kokku sellega, mida silm pilvest ootab: taevas
+     * kattub valge looriga. Selge taevas = kaart paistab läbi, üleni pilves =
+     * peaaegu läbipaistmatu valge.
+     *
+     * See on ainus skaala, kus alfa ei järgi ühist 190–246 reeglit, vaid
+     * algab madalalt. Põhjus: pilvisus ON läbipaistvus — 30% katvust
+     * tähendabki, et taevast paistab läbi. Siin kannab alfa ise andmeid,
+     * mitte ainult loetavust.
+     */
     stops: [
       s(10, 255, 255, 255, 0),
-      s(30, 245, 248, 250, 190),
-      s(55, 226, 232, 238, 204),
-      s(75, 198, 208, 218, 218),
-      s(90, 165, 178, 190, 232),
-      s(100, 132, 146, 160, 246),
+      s(30, 176, 200, 222, 95),
+      s(55, 198, 218, 236, 150),
+      s(75, 220, 234, 246, 195),
+      s(90, 238, 246, 252, 225),
+      s(100, 250, 253, 255, 245),
     ],
+    // Valge väli valgete nooltega ei loeks — vt `windArrows.ts`.
+    brightField: true,
   },
 
   precipitation: {

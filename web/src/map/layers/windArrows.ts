@@ -62,7 +62,11 @@ export interface ArrowGridOptions {
  * noolte värv keset kaarti, mis luges rohkem veana kui infona.
  */
 function needsLightArrow(variable: Variable | null): boolean {
-  return variable !== null && COLOR_SCALES[variable] !== undefined;
+  if (variable === null) return false;
+  const scale = COLOR_SCALES[variable];
+  if (!scale) return false;
+  // Hele väli (pilvisus) tahab tumedat noolt, nagu paljas kaartki.
+  return !scale.brightField;
 }
 
 /**
