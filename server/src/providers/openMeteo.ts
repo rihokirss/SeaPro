@@ -201,7 +201,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     models: [...MODELS],
     supportsGrid: true,
     supportsStations: false,
-    forecastHours: 7 * 24,
+    forecastHours: 10 * 24,
     attribution: 'Open-Meteo.com (CC BY 4.0)',
     attributionUrl: 'https://open-meteo.com/',
     enabled: true,
@@ -214,7 +214,11 @@ export class OpenMeteoProvider implements WeatherProvider {
     const atmoVars = wanted.map((v) => ATMO_BY_VARIABLE[v]).filter((x): x is string => !!x);
     const marineVars = wanted.map((v) => MARINE_BY_VARIABLE[v]).filter((x): x is string => !!x);
 
-    const days = Math.min(8, Math.max(1, Math.ceil(q.hours / 24)));
+    // 10 päeva, mitte 8. Open-Meteo annab kuni 16, aga kvoodi mõttes on see
+    // tasuta ainult kuni 2 nädalani (üle selle loetakse üks punkt mitmeks
+    // kutseks) ja prognoosi tegelik väärtus on üle ~7 päeva niikuinii nõrk.
+    // 10 on koht, kus info veel loeb ja kutseid juurde ei tule.
+    const days = Math.min(10, Math.max(1, Math.ceil(q.hours / 24)));
 
     // Atmosfäär ja meri on eri API-des — pärime paralleelselt ja liidame ajatelje järgi.
     const [atmo, marine] = await Promise.all([

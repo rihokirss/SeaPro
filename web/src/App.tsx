@@ -44,6 +44,17 @@ const DEFAULT_LAYERS: LayerState = {
 };
 
 /**
+ * Kui kaugele ette punktiprognoosi küsime.
+ *
+ * Mõõdetud kate: Open-Meteo ja MET Norway annavad mõlemad ~8 päeva, kusjuures
+ * Open-Meteo ulatub 16 päevani. Kvoodi mõttes on kuni 2 nädalat tasuta — üle
+ * selle loeb Open-Meteo ühe punkti mitmeks kutseks. 10 päeva on seega piir,
+ * kus info veel midagi ütleb ja kutseid juurde ei tule; 16 päeva näitaks
+ * numbreid, mis on pigem müra kui prognoos.
+ */
+const FORECAST_HOURS = 240;
+
+/**
  * Mitu punkti serverilt küsida.
  *
  * Hoiame selle SIHILIKULT väikesena: Open-Meteo loeb iga võrgupunkti eraldi
@@ -454,7 +465,7 @@ export function App() {
         {
           lat: picked.lat,
           lon: picked.lon,
-          hours: 120,
+          hours: FORECAST_HOURS,
           providers: activeProviders.length ? activeProviders : undefined,
           models: activeModel === 'best_match' ? undefined : [activeModel],
         },
@@ -581,6 +592,7 @@ export function App() {
         <TimeSlider
           value={selectedTime}
           onChange={setSelectedTime}
+          futureHours={FORECAST_HOURS}
           modelLabel={modelLabel}
           updatedAt={gridFrame ? gridFrame.time : null}
         />

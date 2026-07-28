@@ -44,7 +44,7 @@ export function TimeSlider({
   value,
   onChange,
   pastHours = 6,
-  futureHours = 120,
+  futureHours = 240,
   modelLabel,
   updatedAt,
 }: Props) {
@@ -98,7 +98,11 @@ export function TimeSlider({
     let cursor = new Date(origin);
     cursor.setHours(0, 0, 0, 0);
 
-    for (let d = 0; d < 9; d++) {
+    // Ülempiir on lihtsalt turvapiir; tsükkel katkeb niikuinii, kui päev
+    // liuguri ulatusest välja jääb. Peab olema suurem kui futureHours / 24,
+    // muidu jäävad viimased päevad sakkideta ja kättesaadavaks ainult
+    // liugurit lohistades.
+    for (let d = 0; d < 14; d++) {
       const dayStart = new Date(cursor);
       dayStart.setDate(cursor.getDate() + d);
       const offset = hoursBetween(origin, dayStart);

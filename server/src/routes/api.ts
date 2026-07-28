@@ -122,7 +122,10 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const q = req.query as Record<string, unknown>;
     const lat = parseCoord(q.lat, 'lat', -90, 90);
     const lon = parseCoord(q.lon, 'lon', -180, 180);
-    const hours = Math.min(192, Math.max(1, Number(q.hours) || 72));
+    // Ülempiir 240 h = 10 päeva. Open-Meteo ulatub 16 päevani ja MET Norway
+    // 9-ni, aga üle 2 nädala hakkab Open-Meteo ühte punkti mitmeks kutseks
+    // lugema ja prognoosi väärtus on üle ~7 päeva niikuinii nõrk.
+    const hours = Math.min(240, Math.max(1, Number(q.hours) || 72));
     const variables = parseVariables(q.vars);
     const models = parseList(q.models);
 
