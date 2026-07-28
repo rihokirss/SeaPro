@@ -13,6 +13,7 @@ import { I18nContext, detectLang, makeTranslate, saveLang, type Lang } from './i
 import { RateLimitedError, api, type AppConfig } from './lib/api';
 import { useGeolocation } from './lib/geolocation';
 import { useFavorites } from './lib/favorites';
+import { useTheme } from './lib/theme';
 import { loadSpeedUnit, saveSpeedUnit, type SpeedUnit } from './lib/units';
 import { loadMapView, saveMapView } from './lib/mapView';
 import { floorToHour, formatDateTime } from './lib/time';
@@ -352,6 +353,7 @@ export function App() {
   const [layers, setLayers] = useState<LayerState>(DEFAULT_LAYERS);
   const [panelOpen, setPanelOpen] = useState(false);
   const [speedUnit, setSpeedUnit] = useState<SpeedUnit>(loadSpeedUnit);
+  const { theme, setTheme } = useTheme();
 
   const [selectedTime, setSelectedTime] = useState<Date>(() => floorToHour());
 
@@ -865,6 +867,8 @@ export function App() {
           onModelChange={setActiveModel}
           speedUnit={speedUnit}
           onSpeedUnitChange={changeSpeedUnit}
+          theme={theme}
+          onThemeChange={setTheme}
         />
 
         <PointSheet

@@ -148,5 +148,11 @@
   "layer.darkBase": "Tume aluskaart",
   "point.expand": "Ava täisvaade",
   "point.collapse": "Sulge täisvaade",
-  "action.renameFavorite": "Nimeta ümber"
+  "action.renameFavorite": "Nimeta ümber",
+  "theme.label": "Teema",
+  "theme.auto": "Automaatne",
+  "theme.light": "Hele",
+  "theme.dark": "Tume",
+  "theme.hint": "Automaatne järgib seadme valikut.",
+  "lang.label": "Keel"
 }

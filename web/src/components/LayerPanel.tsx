@@ -1,7 +1,8 @@
 import type { ProviderCapabilities, Variable } from '@seapro/shared';
-import { useI18n } from '../i18n';
+import { LANGS, useI18n } from '../i18n';
 import { OVERLAY_LAYERS } from '../map/basemaps';
 import { COLOR_SCALES, SCALAR_FIELDS, rgbaCss, sampleScale } from '../map/colorScales';
+import { THEMES, type Theme } from '../lib/theme';
 import { SPEED_UNITS, type SpeedUnit } from '../lib/units';
 
 /**
@@ -36,6 +37,8 @@ interface Props {
   onModelChange(next: string): void;
   speedUnit: SpeedUnit;
   onSpeedUnitChange(next: SpeedUnit): void;
+  theme: Theme;
+  onThemeChange(next: Theme): void;
 }
 
 function Toggle({
@@ -98,8 +101,10 @@ export function LayerPanel({
   onModelChange,
   speedUnit,
   onSpeedUnitChange,
+  theme,
+  onThemeChange,
 }: Props) {
-  const { t } = useI18n();
+  const { t, lang, setLang } = useI18n();
 
   const set = (patch: Partial<LayerState>): void => onLayersChange({ ...layers, ...patch });
 
@@ -277,6 +282,45 @@ export function LayerPanel({
                   onClick={() => onSpeedUnitChange(u)}
                 >
                   {t(`unit.${u}`)}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/*
+            Teema ja keel elavad siin, sest mõlemad on "seadista korra ja unusta"
+            valikud. Keelevalik oli varem ülaribal ja võttis seal ruumi, mida
+            telefonis on kõige vähem — iga avamise juures nähtav rippmenüü
+            asja, mida vahetatakse kord elus.
+          */}
+          <section className="panel__section">
+            <h3>{t('theme.label')}</h3>
+            <div className="chips">
+              {THEMES.map((th) => (
+                <button
+                  key={th}
+                  type="button"
+                  className={`chip${theme === th ? ' is-active' : ''}`}
+                  onClick={() => onThemeChange(th)}
+                >
+                  {t(`theme.${th}`)}
+                </button>
+              ))}
+            </div>
+            <p className="panel__hint">{t('theme.hint')}</p>
+          </section>
+
+          <section className="panel__section">
+            <h3>{t('lang.label')}</h3>
+            <div className="chips">
+              {LANGS.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  className={`chip${lang === l.id ? ' is-active' : ''}`}
+                  onClick={() => setLang(l.id)}
+                >
+                  {l.label}
                 </button>
               ))}
             </div>

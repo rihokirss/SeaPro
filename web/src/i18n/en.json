@@ -148,5 +148,11 @@
   "layer.darkBase": "Dark base map",
   "point.expand": "Open full view",
   "point.collapse": "Collapse",
-  "action.renameFavorite": "Rename"
+  "action.renameFavorite": "Rename",
+  "theme.label": "Theme",
+  "theme.auto": "Auto",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.hint": "Auto follows your device setting.",
+  "lang.label": "Language"
 }

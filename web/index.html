@@ -14,6 +14,29 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>SeaPro — mereilm</title>
+    <!--
+      Teema pannakse paika ENNE esimest joonistust.
+
+      Kui seda teeks alles React, näeks kasutaja iga avamise juures hetkeks
+      vaiketeemat ja siis vahetust — heleda valinud kasutajale tähendaks see
+      pimedas kajutis tumeda ekraani asemel valget välku. Skript on sihilikult
+      sünkroonne ja inline: väline fail tähendaks sama vilkumist.
+    -->
+    <script>
+      try {
+        var saved = localStorage.getItem('seapro.theme') || 'auto';
+        var light =
+          saved === 'light' ||
+          (saved === 'auto' && window.matchMedia('(prefers-color-scheme: light)').matches);
+        document.documentElement.dataset.theme = light ? 'light' : 'dark';
+        if (light) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#dfeaf1');
+        }
+      } catch (e) {
+        // Salvestus keelatud või matchMedia puudub — tume on vaikevalik.
+        document.documentElement.dataset.theme = 'dark';
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -302,19 +302,24 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
     });
     observer.observe(el);
 
-    // Režiimivahetus (telefoni öörežiim lülitub ise) muudab CSS-muutujaid, aga
-    // canvas jääb selliseks, nagu ta joonistati. Ilma selle kuulajata jääks
-    // graafik vahetuse hetkel eelmise režiimi värvidesse kuni järgmise
-    // uuesti ehitamiseni.
-    const scheme = window.matchMedia('(prefers-color-scheme: light)');
-    const onScheme = (): void => {
+    // Teemavahetus muudab CSS-muutujaid, aga canvas jääb selliseks, nagu ta
+    // joonistati — ilma selleta jääks graafik vahetuse hetkel eelmise teema
+    // värvidesse kuni järgmise uuesti ehitamiseni.
+    //
+    // Kuulame `data-theme` atribuuti, mitte `prefers-color-scheme`-i: seadme
+    // valik on ainult ÜKS teemamuutuse põhjus ja seadetes tehtud käsitsi
+    // vahetus ei puuduta meediapäringut üldse.
+    const themeWatch = new MutationObserver(() => {
       plot.current?.redraw(false, false);
-    };
-    scheme.addEventListener('change', onScheme);
+    });
+    themeWatch.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
 
     return () => {
       observer.disconnect();
-      scheme.removeEventListener('change', onScheme);
+      themeWatch.disconnect();
       plot.current?.destroy();
       plot.current = null;
     };

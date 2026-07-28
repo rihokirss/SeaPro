@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useI18n, LANGS, type Lang } from '../i18n';
+import { useI18n } from '../i18n';
 import type { GeoState } from '../lib/geolocation';
 import type { useFavorites } from '../lib/favorites';
 
@@ -26,7 +26,7 @@ function CompassRose() {
 }
 
 export function TopBar({ onOpenLayers, geo, favorites, onGoTo }: Props) {
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
   const [favOpen, setFavOpen] = useState(false);
 
   /*
@@ -134,19 +134,6 @@ export function TopBar({ onOpenLayers, geo, favorites, onGoTo }: Props) {
             </div>
           ) : null}
         </div>
-
-        <select
-          className="lang-select"
-          value={lang}
-          onChange={(e) => setLang(e.target.value as Lang)}
-          aria-label="Language"
-        >
-          {LANGS.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.label}
-            </option>
-          ))}
-        </select>
 
         <button
           type="button"

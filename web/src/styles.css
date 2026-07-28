@@ -143,42 +143,46 @@
 }
 
 /* Hele teema — päikeses loetav, aga hoiab sama merepaleti. Hallid toonid on
-   siin tumedamad kui tavaline "muted", sest ere päike sööb kontrasti ära. */
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #dfeaf1;
-    --surface: rgba(255, 255, 255, 0.85);
-    --surface-solid: #ffffff;
-    --surface-2: rgba(13, 48, 73, 0.07);
+   siin tumedamad kui tavaline "muted", sest ere päike sööb kontrasti ära.
 
-    --text: #062031;
-    --text-dim: #3c5b70;
-    --text-faint: #5f7f94;
+   Valikut EI tehta siin `prefers-color-scheme`-iga, vaid `data-theme`
+   atribuudiga, mille paneb paika `lib/theme.ts` (ja enne esimest joonistust
+   `index.html`-i skript). Põhjus: kasutaja peab saama seadme valiku tühistada
+   — ere päike ja öine vaht on kaks olukorda, kus seadme kellaaeg eksib. CSS-i
+   jaoks on teema seetõttu alati konkreetne, mitte "automaatne". */
+:root[data-theme='light'] {
+  --bg: #dfeaf1;
+  --surface: rgba(255, 255, 255, 0.85);
+  --surface-solid: #ffffff;
+  --surface-2: rgba(13, 48, 73, 0.07);
 
-    --line: rgba(7, 32, 48, 0.15);
-    --line-strong: rgba(7, 32, 48, 0.3);
+  --text: #062031;
+  --text-dim: #3c5b70;
+  --text-faint: #5f7f94;
 
-    --float: rgba(255, 255, 255, 0.74);
-    --float-line: rgba(7, 32, 48, 0.22);
+  --line: rgba(7, 32, 48, 0.15);
+  --line-strong: rgba(7, 32, 48, 0.3);
 
-    --ctrl-icon-filter: none;
+  --float: rgba(255, 255, 255, 0.74);
+  --float-line: rgba(7, 32, 48, 0.22);
 
-    --brass: #9a6a1e;
-    --brass-dim: #7c5416;
-    --on-brass: #fff6e6;
+  --ctrl-icon-filter: none;
 
-    --accent: #1a86ab;
-    --accent-strong: #10647f;
-    --accent-glow: rgba(26, 134, 171, 0.25);
+  --brass: #9a6a1e;
+  --brass-dim: #7c5416;
+  --on-brass: #fff6e6;
 
-    --danger: #c3341c;
-    --warn: #8a6212;
-    --ok: #12795a;
+  --accent: #1a86ab;
+  --accent-strong: #10647f;
+  --accent-glow: rgba(26, 134, 171, 0.25);
 
-    --shadow-sm: 0 1px 2px rgba(20, 50, 70, 0.12), 0 2px 8px rgba(20, 50, 70, 0.1);
-    --shadow: 0 2px 6px rgba(20, 50, 70, 0.12), 0 10px 26px rgba(20, 50, 70, 0.14);
-    --shadow-lg: 0 4px 12px rgba(20, 50, 70, 0.14), 0 24px 56px rgba(20, 50, 70, 0.18);
-  }
+  --danger: #c3341c;
+  --warn: #8a6212;
+  --ok: #12795a;
+
+  --shadow-sm: 0 1px 2px rgba(20, 50, 70, 0.12), 0 2px 8px rgba(20, 50, 70, 0.1);
+  --shadow: 0 2px 6px rgba(20, 50, 70, 0.12), 0 10px 26px rgba(20, 50, 70, 0.14);
+  --shadow-lg: 0 4px 12px rgba(20, 50, 70, 0.14), 0 24px 56px rgba(20, 50, 70, 0.18);
 }
 
 /* Ilma häguta ei ole 0.70 ja 0.85 pinnad loetavad — kaart lööb otse tekstist
@@ -191,11 +195,9 @@
     --float: rgba(6, 27, 41, 0.94);
   }
 
-  @media (prefers-color-scheme: light) {
-    :root {
-      --surface: rgba(255, 255, 255, 0.98);
-      --float: rgba(255, 255, 255, 0.95);
-    }
+  :root[data-theme='light'] {
+    --surface: rgba(255, 255, 255, 0.98);
+    --float: rgba(255, 255, 255, 0.95);
   }
 }
 
@@ -257,10 +259,8 @@ textarea {
   background: radial-gradient(ellipse at 50% 45%, transparent 58%, rgba(4, 18, 28, 0.22) 100%);
 }
 
-@media (prefers-color-scheme: light) {
-  .app::after {
-    background: radial-gradient(ellipse at 50% 45%, transparent 62%, rgba(20, 50, 70, 0.1) 100%);
-  }
+:root[data-theme='light'] .app::after {
+  background: radial-gradient(ellipse at 50% 45%, transparent 62%, rgba(20, 50, 70, 0.1) 100%);
 }
 
 /* ==========================================================================
@@ -428,26 +428,6 @@ textarea {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-.lang-select {
-  min-height: var(--touch);
-  padding: 0 var(--s4);
-  color: var(--text);
-  background: var(--float);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--float-line);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-sm);
-  font-size: var(--t-base);
-  font-weight: var(--w-med);
-  cursor: pointer;
-}
-
-.lang-select option {
-  background: var(--surface-solid);
-  color: var(--text);
 }
 
 /* ==========================================================================
