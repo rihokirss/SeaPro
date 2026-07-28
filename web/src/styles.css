@@ -1590,15 +1590,21 @@ textarea {
   color: rgba(255, 255, 255, 0.96);
 }
 
-/* Lävendiaste: alla selle väärtuse ei joonista kiht midagi. Täidiseta lahter
-   ütleb seda otse — värvi siia panna ei tohi, sest iga värv oleks vale.
-   Kriipsutus eristab teda taustast, ilma et ta värvina loeks. */
+/* Lävendiaste: alla selle väärtuse ei joonista kiht midagi. Värvi siia panna
+   ei tohi, sest iga värv oleks vale — aga päris läbipaistev ta ka olla ei saa,
+   sest legendil endal pole tausta ja number jääks kaardi peal loetamatuks.
+   Lahendus: sama matt materjal mis teistel hõljuvatel tükkidel, pluss kerge
+   kriipsutus. Nii loeb ta paneelina, mitte skaala värvina. */
 .legend__step.is-empty {
-  color: var(--text-dim);
-  background: repeating-linear-gradient(
+  /* Läbipaistmatu ja tume, mõlemas teemas ühtemoodi. Läbipaistev lahter
+     näitas kaarti läbi ja number muutus loetamatuks — ning läbipaistvus ise
+     luges skaala osana, mida ta ei ole. Tume plokk on selgelt "mitte värv". */
+  color: var(--foam);
+  background-color: var(--deep);
+  background-image: repeating-linear-gradient(
     -45deg,
     transparent 0 3px,
-    var(--surface-2) 3px 6px
+    rgba(232, 244, 250, 0.1) 3px 6px
   );
 }
 
