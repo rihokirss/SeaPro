@@ -156,5 +156,6 @@
   "theme.hint": "Auto follows your device setting.",
   "lang.label": "Language",
   "harbour.navily": "Navily",
-  "harbour.navily.hint": "Open this spot on the Navily map — sailors' reviews and anchorages"
+  "harbour.navily.hint": "Open this harbour on Navily — sailors' reviews",
+  "harbour.navily.hintNearby": "Open this spot on the Navily map — nearby harbours and anchorages"
 }

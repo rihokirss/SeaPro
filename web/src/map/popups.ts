@@ -5,6 +5,7 @@ import type { Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import { STATIONS_LAYER } from './layers/stations';
 import { VESSEL_LAYERS } from './layers/vessels';
+import { navilyIsExact, navilyUrl } from '../lib/navily';
 import { HARBOURS_LAYER } from './layers/harbours';
 
 /**
@@ -374,26 +375,17 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     );
   }
 
-  /**
-   * Link Navilysse — LINK, mitte andmed.
-   *
-   * Navilys on see, mida OSM-is ei ole ega tule: teiste purjetajate arvustused,
-   * hinnangud ja ankrukohtade kirjeldused. Selle sisu on nende kasutajate
-   * loodud ja nende platvormi oma, seega me ei tõmba sealt midagi alla — anname
-   * kasutajale ukse, mis avaneb täpselt õigesse kohta.
-   *
-   * `/carte/place/<lat>/<lon>` on nende enda kaardi koordinaadipõhine marsruut
-   * (kontrollitud: avab kaardi selles punktis ja loetleb lähedased sadamad ning
-   * ankrukohad), seega ei ole meil vaja nende sisemisi ID-sid ega ühtki päringut
-   * nende serverile.
-   */
+  // Link Navilysse — vt `lib/navily.ts`: teadaoleva sadama puhul tema enda leht,
+  // muidu koordinaadivaade, mis töötab iga sadama jaoks.
   const coords = f.geometry.type === 'Point' ? (f.geometry.coordinates as number[]) : null;
   const lon = coords?.[0];
   const lat = coords?.[1];
   if (lat !== undefined && lon !== undefined) {
+    const name = str(p.name);
+    const hint = navilyIsExact(name) ? t('harbour.navily.hint') : t('harbour.navily.hintNearby');
     links.push(
-      `<a href="https://www.navily.com/carte/place/${lat.toFixed(6)}/${lon.toFixed(6)}" ` +
-        `target="_blank" rel="noopener noreferrer" title="${escapeHtml(t('harbour.navily.hint'))}">` +
+      `<a href="${escapeHtml(navilyUrl(name, lat, lon))}" ` +
+        `target="_blank" rel="noopener noreferrer" title="${escapeHtml(hint)}">` +
         `${escapeHtml(t('harbour.navily'))}</a>`,
     );
   }
