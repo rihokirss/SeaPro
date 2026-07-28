@@ -117,7 +117,16 @@ export function updateStations(
           7, 11,
           12, 14,
         ],
-        'text-offset': [0, -1.5],
+        // Number hoiab ikooni ligi. Nihe on em-ides ehk teksti suuruse suhtes,
+        // ikoon aga kasvab zoomiga omas tempos (0.55 -> 1.0) — ühe konstandiga
+        // jäi number madalal zoomil ikoonist selgelt lahku ja luges pigem
+        // eraldi objektina kui jaama näiduna. Seepärast käib nihe zoomiga
+        // kaasa, veidi aeglasemalt kui ikoon.
+        'text-offset': [
+          'interpolate', ['linear'], ['zoom'],
+          7, ['literal', [0, -0.75]],
+          13, ['literal', [0, -1.0]],
+        ],
         'text-anchor': 'bottom',
         'text-allow-overlap': false,
         'text-ignore-placement': false,
