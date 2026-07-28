@@ -180,18 +180,19 @@ export function PointSheet({
     return (
       <div className={`sheet is-peek${open ? ' is-open' : ''}`} aria-hidden={!open}>
         <div className="sheet__grip" aria-hidden="true" />
-        <button
-          type="button"
-          className="sheet__peek"
-          onClick={() => onExpandedChange(true)}
-          aria-expanded={false}
-          aria-label={t('point.expand')}
-        >
-          <span className="sheet__peek-coords">
-            {lat.toFixed(2)}° {lon.toFixed(2)}°
-          </span>
+        <div className="sheet__peek-row">
+          <button
+            type="button"
+            className="sheet__peek"
+            onClick={() => onExpandedChange(true)}
+            aria-expanded={false}
+            aria-label={t('point.expand')}
+          >
+            <span className="sheet__peek-coords">
+              {lat.toFixed(2)}° {lon.toFixed(2)}°
+            </span>
 
-          {loading ? (
+            {loading ? (
             <span className="sheet__peek-loading">{t('point.loading')}</span>
           ) : (
             <span className="sheet__peek-values">
@@ -211,23 +212,36 @@ export function PointSheet({
             </span>
           )}
 
-          <svg
-            className="sheet__peek-chevron"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
+            <svg
+              className="sheet__peek-chevron"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                d="M6 15l6-6 6 6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
+          {/* Eraldi nupp, mitte riba sees: nupp nupu sees ei ole lubatud.
+              Kaardiklikk ei sulge enam midagi, seega peab sulgemine olema
+              siin nähtaval. */}
+          <button
+            type="button"
+            className="sheet__peek-close"
+            onClick={onClose}
+            aria-label={t('action.close')}
           >
-            <path
-              d="M6 15l6-6 6 6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+            ✕
+          </button>
+        </div>
       </div>
     );
   }
@@ -244,9 +258,13 @@ export function PointSheet({
       <header className="sheet__head">
         <div>
           <h2>{t('point.title')}</h2>
+          {/* Koordinaat ja aeg eraldi ridadel: ühel real murdus rida kitsal
+              paneelil suvalisest kohast ja kuupäev sattus koordinaadi keskele. */}
           <p className="sheet__coords">
-            {lat.toFixed(4)}° N, {lon.toFixed(4)}° E · {formatDay(selectedTime, lang)}{' '}
-            {formatTime(selectedTime, lang)}
+            {lat.toFixed(4)}° N, {lon.toFixed(4)}° E
+          </p>
+          <p className="sheet__when">
+            {formatDay(selectedTime, lang)} {formatTime(selectedTime, lang)}
           </p>
         </div>
         <div className="sheet__actions">

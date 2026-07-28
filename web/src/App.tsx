@@ -699,15 +699,14 @@ export function App() {
   /**
    * Klikk tühjal merel.
    *
-   * Kui paneel on juba lahti, SULGEB järgmine klikk selle, mitte ei ava uut
-   * punkti. Kaardil on paneeli kõrval vähe vaba pinda ja iga möödaklikk tõi
-   * varem uue prognoosi — paneelist ei saanudki lahti muidu kui ristist.
-   * Sulgemine on sagedasem soov kui kohe teise punkti vaatamine.
-   *
-   * Hind: teise punkti valimiseks on nüüd kaks klikki (sulge, siis vali).
+   * Valib ALATI uue punkti, ka siis kui riba on juba lahti. Vahepeal sulges
+   * teine klikk paneeli — see oli mõistlik seni, kuni paneel kattis pool
+   * ekraanist ja sellest oli vaja pääseda. Kokkupandud riba on aga nii madal,
+   * et ta ei sega, ja siis on uue punkti vaatamine palju sagedasem soov kui
+   * sulgemine. Sulgemiseks on ribal oma rist.
    */
   const handlePick = useCallback((lat: number, lon: number) => {
-    setPicked((prev) => (prev === null ? { lat, lon } : null));
+    setPicked({ lat, lon });
     setSheetExpanded(false); // Uus punkt algab alati ribast.
     setPointResult(null);
   }, []);

@@ -512,9 +512,11 @@ textarea {
   font-weight: var(--w-med);
 }
 
+/* Koordinaat on siin nime alamrida, mitte loetav mõõtühik — mono font tegi
+   sellest omaette ploki ja tõmbas tähelepanu nimelt ära. tabular-nums hoiab
+   numbrid ikka joondatud. */
 .dropdown__coords {
   display: block;
-  font-family: var(--num);
   font-size: var(--t-cap);
   font-weight: var(--w-reg);
   font-variant-numeric: tabular-nums;
@@ -907,7 +909,14 @@ button.sheet__grip::before {
  * Nii palju, kui ühe pilguga vaja — ja mitte rohkem. Terve paneel kattis
  * kaardi ära ka siis, kui tahtsid ainult teada, kui kõvasti seal puhub.
  */
+.sheet__peek-row {
+  display: flex;
+  align-items: center;
+}
+
 .sheet__peek {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--s3);
@@ -950,6 +959,23 @@ button.sheet__grip::before {
   color: var(--text-faint);
 }
 
+.sheet__peek-close {
+  flex: none;
+  min-width: var(--touch);
+  min-height: var(--touch);
+  margin-right: var(--s2);
+  color: var(--text-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  font-size: var(--t-base);
+  cursor: pointer;
+}
+
+.sheet__peek-close:hover {
+  color: var(--text);
+}
+
 .sheet__head {
   display: flex;
   align-items: flex-start;
@@ -974,6 +1000,14 @@ button.sheet__grip::before {
   font-size: var(--t-sm);
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+}
+
+/* Valitud aeg koordinaadi all omal real. Aeg ei ole mõõteväärtus, seega
+   ilma mono fondita — nii eristub ta koordinaadist ka ilma eraldajata. */
+.sheet__when {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--text-faint);
 }
 
 .sheet__actions {
