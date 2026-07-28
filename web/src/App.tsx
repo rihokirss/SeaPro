@@ -31,6 +31,7 @@ import { PointSheet } from './components/PointSheet';
 import { TopBar } from './components/TopBar';
 import { MapLegend } from './components/MapLegend';
 import { MapKey } from './components/MapKey';
+import { LocateButton } from './components/LocateButton';
 
 const DEFAULT_LAYERS: LayerState = {
   overlays: ['seamark'],
@@ -793,12 +794,21 @@ export function App() {
 
         <MapLegend variable={layers.scalarField} speedUnit={speedUnit} />
 
-        <MapKey
-          showVessels={layers.vessels}
-          showStations={layers.stations}
-          showHarbours={layers.harbours}
-          sheetOpen={picked !== null}
-        />
+        {/* Kaardi nupuvirn all paremal. Punktiprognoosi paneel istub samas
+            nurgas, seega virn tervikuna nihkub sellest kõrvale — muidu jääks
+            mõlemad nupud paneeli alla kättesaamatuks. */}
+        {/* Järjekord loeb: tingmärgid ülal, asukoht all. Tingmärkide paneel
+            hõljub oma nupu kohal, seega peab see nupp olema virnas ÜLEMINE —
+            muidu katab avatud paneel asukohanupu ära. Ja asukoht on niikuinii
+            õigem kõige alla: seda vajutatakse ühe käega kõige sagedamini. */}
+        <div className={`mapctl${picked !== null ? ' is-shifted' : ''}`}>
+          <MapKey
+            showVessels={layers.vessels}
+            showStations={layers.stations}
+            showHarbours={layers.harbours}
+          />
+          <LocateButton geo={geo} onGoTo={goTo} />
+        </div>
 
         <TimeSlider
           value={selectedTime}

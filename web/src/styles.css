@@ -1878,10 +1878,16 @@ textarea {
    Tingmärgid (alumine parem nurk) ja hover-vihje
    ========================================================================== */
 
-.mapkey {
+/*
+ * Kaardi nupuvirn all paremal: "minu asukoht" ja tingmärgid.
+ *
+ * Paigutuse omab virn, mitte üksiknupud — nii on nende omavaheline järjekord
+ * ja paneeli eest põikamine ühes kohas, mitte igas nupus eraldi.
+ */
+.mapctl {
   position: absolute;
   right: calc(12px + var(--safe-right));
-  /* Mobiilis katab ajariba terve laiuse, seega nupp peab jääma sellest kõrgemale. */
+  /* Mobiilis katab ajariba terve laiuse, seega nupud peavad jääma kõrgemale. */
   bottom: calc(var(--timebar-h) + var(--s5) + var(--safe-bottom));
   z-index: 16;
   display: flex;
@@ -1891,7 +1897,25 @@ textarea {
   transition: right 0.24s var(--ease), bottom 0.24s var(--ease);
 }
 
+.mapkey {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s2);
+}
+
+/*
+ * Paneel hõljub nupu kohal, virnast VÄLJAS.
+ *
+ * Voos olles kasvatas ta virna kõrgust ja lükkas asukohanupu ~400 px üles
+ * just siis, kui kasutaja legendi avas. Sõrm oli ühes kohas, nupp teises.
+ * Absoluutse asetusega jäävad mõlemad nupud paigale.
+ */
 .mapkey__panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--s2));
   width: min(250px, calc(100vw - 32px));
   max-height: min(60vh, 480px);
   overflow-y: auto;
@@ -2032,14 +2056,16 @@ textarea {
 @media (min-width: 880px) {
   /* Lauaarvutil lõpeb ajariba enne paremat serva, seega nupp mahub päris alla.
      Jätame ruumi ainult OSM-i atributsioonile, mis on kohustuslik. */
-  .mapkey {
-    bottom: calc(56px + var(--safe-bottom));
+  /* Varem oli siin 56px, et jätta ruumi atribuudiribale. See kolis üles
+     paremasse nurka, seega virn tohib laskuda päris alla. */
+  .mapctl {
+    bottom: calc(var(--s5) + var(--safe-bottom));
   }
 
-  /* Punktiprognoosi paneel istub samas nurgas — nihuta nupp sellest vasakule,
+  /* Punktiprognoosi paneel istub samas nurgas — nihuta virn sellest vasakule,
      muidu jääks ta paneeli alla kättesaamatuks. Vasakul on aga ajariba parem
      ots (mudeli nimi), seega tuleb ka kõrgemale tõsta. */
-  .mapkey.is-shifted {
+  .mapctl.is-shifted {
     right: calc(456px + var(--safe-right));
     bottom: calc(var(--timebar-h) + var(--safe-bottom));
   }

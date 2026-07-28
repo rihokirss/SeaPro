@@ -116,9 +116,13 @@ export function MapView({
 
     map.touchZoomRotate.disableRotation();
 
+    // Atribuudirida (OSM, OpenSeaMap, MET jt) üleval paremal, mitte all.
+    // All paremas nurgas on nüüd nupuvirn ja punktiprognoosi paneel; kokku
+    // oli seal kolm asja ühe koha peal. Litsentsid nõuavad nähtavust, mitte
+    // kindlat nurka — kokkupakitult on see ⓘ, mis avaneb puudutusel.
     map.addControl(
       new maplibregl.AttributionControl({ compact: true }),
-      'bottom-right',
+      'top-right',
     );
     map.addControl(
       new maplibregl.ScaleControl({ maxWidth: 120, unit: 'nautical' }),
