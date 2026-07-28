@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type {
   GridFrame,
@@ -142,6 +142,110 @@ function fetchGridDay(opts: {
   return () => ac.abort();
 }
 
+const WIND_VARS: Variable[] = ['wind_speed', 'wind_dir', 'wind_gust'];
+/** Stabiilne viide, et tühi valik ei käivitaks efekti iga renderi peale. */
+const EMPTY_VARS: Variable[] = [];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Kaardikihi kaadrid ööpäevade kaupa, JÄRGMINE ÖÖPÄEV ETTE TÕMMATUD.
+ *
+ * Terve ööpäev ühe päringuga tähendas juba seda, et tunni vahetamine liuguril
+ * on mäluvalik, mitte võrgupäring. Aga ööpäeva PIIRIL algas kõik otsast: kell
+ * 23-lt 00-le liikudes polnud järgmise päeva kaadreid kuskilt võtta ja väli
+ * jäi hetkeks seisma, täpselt nagu vanasti iga tunni peal.
+ *
+ * Nüüd hoiame korraga kahte ööpäeva — valitut ja järgmist. Ülemineku hetkel on
+ * andmed juba mälus ja päev vahetub sama sujuvalt kui tund. Kui kasutaja siis
+ * edasi liigub, saab endisest "järgmisest" praegune ja ette tõmmatakse
+ * ülejärgmine.
+ *
+ * Vahemälu on `ref`-is, mitte olekus: võti sisaldab ala, mudelit ja muutujaid,
+ * seega vana vaate kaadrid ei saa kogemata uue peal kasutusse minna, ja
+ * puhastamine ei tohi vallandada uut renderit keset tõmbamist. Renderi äratab
+ * `bump`.
+ */
+function useGridDays(params: {
+  view: { bbox: [number, number, number, number] } | null;
+  vars: Variable[];
+  time: Date;
+  model: string;
+  onNotice(notice: { kind: 'rateLimited'; retryAfterSeconds: number } | { kind: 'error' } | null): void;
+}): GridFrame[] {
+  const { view, vars, time, model, onNotice } = params;
+  const cache = useRef(new Map<string, GridFrame[]>());
+  const [tick, bump] = useReducer((n: number) => n + 1, 0);
+
+  const varsKey = vars.join(',');
+  // Ala kolme komakohani: peenem täpsus tähendaks, et iga piksline nihe teeb
+  // uue võtme ja eelhaare läheks kaotsi.
+  const bboxKey = view ? view.bbox.map((n) => n.toFixed(3)).join(',') : '';
+  const dayKey = time.toISOString().slice(0, 10);
+  const timeRef = useRef(time);
+  timeRef.current = time;
+
+  useEffect(() => {
+    if (!view || vars.length === 0) {
+      if (cache.current.size > 0) {
+        cache.current.clear();
+        bump();
+      }
+      return;
+    }
+
+    const days = [new Date(timeRef.current), new Date(timeRef.current.getTime() + DAY_MS)];
+    const wanted = days.map(
+      (d) => `${bboxKey}|${model}|${varsKey}|${d.toISOString().slice(0, 10)}`,
+    );
+
+    // Kõik, mida enam ei taheta, läheb minema — muidu kasvaks vahemälu iga
+    // nihke ja päevaga ning hoiaks mälus ammu kehtetuid kaadreid.
+    let pruned = false;
+    for (const key of [...cache.current.keys()]) {
+      if (!wanted.includes(key)) {
+        cache.current.delete(key);
+        pruned = true;
+      }
+    }
+    if (pruned) bump();
+
+    const cancels: Array<() => void> = [];
+    days.forEach((d, i) => {
+      const key = wanted[i]!;
+      if (cache.current.has(key)) return;
+      cancels.push(
+        fetchGridDay({
+          bbox: view.bbox,
+          vars,
+          time: d,
+          model,
+          onFrames: (frames) => {
+            cache.current.set(key, frames);
+            bump();
+          },
+          // Eelhaare EI TOHI teadet muuta. Muidu ütleks rakendus "limiit täis"
+          // olukorras, kus nähtav päev on tegelikult ilusti ekraanil ja ainult
+          // ülehomme jäi tõmbamata.
+          onNotice: i === 0 ? onNotice : () => {},
+        }),
+      );
+    });
+    return () => cancels.forEach((c) => c());
+    // `time` on sihilikult välja jäetud: päeva identifitseerib `dayKey` ja
+    // täpne tund ei tohi tõmbamist uuesti käivitada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bboxKey, model, varsKey, dayKey, onNotice]);
+
+  return useMemo(() => {
+    const out: GridFrame[] = [];
+    for (const frames of cache.current.values()) out.push(...frames);
+    return out;
+    // `tick` on siin ainus päris sõltuvus — vahemälu ise on ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
+}
+
 export function App() {
   const [lang, setLangState] = useState<Lang>(detectLang);
   const t = useMemo(() => makeTranslate(lang), [lang]);
@@ -232,38 +336,16 @@ export function App() {
   // näitab tuulekiirust — muidu jääks väli tühjaks just selles kombinatsioonis.
   const needWind = layers.windDisplay !== 'off' || fieldVar === 'wind_speed';
 
-  /**
-   * Terve ööpäeva kaadrid korraga.
-   *
-   * Varem küsis klient iga tunni eraldi HTTP-ga. Server serveeris need küll
-   * vahemälust, aga ring võrgu kaudu tähendas ajaliuguri liigutamisel nähtavat
-   * viivitust enne, kui uus tuul ekraanile jõudis. Nüüd tuleb kogu ööpäev ühe
-   * päringuga ja tunni vahetamine on mäluvalik — hetkeline.
-   */
-  const [dayFrames, setDayFrames] = useState<GridFrame[]>([]);
-
-  // Ööpäev, mille kaadrid meil on. Uus päring alles siis, kui päev vahetub.
-  const dayKey = new Date(dataTime).toISOString().slice(0, 10);
-
-  useEffect(() => {
-    if (!view || !needWind) {
-      setDayFrames([]);
-      return;
-    }
-    return fetchGridDay({
-      bbox: view.bbox,
-      vars: ['wind_speed', 'wind_dir', 'wind_gust'],
-      time: dataTime,
-      model: activeModel,
-      onFrames: setDayFrames,
-      onNotice: setLayerNotice,
-    });
-    // Ainult ala, mudel ja PÄEV — mitte tund.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, needWind, dayKey, activeModel]);
+  const dayFrames = useGridDays({
+    view,
+    vars: needWind ? WIND_VARS : EMPTY_VARS,
+    time: dataTime,
+    model: activeModel,
+    onNotice: setLayerNotice,
+  });
 
   /**
-   * Valevärvi-välja oma ööpäev.
+   * Valevärvi-välja oma ööpäevad.
    *
    * Miks eraldi päring, mitte sama mis tuulel: lained, hoovused ja veetase
    * tulevad Open-Meteo MERE-API-st, tuul ja õhk tavalisest. Server valib API
@@ -273,23 +355,17 @@ export function App() {
    * Tuulekiirust siin ei küsita — see tuleb juba noolte kaadrist ja teine
    * päring maksaks sama palju kutseid identsete andmete eest.
    */
-  const [fieldDayFrames, setFieldDayFrames] = useState<GridFrame[]>([]);
-
-  useEffect(() => {
-    if (!view || !fieldVar || fieldVar === 'wind_speed') {
-      setFieldDayFrames([]);
-      return;
-    }
-    return fetchGridDay({
-      bbox: view.bbox,
-      vars: [fieldVar],
-      time: dataTime,
-      model: activeModel,
-      onFrames: setFieldDayFrames,
-      onNotice: setLayerNotice,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, fieldVar, dayKey, activeModel]);
+  const fieldVars = useMemo(
+    () => (fieldVar && fieldVar !== 'wind_speed' ? [fieldVar] : EMPTY_VARS),
+    [fieldVar],
+  );
+  const fieldDayFrames = useGridDays({
+    view,
+    vars: fieldVars,
+    time: dataTime,
+    model: activeModel,
+    onNotice: setLayerNotice,
+  });
 
   /** Valitud tunni kaader mälust. Kerimine ei puuduta võrku. */
   const gridFrame = useMemo(() => frameAt(dayFrames, selectedTime), [dayFrames, selectedTime]);
