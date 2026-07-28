@@ -44,7 +44,7 @@ export function TimeSlider({
   value,
   onChange,
   pastHours = 6,
-  futureHours = 240,
+  futureHours = 120,
   modelLabel,
   updatedAt,
 }: Props) {

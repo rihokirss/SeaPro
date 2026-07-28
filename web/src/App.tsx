@@ -55,6 +55,19 @@ const DEFAULT_LAYERS: LayerState = {
 const FORECAST_HOURS = 240;
 
 /**
+ * Kui kaugele ulatub kaardi ajaliugur.
+ *
+ * SIHILIKULT lühem kui punktiprognoos. Kaks põhjust: liuguri rada on ekraani
+ * laiune ja 10 päeva peale venitatuna läheb üks tund paari piksli peale, mis
+ * teeb täpse tunni tabamise näputööks; ja iga uus ööpäev kaardil tähendab uut
+ * võrgustikupäringut, mille eest Open-Meteo punktide kaupa arvet peab.
+ *
+ * Punktiprognoos (graafik ja tabel) katab kogu 10 päeva — seal on ajatelg
+ * keritav ja lisapäringut ei tule.
+ */
+const SLIDER_HOURS = 120;
+
+/**
  * Mitu punkti serverilt küsida.
  *
  * Hoiame selle SIHILIKULT väikesena: Open-Meteo loeb iga võrgupunkti eraldi
@@ -592,7 +605,7 @@ export function App() {
         <TimeSlider
           value={selectedTime}
           onChange={setSelectedTime}
-          futureHours={FORECAST_HOURS}
+          futureHours={SLIDER_HOURS}
           modelLabel={modelLabel}
           updatedAt={gridFrame ? gridFrame.time : null}
         />
