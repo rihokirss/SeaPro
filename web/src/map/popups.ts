@@ -5,7 +5,7 @@ import type { Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import { STATIONS_LAYER } from './layers/stations';
 import { VESSEL_LAYERS } from './layers/vessels';
-import { navilyIsExact, navilyUrl } from '../lib/navily';
+import { navilyIsExactAt, navilyUrl } from '../lib/navily';
 import { ANCHORAGES_LAYER, HARBOURS_LAYER } from './layers/harbours';
 
 /**
@@ -412,7 +412,9 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const lat = coords?.[1];
   if (lat !== undefined && lon !== undefined) {
     const name = str(p.name);
-    const hint = navilyIsExact(name) ? t('harbour.navily.hint') : t('harbour.navily.hintNearby');
+    const hint = navilyIsExactAt(name, lat, lon)
+      ? t('harbour.navily.hint')
+      : t('harbour.navily.hintNearby');
     links.push(
       `<a href="${escapeHtml(navilyUrl(name, lat, lon))}" ` +
         `target="_blank" rel="noopener noreferrer" title="${escapeHtml(hint)}">` +

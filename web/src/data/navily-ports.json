@@ -1,0 +1,78 @@
+{
+  "hanko itasatama @ 59.81988,22.96543": {
+    "id": 4399,
+    "slug": "hanko-itasatama",
+    "name": "Itäsatama",
+    "lat": 59.8198756,
+    "lon": 22.9654329
+  },
+  "hss guest harbour @ 60.15253,24.94799": {
+    "id": 7835,
+    "slug": "hss-guest-harbour",
+    "name": "Liuskasaaren venesatama",
+    "lat": 60.152532,
+    "lon": 24.9479909
+  },
+  "helsinki @ 60.18233,25.04558": {
+    "id": 32684,
+    "slug": "helsinki",
+    "name": "Yliskylän venesatama",
+    "lat": 60.1823289,
+    "lon": 25.0455769
+  },
+  "kotka yacht store marina @ 60.46824,26.93549": {
+    "id": 14064,
+    "slug": "kotka-yacht-store-marina",
+    "name": "Vierassatama",
+    "lat": 60.468243,
+    "lon": 26.9354899
+  },
+  "narva-joesuu sadam @ 59.46444,28.04528": {
+    "id": 13773,
+    "slug": "narva-joesuu-sadam",
+    "name": "Narva-Jõesuu Sadam",
+    "lat": 59.4644422,
+    "lon": 28.0452764
+  },
+  "porvoo @ 60.38817,25.66292": {
+    "id": 34290,
+    "slug": "porvoo",
+    "name": "Porvoon vierasvenesatama",
+    "lat": 60.3881679,
+    "lon": 25.6629245
+  },
+  "vanasadama jahisadam @ 59.44232,24.75937": {
+    "id": 13754,
+    "slug": "port-of-tallinn-old-city-marina",
+    "name": "Vanasadama Jahisadam",
+    "lat": 59.4423201,
+    "lon": 24.7593708
+  },
+  "varati sadam @ 58.30944,23.98862": {
+    "id": 13676,
+    "slug": "meremaa-sadam-meremaa-resto",
+    "name": "Värati sadam",
+    "lat": 58.3094412,
+    "lon": 23.9886195
+  },
+  "tilgu sadam": { "id": 13750, "slug": "tilgu-harbor-yacht-club" },
+  "pirita sadam": { "id": 12710, "slug": "pirita-top" },
+  "kakumae jahisadam": { "id": 13752, "slug": "haven-kakumae" },
+  "lennusadam": { "id": 21372, "slug": "lennusadama-jahisadam" },
+  "kelnase sadam": { "id": 25400, "slug": "kelnase" },
+  "leppneeme sadam": { "id": 13757, "slug": "leppneeme-sadam" },
+  "dirhami sadam": { "id": 6002, "slug": "dirhami" },
+  "haapsalu suur-holmi sadam": { "id": 13722, "slug": "grand-holm-marina" },
+  "kardla sadam": { "id": 13742, "slug": "kardla-sadam" },
+  "kuressaare jahisadam": { "id": 20158, "slug": "kuressaare-jahisadam" },
+  "roomassaare sadam": { "id": 13698, "slug": "roomassaare-harbor" },
+  "lohusalu sadam": { "id": 6003, "slug": "lohusalu" },
+  "heltermaa sadam": { "id": 32969, "slug": "heltermaa-marina" },
+  "kaberneeme sadam": { "id": 13760, "slug": "kaberneeme-marina" },
+  "kalana jahisadam": { "id": 35527, "slug": "kalana-marina" },
+  "naissaare sadam": { "id": 5686, "slug": "naissaare-sadam" },
+  "orjaku sadam": { "id": 13736, "slug": "orjaku-marina" },
+  "soru jahisadam": { "id": 13737, "slug": "soru-marina" },
+  "triigi sadam": { "id": 13714, "slug": "triigi-sadam" },
+  "virtsu sadam": { "id": 13715, "slug": "virtsu-sadam" }
+}

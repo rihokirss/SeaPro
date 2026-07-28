@@ -9,7 +9,7 @@ dist/
 
 # Runtime
 *.log
-data/
+/data/
 .cache/
 coverage/
 

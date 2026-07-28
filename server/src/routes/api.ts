@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type {
   PointResult,
@@ -22,6 +24,38 @@ import {
 } from '../providers/registry.js';
 
 const VARIABLE_SET = new Set<string>(VARIABLES);
+
+interface NavilyPort {
+  id: number;
+  slug: string;
+  name?: string;
+  lat?: number;
+  lon?: number;
+}
+
+type NavilyPortMap = Record<string, NavilyPort>;
+
+async function readNavilyPorts(): Promise<NavilyPortMap> {
+  // PM2 ja `npm start` jooksevad projekti juurest; workspace'i testid/dev võivad
+  // joosta server/ kaustast. Mõlemad asukohad on siin tahtlikult toetatud.
+  const candidates = [
+    resolve(process.cwd(), 'web/src/data/navily-ports.json'),
+    resolve(process.cwd(), '../web/src/data/navily-ports.json'),
+  ];
+  let lastError: unknown;
+  for (const path of candidates) {
+    try {
+      const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Navily linkide fail ei ole objekt');
+      }
+      return parsed as NavilyPortMap;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
 
 function parseVariables(raw: unknown): Variable[] | undefined {
   if (typeof raw !== 'string' || raw === '') return undefined;
@@ -118,6 +152,18 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     aisEnabled: true,
     aisstreamEnabled: Boolean(config.aisstreamKey),
   }));
+
+  app.get('/api/navily-ports', async (_req, reply) => {
+    // Fail võib muutuda protsessi eluajal; brauser ja vaheserver ei tohi vana
+    // vastust hoida.
+    reply.header('Cache-Control', 'no-store');
+    try {
+      return { ports: await readNavilyPorts() };
+    } catch (err) {
+      app.log.error({ err }, 'Navily linkide faili lugemine ebaõnnestus');
+      return reply.code(503).send({ error: 'Navily lingid pole ajutiselt saadaval' });
+    }
+  });
 
   app.get('/api/providers', async () => listCapabilities());
 

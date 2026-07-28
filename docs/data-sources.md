@@ -308,6 +308,48 @@ poleks ühtki kvooti ega võtmesõltuvust.
 | Sügavused | `ows.emodnet-bathymetry.eu/wms` | |
 | Ilmaradar | `ilmgs.envir.ee/geoserver/ilm/wms`, `layers=ilm:cmp_cap` | Eesti |
 
+### Navily otselingid
+
+Navilylt ei kopeerita arvustusi ega sadamaandmeid. Rakendus hoiab ainult
+kanoonilist linki (`/port/<slug>/<id>`); vasteta sadam avatakse endiselt
+Navily koordinaadivaates.
+
+`server/scripts/scan-navily-links.ts` võtab Eesti ranniku, Soome lahe
+põhjakalda ning Turu–Ahvenamaa edelasaarestiku sadamad OSM Overpassist ja
+otsib nende avalikke Navily URL-e Brave Searchi indeksist. Navily API-t ega
+sadamalehti skript ei rooma.
+
+```bash
+# Parseri testid
+npm run test --workspace=server -- --run test/navilyScanner.test.ts
+
+# Kolm live-kontrolli olemasolevate linkidega
+npm run navily:smoke --workspace=server
+
+# Üks aeglane pakk; vaikimisi kuni 8 päringut, vähemalt 20 s vahega
+npm run navily:scan --workspace=server
+
+# Pidev hooldusprotsess: väike pakk kord ööpäevas
+npm run navily:scan --workspace=server -- --watch
+
+# Saaristomere sadamad järjekorra ette, kuni 20 päringut
+npm run navily:scan --workspace=server -- \
+  --focus=finland-archipelago --max-requests=20
+```
+
+Otsingud on 30 päeva vahemälus failis `data/navily-scan-state.json`. HTTP
+403/429/503 või botikontroll peatab jooksu ja paneb kuueks tunniks cooldown'i.
+Automaatne vaste kirjutatakse `web/src/data/navily-ports.json` faili ainult
+siis, kui üks tulemus katab vähemalt 80% sadama eristavatest nimetokenitest ja
+teine kandidaat pole peaaegu sama tugev. Samanimelised sadamad eristatakse OSM
+koordinaadi järgi. Ebaselged kandidaadid jäävad olekufaili ülevaatamiseks ning
+rakendus kasutab nende puhul turvalist koordinaadilinki.
+
+Server loeb lingifaili `/api/navily-ports` päringu ajal ja klient värskendab
+tabelit käivitumisel ning iga 15 minuti järel. Seetõttu ei vaja skanneri leitud
+uued lingid build'i ega PM2 restarti. Frontendi bundle'is olev tabel on
+võrgutõrke puhuks varukoopia.
+
 ---
 
 ## Kaalutud, aga kasutamata
