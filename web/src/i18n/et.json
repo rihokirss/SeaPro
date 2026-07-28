@@ -144,5 +144,8 @@
   "key.harbour.full": "Teenustega sadam",
   "key.harbour.basic": "Sildumiskoht, teenusteta",
   "key.harbours.note": "Andmed OpenStreetMapist; osa Eesti sadamatest on seotud riikliku sadamaregistriga.",
-  "layer.darkBase": "Tume aluskaart"
+  "layer.darkBase": "Tume aluskaart",
+  "point.expand": "Ava täisvaade",
+  "point.collapse": "Sulge täisvaade",
+  "action.renameFavorite": "Nimeta ümber"
 }

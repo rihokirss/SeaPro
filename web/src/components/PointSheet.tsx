@@ -19,6 +19,10 @@ interface Props {
   speedUnit: SpeedUnit;
   isFavorite: boolean;
   onToggleFavorite(): void;
+  /** Kas paneel on täies mahus lahti. Olekut hoiab App, sest ka kaardi
+   *  nupuvirn peab teadma, kas tal on vaja paneeli eest kõrvale põigata. */
+  expanded: boolean;
+  onExpandedChange(v: boolean): void;
 }
 
 /** Read tabelis, selles järjekorras. Puuduvad muutujad jäetakse vahele. */
@@ -132,6 +136,8 @@ export function PointSheet({
   speedUnit,
   isFavorite,
   onToggleFavorite,
+  expanded,
+  onExpandedChange,
 }: Props) {
   const { t, lang } = useI18n();
   const [chartVar, setChartVar] = useState<Variable>('wind_speed');
@@ -160,9 +166,80 @@ export function PointSheet({
     );
   }, [result]);
 
+  /*
+   * Paneel avaneb KOKKUPANDULT.
+   *
+   * Klikk kaardil avas varem kohe terve paneeli, mis kattis pool ekraanist —
+   * ka siis, kui tahtsid lihtsalt teada, kui tugev tuul seal on. Nüüd tuleb
+   * esmalt kitsas riba tuule ja lainega; graafik, tabel ja allikad avanevad
+   * alles siis, kui riba peale vajutad.
+   */
+  const peek = columns[0]?.step?.values ?? {};
+
+  if (!expanded) {
+    return (
+      <div className={`sheet is-peek${open ? ' is-open' : ''}`} aria-hidden={!open}>
+        <div className="sheet__grip" aria-hidden="true" />
+        <button
+          type="button"
+          className="sheet__peek"
+          onClick={() => onExpandedChange(true)}
+          aria-expanded={false}
+          aria-label={t('point.expand')}
+        >
+          <span className="sheet__peek-coords">
+            {lat.toFixed(2)}° {lon.toFixed(2)}°
+          </span>
+
+          {loading ? (
+            <span className="sheet__peek-loading">{t('point.loading')}</span>
+          ) : (
+            <span className="sheet__peek-values">
+              {peek.wind_speed != null ? (
+                <span style={{ color: windColor(peek.wind_speed) }}>
+                  {formatValue('wind_speed', peek.wind_speed, speedUnit)}{' '}
+                  {unitLabel('wind_speed', speedUnit)}
+                  {peek.wind_dir != null ? ` ${degreesToCompass(peek.wind_dir)}` : ''}
+                </span>
+              ) : null}
+              {peek.wave_height != null ? (
+                <span>
+                  {formatValue('wave_height', peek.wave_height, speedUnit)}{' '}
+                  {unitLabel('wave_height', speedUnit)}
+                </span>
+              ) : null}
+            </span>
+          )}
+
+          <svg
+            className="sheet__peek-chevron"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              d="M6 15l6-6 6 6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className={`sheet${open ? ' is-open' : ''}`} aria-hidden={!open}>
-      <div className="sheet__grip" aria-hidden="true" />
+    <div className={`sheet is-expanded${open ? ' is-open' : ''}`} aria-hidden={!open}>
+      <button
+        type="button"
+        className="sheet__grip"
+        onClick={() => onExpandedChange(false)}
+        aria-label={t('point.collapse')}
+      />
 
       <header className="sheet__head">
         <div>

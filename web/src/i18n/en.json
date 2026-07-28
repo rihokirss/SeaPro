@@ -144,5 +144,8 @@
   "key.harbour.full": "Harbour with services",
   "key.harbour.basic": "Mooring, no facilities",
   "key.harbours.note": "Data from OpenStreetMap; many Estonian harbours link to the national registry.",
-  "layer.darkBase": "Dark base map"
+  "layer.darkBase": "Dark base map",
+  "point.expand": "Open full view",
+  "point.collapse": "Collapse",
+  "action.renameFavorite": "Rename"
 }

@@ -536,6 +536,34 @@ textarea {
   color: var(--danger);
 }
 
+/* Ümbernimetamine — sama mõõt mis kustutusnupul, aga ohutu värviga. */
+.dropdown__edit {
+  min-width: var(--touch);
+  min-height: var(--touch);
+  color: var(--text-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: var(--t-base);
+}
+
+.dropdown__edit:hover {
+  color: var(--text);
+}
+
+.dropdown__rename {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch);
+  padding: 0 var(--s3);
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}
+
 .dropdown .muted {
   margin: var(--s3) var(--s4);
 }
@@ -845,6 +873,81 @@ textarea {
   margin: var(--s3) auto 0;
   border-radius: 2px;
   background: var(--line-strong);
+  border: none;
+  padding: 0;
+  display: block;
+}
+
+/* Täisvaates on käepide nupp, mis paneb paneeli tagasi kokku. 36x4 px on
+   tabamisalana liiga väike, seega nupp ise on lai ja riba joonistatakse
+   pseudoelemendiga. */
+button.sheet__grip {
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: var(--s3) 0 var(--s2);
+  background: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+button.sheet__grip::before {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+/*
+ * Kokkupandud riba: koordinaat, tuul, laine.
+ *
+ * Nii palju, kui ühe pilguga vaja — ja mitte rohkem. Terve paneel kattis
+ * kaardi ära ka siis, kui tahtsid ainult teada, kui kõvasti seal puhub.
+ */
+.sheet__peek {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: var(--touch);
+  padding: var(--s2) var(--s5) calc(var(--s3) + var(--safe-bottom));
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet__peek-coords {
+  font-size: var(--t-micro);
+  color: var(--text-faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet__peek-values {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s4);
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sheet__peek-loading {
+  margin-left: auto;
+  font-size: var(--t-micro);
+  color: var(--text-faint);
+}
+
+.sheet__peek-chevron {
+  flex: none;
+  color: var(--text-faint);
 }
 
 .sheet__head {
@@ -2068,6 +2171,12 @@ textarea {
   .mapctl.is-shifted {
     right: calc(456px + var(--safe-right));
     bottom: calc(var(--timebar-h) + var(--safe-bottom));
+  }
+
+  /* Kokkupandud riba istub samas nurgas, aga on madal — piisab, kui virn
+     tõuseb sellest kõrgemale. Külgnihe oleks siin asjatu hüpe. */
+  .mapctl.is-raised {
+    bottom: calc(var(--s6) + 84px + var(--safe-bottom));
   }
 
   /* Paneel avaneb nupust ülespoole ja peab mahtuma ekraanile ka siis, kui

@@ -29,6 +29,23 @@ export function TopBar({ onOpenLayers, geo, favorites, onGoTo }: Props) {
   const { t, lang, setLang } = useI18n();
   const [favOpen, setFavOpen] = useState(false);
 
+  /*
+   * Lemmiku ümbernimetamine.
+   *
+   * `Favorite.name` ja `favorites.rename()` olid juba olemas, aga mitte
+   * kusagil kasutuses — lemmik salvestati koordinaadiga nimeks ja jäigi
+   * selleks. "59.44, 24.76" ei ütle nädala pärast midagi, "Kodusadam" ütleb.
+   */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+
+  const commitRename = (id: string): void => {
+    if (editingId !== id) return; // Enter juba salvestas; blur ei tohi korrata.
+    setEditingId(null);
+    const name = draft.trim();
+    if (name) favorites.rename(id, name);
+  };
+
 
   return (
     <header className="topbar">
@@ -62,18 +79,45 @@ export function TopBar({ onOpenLayers, geo, favorites, onGoTo }: Props) {
                 <ul>
                   {favorites.items.map((f) => (
                     <li key={f.id}>
+                      {editingId === f.id ? (
+                        <input
+                          className="dropdown__rename"
+                          value={draft}
+                          autoFocus
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitRename(f.id);
+                            if (e.key === 'Escape') setEditingId(null);
+                          }}
+                          onBlur={() => commitRename(f.id)}
+                          aria-label={t('action.renameFavorite')}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="dropdown__item"
+                          onClick={() => {
+                            onGoTo(f.lat, f.lon);
+                            setFavOpen(false);
+                          }}
+                        >
+                          {f.name}
+                          <span className="dropdown__coords">
+                            {f.lat.toFixed(3)}° N, {f.lon.toFixed(3)}° E
+                          </span>
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className="dropdown__item"
+                        className="dropdown__edit"
                         onClick={() => {
-                          onGoTo(f.lat, f.lon);
-                          setFavOpen(false);
+                          setEditingId(f.id);
+                          setDraft(f.name);
                         }}
+                        aria-label={t('action.renameFavorite')}
+                        title={t('action.renameFavorite')}
                       >
-                        {f.name}
-                        <span className="dropdown__coords">
-                          {f.lat.toFixed(3)}° N, {f.lon.toFixed(3)}° E
-                        </span>
+                        ✎
                       </button>
                       <button
                         type="button"

@@ -369,6 +369,8 @@ export function App() {
     return () => window.clearTimeout(id);
   }, [selectedTime]);
   const [picked, setPicked] = useState<{ lat: number; lon: number } | null>(null);
+  /** Kas punktipaneel on täies mahus lahti — vt handlePick ja .mapctl. */
+  const [sheetExpanded, setSheetExpanded] = useState(false);
   const [pointResult, setPointResult] = useState<PointResult | null>(null);
   const [pointLoading, setPointLoading] = useState(false);
   const [pointError, setPointError] = useState<string | null>(null);
@@ -694,8 +696,19 @@ export function App() {
     return () => ac.abort();
   }, [picked, activeProviders, activeModel, t]);
 
+  /**
+   * Klikk tühjal merel.
+   *
+   * Kui paneel on juba lahti, SULGEB järgmine klikk selle, mitte ei ava uut
+   * punkti. Kaardil on paneeli kõrval vähe vaba pinda ja iga möödaklikk tõi
+   * varem uue prognoosi — paneelist ei saanudki lahti muidu kui ristist.
+   * Sulgemine on sagedasem soov kui kohe teise punkti vaatamine.
+   *
+   * Hind: teise punkti valimiseks on nüüd kaks klikki (sulge, siis vali).
+   */
   const handlePick = useCallback((lat: number, lon: number) => {
-    setPicked({ lat, lon });
+    setPicked((prev) => (prev === null ? { lat, lon } : null));
+    setSheetExpanded(false); // Uus punkt algab alati ribast.
     setPointResult(null);
   }, []);
 
@@ -801,7 +814,11 @@ export function App() {
             hõljub oma nupu kohal, seega peab see nupp olema virnas ÜLEMINE —
             muidu katab avatud paneel asukohanupu ära. Ja asukoht on niikuinii
             õigem kõige alla: seda vajutatakse ühe käega kõige sagedamini. */}
-        <div className={`mapctl${picked !== null ? ' is-shifted' : ''}`}>
+        <div
+          className={`mapctl${
+            picked === null ? '' : sheetExpanded ? ' is-shifted' : ' is-raised'
+          }`}
+        >
           <MapKey
             showVessels={layers.vessels}
             showStations={layers.stations}
@@ -843,6 +860,8 @@ export function App() {
           selectedTime={selectedTime}
           onSelectTime={setSelectedTime}
           speedUnit={speedUnit}
+          expanded={sheetExpanded}
+          onExpandedChange={setSheetExpanded}
           isFavorite={picked ? favorites.isFavorite(picked.lat, picked.lon) : false}
           onToggleFavorite={() => {
             if (!picked) return;
