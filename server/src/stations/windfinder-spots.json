@@ -1,15 +1,39 @@
 [
   {
+    "slug": "aland_nabben",
+    "name": "Åland",
+    "lat": 60.2166218,
+    "lon": 19.9438638
+  },
+  {
     "slug": "amari-air-base",
     "name": "Ämari lennuväli",
     "lat": 59.2589073,
     "lon": 24.2019592
   },
   {
+    "slug": "anjala_kymenlaakso_finland",
+    "name": "Anjala",
+    "lat": 60.688815,
+    "lon": 26.8076925
+  },
+  {
     "slug": "aseri_laeaene_virumaa_estonia",
     "name": "Aseri alevik",
     "lat": 59.4551194,
     "lon": 26.8680733
+  },
+  {
+    "slug": "askola_uusimaa_finland",
+    "name": "Askola",
+    "lat": 60.5271593,
+    "lon": 25.6000156
+  },
+  {
+    "slug": "ass_marina",
+    "name": "Airisto Segelsällskap i Åbo r.f.",
+    "lat": 60.4252143,
+    "lon": 22.1968895
   },
   {
     "slug": "audru_paernumaa_estonia",
@@ -24,6 +48,12 @@
     "lon": 23.5037595
   },
   {
+    "slug": "haabneeme_harjumaa_estonia",
+    "name": "Haabneeme alevik",
+    "lat": 59.5178184,
+    "lon": 24.8207456
+  },
+  {
     "slug": "haapsalu",
     "name": "Haapsalu linn",
     "lat": 58.9399019,
@@ -34,6 +64,48 @@
     "name": "Haljala alevik",
     "lat": 59.4350024,
     "lon": 26.2525179
+  },
+  {
+    "slug": "hamina_kymenlaakso_finland",
+    "name": "Hamina",
+    "lat": 60.5683467,
+    "lon": 27.1925862
+  },
+  {
+    "slug": "hammarland_alands_landsbygd_aland_islands",
+    "name": "Hammarland",
+    "lat": 60.2196758,
+    "lon": 19.7378481
+  },
+  {
+    "slug": "hanko",
+    "name": "Hanko",
+    "lat": 59.824775,
+    "lon": 22.9678907
+  },
+  {
+    "slug": "hanko-tvarminne",
+    "name": "Tvärminne",
+    "lat": 59.8410049,
+    "lon": 23.1998078
+  },
+  {
+    "slug": "harmaja_helsinki",
+    "name": "Harmaja",
+    "lat": 60.1048318,
+    "lon": 24.9751135
+  },
+  {
+    "slug": "helsinki",
+    "name": "Helsinki",
+    "lat": 60.1666204,
+    "lon": 24.9435408
+  },
+  {
+    "slug": "helsinki-kumpula",
+    "name": "Kumpula",
+    "lat": 60.2093602,
+    "lon": 24.9646243
   },
   {
     "slug": "heltermaa",
@@ -48,10 +120,46 @@
     "lon": 22.7096019
   },
   {
+    "slug": "jaervakandi_raplamaa_estonia",
+    "name": "Järvakandi lauluväljak",
+    "lat": 58.7781964,
+    "lon": 24.8187375
+  },
+  {
+    "slug": "jomala_alands_landsbygd_aland_islands",
+    "name": "Jomala",
+    "lat": 60.1522947,
+    "lon": 19.9489144
+  },
+  {
+    "slug": "jomalby",
+    "name": "Jomalby",
+    "lat": 60.1766474,
+    "lon": 19.9813944
+  },
+  {
+    "slug": "kaarina_southwest_finland_finland",
+    "name": "Kaarina",
+    "lat": 60.407169,
+    "lon": 22.3678223
+  },
+  {
     "slug": "kadrina_laeaene_virumaa_estonia",
     "name": "Kadrina alevik",
     "lat": 59.3382495,
     "lon": 26.1384322
+  },
+  {
+    "slug": "kakumae",
+    "name": "Kakumäe küla",
+    "lat": 59.2729803,
+    "lon": 26.4418303
+  },
+  {
+    "slug": "kallio_uusimaa_finland",
+    "name": "Kallio",
+    "lat": 60.1839816,
+    "lon": 24.9524515
   },
   {
     "slug": "kardla",
@@ -60,10 +168,40 @@
     "lon": 22.7478094
   },
   {
+    "slug": "karhula_kymenlaakso_finland",
+    "name": "Karhula",
+    "lat": 60.5152168,
+    "lon": 26.9331368
+  },
+  {
+    "slug": "kasnas",
+    "name": "Kasnäs",
+    "lat": 59.9237881,
+    "lon": 22.4093879
+  },
+  {
     "slug": "keila_flight_fields",
     "name": "Keila linn",
     "lat": 59.3110918,
     "lon": 24.420907
+  },
+  {
+    "slug": "kihnu",
+    "name": "Kihnu",
+    "lat": 58.1261356,
+    "lon": 23.9852608
+  },
+  {
+    "slug": "kiili_harjumaa_estonia",
+    "name": "Kiili alev",
+    "lat": 59.3064388,
+    "lon": 24.8400532
+  },
+  {
+    "slug": "kilingi_nomme_paernumaa_estonia",
+    "name": "Kilingi-Nõmme linn",
+    "lat": 58.1530218,
+    "lon": 24.9627322
   },
   {
     "slug": "kivioli_ida_virumaa_estonia",
@@ -76,6 +214,12 @@
     "name": "Kose alevik",
     "lat": 57.8144111,
     "lon": 27.0331231
+  },
+  {
+    "slug": "kotka",
+    "name": "Kotka",
+    "lat": 60.4672673,
+    "lon": 26.9459462
   },
   {
     "slug": "kullipesa",
@@ -96,6 +240,12 @@
     "lon": 22.4849207
   },
   {
+    "slug": "laajalahti",
+    "name": "Laajalahti",
+    "lat": 60.1997528,
+    "lon": 24.7957652
+  },
+  {
     "slug": "laane-nigula",
     "name": "Lääne-Nigula",
     "lat": 58.342053,
@@ -114,6 +264,24 @@
     "lon": 24.2422503
   },
   {
+    "slug": "lauttasaari_uusimaa_finland",
+    "name": "Lauttasaari",
+    "lat": 60.1598371,
+    "lon": 24.8802249
+  },
+  {
+    "slug": "lemland",
+    "name": "Lemland",
+    "lat": 60.055716,
+    "lon": 20.1220703
+  },
+  {
+    "slug": "lieto_southwest_finland_finland",
+    "name": "Lieto",
+    "lat": 60.5054982,
+    "lon": 22.4584171
+  },
+  {
     "slug": "lihula_paernumaa_estonia",
     "name": "Lihula linn",
     "lat": 58.6850508,
@@ -124,6 +292,36 @@
     "name": "Loo alevik",
     "lat": 59.4326121,
     "lon": 24.9474917
+  },
+  {
+    "slug": "maardu_harjumaa_estonia",
+    "name": "Maardu linn",
+    "lat": 59.468192,
+    "lon": 24.9896751
+  },
+  {
+    "slug": "mariehamn",
+    "name": "Mariehamn",
+    "lat": 60.102423,
+    "lon": 19.94126
+  },
+  {
+    "slug": "masku_southwest_finland_finland",
+    "name": "Masku",
+    "lat": 60.566667,
+    "lon": 22.1
+  },
+  {
+    "slug": "munkkiniemi_uusimaa_finland",
+    "name": "Munkkiniemi",
+    "lat": 60.1983598,
+    "lon": 24.875853
+  },
+  {
+    "slug": "naantali_southwest_finland_finland",
+    "name": "Naantali",
+    "lat": 60.4688687,
+    "lon": 22.0291149
   },
   {
     "slug": "narva-joesuu",
@@ -138,10 +336,22 @@
     "lon": 22.3815016
   },
   {
+    "slug": "nomme",
+    "name": "Nõmme linnaosa",
+    "lat": 59.378524,
+    "lon": 24.684124
+  },
+  {
     "slug": "orissaare_saare_estonia",
     "name": "Orissaare alevik",
     "lat": 58.5585576,
     "lon": 23.0772681
+  },
+  {
+    "slug": "otaniemi_uusimaa_finland",
+    "name": "Otaniemi",
+    "lat": 60.1879383,
+    "lon": 24.8318201
   },
   {
     "slug": "paikuse_paernumaa_estonia",
@@ -168,10 +378,46 @@
     "lon": 24.5026059
   },
   {
+    "slug": "pernaja_orrengrund",
+    "name": "Pernaja",
+    "lat": 60.4476393,
+    "lon": 26.0303389
+  },
+  {
     "slug": "pirita",
     "name": "Pirita linnaosa",
     "lat": 59.4718884,
     "lon": 24.8543906
+  },
+  {
+    "slug": "pornainen_uusimaa_finland",
+    "name": "Pornainen",
+    "lat": 60.4756432,
+    "lon": 25.3745932
+  },
+  {
+    "slug": "porvoo-harabacka",
+    "name": "Harabacka",
+    "lat": 60.3933985,
+    "lon": 25.606506
+  },
+  {
+    "slug": "porvoo_emasalo",
+    "name": "Porvoo",
+    "lat": 60.3944372,
+    "lon": 25.661997
+  },
+  {
+    "slug": "pukkila_uusimaa_finland",
+    "name": "Pukkila",
+    "lat": 60.6455948,
+    "lon": 25.581976
+  },
+  {
+    "slug": "raisio_southwest_finland_finland",
+    "name": "Raisio",
+    "lat": 60.485513,
+    "lon": 22.1692664
   },
   {
     "slug": "rakvere_laeaene_virumaa_estonia",
@@ -192,6 +438,24 @@
     "lon": 23.4436396
   },
   {
+    "slug": "rohuneeme",
+    "name": "Rohuneeme küla",
+    "lat": 59.5609416,
+    "lon": 24.8018833
+  },
+  {
+    "slug": "rummu_harjumaa_estonia",
+    "name": "Rummu alevik",
+    "lat": 59.2309959,
+    "lon": 24.2059336
+  },
+  {
+    "slug": "rusko_southwest_finland_finland",
+    "name": "Rusko",
+    "lat": 60.5407302,
+    "lon": 22.2208801
+  },
+  {
     "slug": "saue_harjumaa_estonia",
     "name": "Saue linn",
     "lat": 59.3217905,
@@ -202,6 +466,12 @@
     "name": "Sauga alevik",
     "lat": 58.4248742,
     "lon": 24.4945669
+  },
+  {
+    "slug": "sibbo_uusimaa_finland",
+    "name": "Sipoo",
+    "lat": 60.3767057,
+    "lon": 25.2686042
   },
   {
     "slug": "sindi_paernumaa_estonia",
@@ -228,6 +498,12 @@
     "lon": 24.6906848
   },
   {
+    "slug": "suomenlinna",
+    "name": "Suomenlinna",
+    "lat": 60.1443884,
+    "lon": 24.9854048
+  },
+  {
     "slug": "tabasalu",
     "name": "Tabasalu alevik",
     "lat": 59.4280892,
@@ -240,10 +516,28 @@
     "lon": 24.7572693
   },
   {
+    "slug": "tammisaari-jussaro",
+    "name": "Jussarö",
+    "lat": 59.8258619,
+    "lon": 23.5683271
+  },
+  {
+    "slug": "tenala",
+    "name": "Tenala",
+    "lat": 60.0576791,
+    "lon": 23.2991277
+  },
+  {
     "slug": "tootsi_paernumaa_estonia",
     "name": "Tootsi alev",
     "lat": 58.5787559,
     "lon": 24.7912035
+  },
+  {
+    "slug": "turku",
+    "name": "Turku",
+    "lat": 60.4515932,
+    "lon": 22.2669991
   },
   {
     "slug": "uuemoisa_laeaene_estonia",
@@ -256,6 +550,18 @@
     "name": "Vääna küla",
     "lat": 59.3909052,
     "lon": 24.4159265
+  },
+  {
+    "slug": "vahto_southwest_finland_finland",
+    "name": "Vahto",
+    "lat": 60.6100315,
+    "lon": 22.3075198
+  },
+  {
+    "slug": "vaida_harjumaa_estonia",
+    "name": "Vaida alevik",
+    "lat": 59.2879153,
+    "lon": 24.9765614
   },
   {
     "slug": "viimsi",
