@@ -143,9 +143,23 @@ function roundRect(
   ctx.closePath();
 }
 
+/*
+ * Laevamärkide suurus.
+ *
+ * Suurendatud ~25%: eelmine mõõt kadus tuulenoolte ja jaamamärkide vahele ära,
+ * eriti keskmisel zoomil, kus laev on veel ikoon ja mitte veel mõõtkavas kere.
+ *
+ * Suurendus käib RASTERDUSE, mitte kihi `icon-size` kaudu. Ikoon lisatakse
+ * `pixelRatio: DPR`-iga, seega `size` ongi ekraanisuurus pikslites ja suurem
+ * lõuend annab suurema märgi ilma venitamiseta. `icon-size` kordaja tõstmine
+ * oleks sama bittkaardi üles skaleerinud ja märgi häguseks teinud.
+ */
+const VESSEL_ARROW_SIZE = 32;
+const VESSEL_DOT_SIZE = 25;
+
 /** Laev, mille suund on teada — nool. Üks õhuke tume kontuur, mitte kaks. */
 function vesselArrow(fill: string): ImageData {
-  const size = 26;
+  const size = VESSEL_ARROW_SIZE;
   const c = makeCanvas(size);
   const { ctx } = c;
   const mid = size / 2;
@@ -153,16 +167,16 @@ function vesselArrow(fill: string): ImageData {
   ctx.translate(mid, mid);
   const trace = (): void => {
     ctx.beginPath();
-    ctx.moveTo(0, -9);
-    ctx.lineTo(5.5, 8);
-    ctx.lineTo(0, 4.5);
-    ctx.lineTo(-5.5, 8);
+    ctx.moveTo(0, -11);
+    ctx.lineTo(6.8, 9.8);
+    ctx.lineTo(0, 5.5);
+    ctx.lineTo(-6.8, 9.8);
     ctx.closePath();
   };
 
   ctx.save();
   ctx.shadowColor = 'rgba(6, 22, 34, 0.4)';
-  ctx.shadowBlur = 2.5;
+  ctx.shadowBlur = 3;
   ctx.shadowOffsetY = 1;
   trace();
   ctx.fillStyle = fill;
@@ -171,7 +185,7 @@ function vesselArrow(fill: string): ImageData {
 
   trace();
   ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.2;
   ctx.lineJoin = 'round';
   ctx.stroke();
 
@@ -180,25 +194,25 @@ function vesselArrow(fill: string): ImageData {
 
 /** Laev, mille suunda AIS ei anna — punkt, sest nooleots valetaks suunda. */
 function vesselDot(fill: string): ImageData {
-  const size = 20;
+  const size = VESSEL_DOT_SIZE;
   const c = makeCanvas(size);
   const { ctx } = c;
   const mid = size / 2;
 
   ctx.save();
   ctx.shadowColor = 'rgba(6, 22, 34, 0.4)';
-  ctx.shadowBlur = 2.5;
+  ctx.shadowBlur = 3;
   ctx.shadowOffsetY = 1;
   ctx.beginPath();
-  ctx.arc(mid, mid, 5, 0, Math.PI * 2);
+  ctx.arc(mid, mid, 6.2, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.restore();
 
   ctx.beginPath();
-  ctx.arc(mid, mid, 5, 0, Math.PI * 2);
+  ctx.arc(mid, mid, 6.2, 0, Math.PI * 2);
   ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 1.4;
   ctx.stroke();
 
   return toImageData(c);
