@@ -13,9 +13,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "npm run dev --workspace=server & npm run dev --workspace=web",
+    "dev": "NODE_ENV=development npm run dev --workspace=server & NODE_ENV=development npm run dev --workspace=web",
     "build": "npm run build --workspace=web && npm run build --workspace=server",
-    "start": "node --env-file-if-exists=.env server/dist/index.js",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env server/dist/index.js",
     "test": "npm run test --workspaces --if-present",
     "test:live": "npm run test:live --workspace=server",
     "typecheck": "npm run typecheck --workspaces --if-present"

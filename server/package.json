@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=../.env src/index.ts",
+    "dev": "NODE_ENV=development tsx watch --env-file-if-exists=../.env src/index.ts",
     "build": "tsup",
-    "start": "node --env-file-if-exists=../.env dist/index.js",
+    "start": "NODE_ENV=production node --env-file-if-exists=../.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts"
