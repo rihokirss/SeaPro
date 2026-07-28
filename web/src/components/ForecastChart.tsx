@@ -44,6 +44,22 @@ const SPEED_VARS = new Set<Variable>(['wind_speed', 'wind_gust', 'current_speed'
  */
 const AXIS_FONT = '500 11px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
+/**
+ * Telgede kirjavärv.
+ *
+ * uPlot joonistab teljed canvas'ele ja canvas EI TUNNE `currentColor`-it —
+ * kehtetu väärtus jäetakse vaikselt vahele ja alles jääb canvas'e vaikimisi
+ * must. Heledas režiimis polnud seda näha, tumedas jäid teljekirjad mustad
+ * tumeda tausta peal ehk sisuliselt loetamatud.
+ *
+ * Funktsioonina antud värv arvutatakse iga joonistuse ajal uuesti, seega
+ * järgib telg ka režiimivahetust — vt `matchMedia` kuulaja allpool.
+ */
+function axisColor(): string {
+  const css = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim();
+  return css || '#9dbdd0';
+}
+
 export function ForecastChart({ series, variable, speedUnit, selectedTime, onPickTime }: Props) {
   // Aken liigub PÄEVA, mitte tunni kaupa — tunni kaupa uuesti ehitamine
   // tähendaks graafiku vilkumist iga liuguri sammu peale.
@@ -117,7 +133,7 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
       axes: [
         {
           grid: { show: true, stroke: 'rgba(120,140,155,0.18)' },
-          stroke: 'currentColor',
+          stroke: () => axisColor(),
           // Mitmepäevasel teljel langevad kõik jaotused keskööle ja "00:00"
           // kordus ei ütle midagi — seal näitame kuupäeva, muidu kellaaega.
           values: (_u, splits) =>
@@ -133,7 +149,7 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
         },
         {
           grid: { show: true, stroke: 'rgba(120,140,155,0.18)' },
-          stroke: 'currentColor',
+          stroke: () => axisColor(),
           size: 44,
           font: AXIS_FONT,
         },
@@ -286,8 +302,19 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
     });
     observer.observe(el);
 
+    // Režiimivahetus (telefoni öörežiim lülitub ise) muudab CSS-muutujaid, aga
+    // canvas jääb selliseks, nagu ta joonistati. Ilma selle kuulajata jääks
+    // graafik vahetuse hetkel eelmise režiimi värvidesse kuni järgmise
+    // uuesti ehitamiseni.
+    const scheme = window.matchMedia('(prefers-color-scheme: light)');
+    const onScheme = (): void => {
+      plot.current?.redraw(false, false);
+    };
+    scheme.addEventListener('change', onScheme);
+
     return () => {
       observer.disconnect();
+      scheme.removeEventListener('change', onScheme);
       plot.current?.destroy();
       plot.current = null;
     };

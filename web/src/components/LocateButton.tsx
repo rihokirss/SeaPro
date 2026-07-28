@@ -19,8 +19,18 @@ interface Props {
 export function LocateButton({ geo, onGoTo }: Props) {
   const { t } = useI18n();
 
-  const label =
-    geo.status === 'locating'
+  /**
+   * Nupp on LÜLITI, mitte käsklus.
+   *
+   * Varem sai jälgimise ainult sisse lülitada ja välja mitte kuidagi. Kui
+   * valik jäetakse meelde, muutub see puuduseks päriselt: kord vajutatud, ja
+   * rakendus võtaks igal avamisel GPS-i tööle ilma võimaluseta ümber mõelda.
+   */
+  const on = geo.followMe && geo.status !== 'denied' && geo.status !== 'insecure';
+
+  const label = on
+    ? t('action.stopFollowing')
+    : geo.status === 'locating'
       ? t('action.locating')
       : geo.status === 'denied'
         ? t('location.denied')
@@ -36,7 +46,12 @@ export function LocateButton({ geo, onGoTo }: Props) {
         (geo.status === 'ok' && geo.followMe ? ' is-active' : '') +
         (geo.status === 'locating' ? ' is-seeking' : '')
       }
+      aria-pressed={on}
       onClick={() => {
+        if (on) {
+          geo.stop();
+          return;
+        }
         geo.request();
         if (geo.position) onGoTo(geo.position.lat, geo.position.lon, 12);
       }}

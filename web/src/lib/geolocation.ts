@@ -19,9 +19,39 @@ export interface GeoState {
   position: Position | null;
   /** Käivitab asukoha jälgimise ja tsentreerib kaardi (kasutaja vajutas nuppu). */
   request(): void;
-  /** Kas kasutaja on selle sessiooni jooksul asukohta selgesõnaliselt küsinud. */
+  /** Lõpetab jälgimise ja jätab valiku meelde. */
+  stop(): void;
+  /** Kas kasutaja on asukoha jälgimise sisse lülitanud. */
   followMe: boolean;
   setFollowMe(v: boolean): void;
+}
+
+const STORAGE_KEY = 'seapro.followMe';
+
+/**
+ * Kas asukoha jälgimine oli eelmisel korral sees.
+ *
+ * Vaikimisi EI OLE. Varem käivitus jälgimine ise kohe, kui brauseriluba oli
+ * olemas — telefonis tähendas see, et rakendus võttis igal avamisel GPS-i
+ * tööle ja tiris kaardi kasutaja juurde, ka siis, kui too tahtis lihtsalt
+ * Läänemerd vaadata. Luba "jah, tohib küsida" ei ole sama mis "jälgi mind
+ * alati".
+ */
+function loadFollowMe(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === '1';
+  } catch {
+    // Privaatrežiim või keelatud salvestus — vaikeväärtus on niikuinii "väljas".
+    return false;
+  }
+}
+
+function saveFollowMe(on: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, on ? '1' : '0');
+  } catch {
+    // Meeldejätmine on mugavus, mitte tingimus — vaikimisi ei tohi kukkuda.
+  }
 }
 
 /**
@@ -33,14 +63,21 @@ export interface GeoState {
  *  2. `enableHighAccuracy: true` — telefonis tähendab see päris GPS-i, mitte
  *     mobiilimasti asukohta. Merel on mastipõhine asukoht kasutu.
  *
- * Käivitusel proovime asukohta saada kohe, KUI luba on juba antud. Nii avaneb
- * rakendus järgmisel korral otse kasutaja asukohas, ilma lubade dialoogita.
+ * Käivitusel jätkame jälgimist ainult siis, kui kasutaja ise on selle varem
+ * sisse lülitanud (`seapro.followMe`) JA luba on olemas — siis ei näe ta ka
+ * lubade dialoogi uuesti. Muidu ootame nupuvajutust.
  */
 export function useGeolocation(): GeoState {
   const [status, setStatus] = useState<GeoStatus>('idle');
   const [position, setPosition] = useState<Position | null>(null);
-  const [followMe, setFollowMe] = useState(false);
+  const [followMe, setFollowMeState] = useState(loadFollowMe);
   const watchId = useRef<number | null>(null);
+
+  /** Iga muutus läheb ka salvestusse — valik peab üle avamise püsima. */
+  const setFollowMe = useCallback((on: boolean) => {
+    setFollowMeState(on);
+    saveFollowMe(on);
+  }, []);
 
   const start = useCallback(() => {
     if (!('geolocation' in navigator)) {
@@ -82,12 +119,33 @@ export function useGeolocation(): GeoState {
     );
   }, []);
 
+  /**
+   * Lõpetab jälgimise.
+   *
+   * `clearWatch` on siin oluline ka aku pärast: `enableHighAccuracy` hoiab
+   * telefonis GPS-i vastuvõtjat töös ja "väljas" peab tähendama päriselt
+   * väljas, mitte ainult seda, et kaart enam ei tsentreeri.
+   */
+  const stopWatching = useCallback(() => {
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+    setStatus((s) => (s === 'ok' || s === 'locating' ? 'idle' : s));
+  }, []);
+
   const request = useCallback(() => {
     setFollowMe(true);
     start();
-  }, [start]);
+  }, [start, setFollowMe]);
 
-  // Kui luba on juba antud, alusta jälgimist kohe — ilma dialoogi näitamata.
+  const stop = useCallback(() => {
+    setFollowMe(false);
+    stopWatching();
+  }, [setFollowMe, stopWatching]);
+
+  // Jätkame jälgimist ainult siis, kui kasutaja ise on selle sisse lülitanud.
+  // Luba üksi ei piisa: "tohib küsida" ei ole sama mis "jälgi mind alati".
   useEffect(() => {
     if (!('permissions' in navigator) || !window.isSecureContext) return;
     let cancelled = false;
@@ -96,8 +154,7 @@ export function useGeolocation(): GeoState {
       .then((res) => {
         if (cancelled) return;
         if (res.state === 'granted') {
-          setFollowMe(true);
-          start();
+          if (loadFollowMe()) start();
         } else if (res.state === 'denied') {
           setStatus('denied');
         }
@@ -119,5 +176,5 @@ export function useGeolocation(): GeoState {
     };
   }, []);
 
-  return { status, position, request, followMe, setFollowMe };
+  return { status, position, request, stop, followMe, setFollowMe };
 }
