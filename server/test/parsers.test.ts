@@ -129,7 +129,11 @@ describe('Ilmateenistus observations', () => {
 });
 
 describe('Windfinder prognoosileht', () => {
-  const steps = parseForecastPage(read('windfinder-forecast.html'));
+  const html = read('windfinder-forecast.html');
+  // Fikseeritud vaatlushetk: fixture'i kuupäevad on 27.–28. juuli 2026 ja
+  // aasta tuletatakse nende lähedusest. Päris kellaajaga muutuks test
+  // aasta pärast katkiseks.
+  const steps = parseForecastPage(html, new Date('2026-07-28T14:00:00Z'));
 
   it('leiab tunniveerud hašitud klassinimede tagant', () => {
     expect(steps.length).toBeGreaterThan(4);
@@ -156,5 +160,33 @@ describe('Windfinder prognoosileht', () => {
     expect(() => parseForecastPage('<html><body>uus disain</body></html>')).toThrow(
       /struktuur muutus/i,
     );
+  });
+
+  /*
+   * Ajatelg tuli varem vaatlushetkest, mitte lehelt: esimene veerg sai alati
+   * sildi "praegu". Leht algab aga päeva esimesest veerust (00h kohalikku
+   * aega), ka siis kui see on minevikus — 28.07.2026 andis see 17 tunni nihke.
+   * Väärtused olid õiged, aga rippusid vale aja küljes ja graafikul teiste
+   * allikate kõrval oli Windfinderi seeria nihkes.
+   */
+  describe('ajatelg', () => {
+    it('ei sõltu vaatlushetkest', () => {
+      const hommik = parseForecastPage(html, new Date('2026-07-28T02:00:00Z'));
+      const õhtu = parseForecastPage(html, new Date('2026-07-28T23:00:00Z'));
+      expect(hommik.map((s) => s.time)).toEqual(õhtu.map((s) => s.time));
+    });
+
+    it('ankurdub lehe kuupäevale ja spoti ajavööndile', () => {
+      // Fixture on Europe/Tallinn ja algab veerust "00h" 27. juulil.
+      // Suveajal on nihe +3, seega esimene samm on eelmise päeva 21:00Z.
+      expect(steps[0]!.time).toBe('2026-07-26T21:00:00.000Z');
+    });
+
+    it('annab rangelt kasvava 3-tunnise sammu', () => {
+      for (let i = 1; i < steps.length; i++) {
+        const vahe = Date.parse(steps[i]!.time) - Date.parse(steps[i - 1]!.time);
+        expect(vahe).toBe(3 * 3600_000);
+      }
+    });
   });
 });

@@ -116,48 +116,89 @@ function nearestSpot(lat: number, lon: number): { spot: Spot; distanceKm: number
  * Prefiksipõhised mustrid. Hašitud järelliide (`_1swh1_235`) jäetakse
  * sihilikult sobitamata — just see osa muutub nende deploy'ga.
  */
-const CELL_WIND = /_cell-wind-speeds_[^"]*"[\s\S]*?<\/div>\s*<\/div>/g;
 const DATA_MAJOR = /_data-major_[^"]*"[^>]*>([\d.,]+)\s*([a-z/]*)</i;
 const DATA_MINOR = /_data-minor_[^"]*"[^>]*>[\s\S]*?([\d.,]+)\s*</i;
 
-/** Suund on nooleikooni `alt`-atribuudis, nt alt="171.94°". */
-const DIRECTION = /_cell-direction_[^"]*"[\s\S]*?alt="([\d.]+)°"/g;
+/**
+ * Üks läbijooks kogu lehest, dokumendi järjekorras. Iga veerg annab
+ * täpselt kolm märki samas järjekorras: TIME -> DIR -> WIND.
+ */
+const TOKEN = new RegExp(
+  [
+    // Päevapäis, nt "Tuesday, Jul 28"
+    String.raw`(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day,\s*(?<mon>[A-Z][a-z]{2})[a-z]*\s+(?<dom>\d{1,2})`,
+    // Tunnisilt, nt "00h" (võib olla pesastatud elementide sees)
+    String.raw`_cell-timespan_[^"]*"[^>]*>(?:\s*<[^>]+>)*?\s*(?<hour>\d{2})h`,
+    // Suund nooleikooni alt-atribuudis, nt alt="171.94°"
+    String.raw`_cell-direction_[^"]*"[\s\S]{0,400}?alt="(?<dir>[\d.]+)°"`,
+    // Tuulelahter koos major/minor väärtustega
+    String.raw`(?<wind>_cell-wind-speeds_[^"]*"[\s\S]*?<\/div>\s*<\/div>)`,
+  ].join('|'),
+  'g',
+);
+
+/** Ajavöönd on lehel Astro andmete sees, nt "Europe/Helsinki". */
+const TIMEZONE = /Europe\/[A-Za-z_]+/;
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 /**
- * Parsib prognoosilehe tunniveerud.
+ * Parsib prognoosilehe veerud.
  *
  * Struktuur ühe veeru kohta:
+ *   <div class="_cell-timespan_…">00h</div>
  *   <div class="_cell-direction_…"><img alt="171.94°" style="rotate(171.94deg)"></div>
  *   <div class="_cell-wind-speeds_…">
  *     <div class="_data-major_…">4 m/s</div>
  *     <div class="_data-minor_…">max 7</div>
  *   </div>
  *
- * Ajatempleid leht masinloetavalt ei anna — veerud on lihtsalt järjestikused
- * 3-tunnised sammud. Seetõttu ehitame ajatelje ise, alustades käesolevast
- * täistunnist. See on ligikaudne ja seda EI TOHI kasutada täpseks
- * ajavõrdluseks teiste allikatega; sobib trendi kõrvutamiseks.
+ * AJATELG LOETAKSE LEHELT, mitte ei ehitata ise.
+ *
+ * Varem eeldas kood, et esimene veerg on käesolev tund, ja liikus sealt
+ * 3-tunniste sammudega. See oli vale: leht algab alati päeva esimesest
+ * veerust (00h kohalikku aega), ka siis, kui see on juba minevikus.
+ * 28.07.2026 andis see 17 tunni nihke — väärtused olid õiged, aga rippusid
+ * vale aja küljes, mis on graafikul teiste allikate kõrval eksitav.
+ *
+ * Kellaajad on spoti KOHALIKUS ajas; ajavöönd tuleb lehelt endalt, sest
+ * fikseeritud nihe läheks suve- ja talveaja vahetusel valeks.
  */
-export function parseForecastPage(html: string): TimeStep[] {
-  const speeds = [...html.matchAll(CELL_WIND)].map((m) => m[0]);
-  const directions = [...html.matchAll(DIRECTION)].map((m) => Number(m[1]));
-
-  if (speeds.length === 0) {
-    throw new Error(
-      'Windfinder: ühtki tuulekiiruse lahtrit ei leitud — lehe struktuur muutus, parser vajab parandust',
-    );
-  }
-
-  const now = new Date();
-  now.setUTCMinutes(0, 0, 0);
+export function parseForecastPage(html: string, now: Date = new Date()): TimeStep[] {
+  // Kõik meie spotid on EE/FI/Ahvenamaa, mis jagavad sama vööndit — seega
+  // varuvariant on ohutu, kui Astro andmete kuju muutub.
+  const tz = html.match(TIMEZONE)?.[0] ?? 'Europe/Helsinki';
 
   const steps: TimeStep[] = [];
+  let date: { month: number; dom: number } | null = null;
+  let hour: number | null = null;
+  let dir: number | null = null;
+  let sawWindCell = false;
 
-  for (let i = 0; i < speeds.length; i++) {
-    const cell = speeds[i]!;
+  for (const m of html.matchAll(TOKEN)) {
+    const g = m.groups!;
+
+    if (g.mon !== undefined) {
+      const month = MONTHS.indexOf(g.mon.toLowerCase());
+      if (month >= 0) date = { month, dom: Number(g.dom) };
+      continue;
+    }
+    if (g.hour !== undefined) {
+      hour = Number(g.hour);
+      continue;
+    }
+    if (g.dir !== undefined) {
+      const d = Number(g.dir);
+      dir = Number.isFinite(d) ? d : null;
+      continue;
+    }
+    if (g.wind === undefined) continue;
+
+    sawWindCell = true;
+    const cell = g.wind;
 
     const major = cell.match(DATA_MAJOR);
-    if (!major) continue;
+    if (!major || date === null || hour === null) continue;
 
     const speed = Number(major[1]!.replace(',', '.'));
     const unit = (major[2] ?? '').toLowerCase();
@@ -187,19 +228,23 @@ export function parseForecastPage(html: string): TimeStep[] {
               ? gustRaw * 0.44704
               : gustRaw;
 
-    const dir = directions[i];
-
     steps.push({
-      // Windfinderi tasuta vaade on 3-tunnise sammuga.
-      time: new Date(now.getTime() + i * 3 * 3600_000).toISOString(),
+      time: new Date(
+        zonedHourToUtc(resolveYear(date.month, date.dom, now), date.month, date.dom, hour, tz),
+      ).toISOString(),
       values: {
         wind_speed: round(ms),
         wind_gust: round(gust),
-        wind_dir: dir !== undefined && Number.isFinite(dir) ? round(dir, 0) : null,
+        wind_dir: dir !== null ? round(dir, 0) : null,
       },
     });
   }
 
+  if (!sawWindCell) {
+    throw new Error(
+      'Windfinder: ühtki tuulekiiruse lahtrit ei leitud — lehe struktuur muutus, parser vajab parandust',
+    );
+  }
   if (steps.length === 0) {
     throw new Error(
       'Windfinder: lahtrid leiti, aga ühtki väärtust ei õnnestunud lugeda — vorming muutus',
@@ -207,6 +252,59 @@ export function parseForecastPage(html: string): TimeStep[] {
   }
 
   return steps;
+}
+
+/**
+ * Päevapäis annab kuu ja päeva, aga MITTE aastat. Valime aasta, mille korral
+ * kuupäev jääb vaatlushetkele kõige lähemale — see teeb õige valiku ka
+ * aastavahetusel, kus leht näitab korraga detsembrit ja jaanuari.
+ */
+function resolveYear(month: number, dom: number, now: Date): number {
+  const y = now.getUTCFullYear();
+  let best = y;
+  let bestDist = Infinity;
+  for (const candidate of [y - 1, y, y + 1]) {
+    const dist = Math.abs(Date.UTC(candidate, month, dom) - now.getTime());
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+/**
+ * Kohalik seinakellaaeg -> UTC ajatempel.
+ *
+ * Node-is puudub selleks otsene API, seega küsime vööndi nihke Intl-ilt ja
+ * korrigeerime. Teine ring on vajalik kellakeeramise öödel, kus esimene
+ * oletus võib sattuda vale nihkega poolele.
+ */
+function zonedHourToUtc(year: number, month: number, dom: number, hour: number, tz: string): number {
+  const naive = Date.UTC(year, month, dom, hour);
+  const first = tzOffsetMs(naive, tz);
+  const ts = naive - first;
+  const second = tzOffsetMs(ts, tz);
+  return second === first ? ts : naive - second;
+}
+
+/** Kui palju vööndi kellaaeg antud hetkel UTC-st erineb. */
+function tzOffsetMs(ts: number, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(ts));
+  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? '0');
+  return (
+    Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')) -
+    ts
+  );
 }
 
 export const windfinder = new WindfinderProvider();
