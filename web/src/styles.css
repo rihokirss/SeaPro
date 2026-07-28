@@ -1889,6 +1889,10 @@ button.sheet__grip::before {
 
 .popup {
   min-width: 180px;
+  /* Sisu ei tohi kunagi kastist välja ulatuda — ka siis, kui mõni sõna on
+     pikem kui rida (pikad URL-id, liitsõnad). */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .popup__head {
@@ -1952,13 +1956,27 @@ button.sheet__grip::before {
   text-align: left;
   font-weight: var(--w-reg);
   color: var(--text-dim);
-  white-space: nowrap;
+  /* Silt murdub alles siis, kui teisiti ei mahu — lühikesed sildid jäävad
+     ühele reale ka ilma nowrap-ita. */
+  overflow-wrap: anywhere;
 }
 
+/*
+ * Väärtus MURRAB ridu.
+ *
+ * Varem oli siin `white-space: nowrap` ja see oli otsene põhjus, miks pikk
+ * operaatori nimi või teenuste loend popupist välja jooksis: kast ei saanud
+ * kasvada ja tekst ei tohtinud murduda, seega ta lihtsalt valgus üle serva.
+ * Numbri ja ühiku hoiab koos `.popup__val`.
+ */
 .popup__table td {
   padding: 2px 0 2px 12px;
   text-align: right;
   font-family: var(--num);
+  overflow-wrap: anywhere;
+}
+
+.popup__val {
   white-space: nowrap;
 }
 
@@ -2312,6 +2330,7 @@ button.sheet__grip::before {
 .popup__links {
   margin-top: var(--s2);
   font-size: var(--t-md);
+  overflow-wrap: anywhere;
 }
 
 .popup__links a,

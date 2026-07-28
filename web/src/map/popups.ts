@@ -62,7 +62,18 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     popup = new maplibregl.Popup({
       closeButton: true,
       closeOnClick: true,
-      maxWidth: '280px',
+      /**
+       * Ülempiir, mitte fikseeritud laius.
+       *
+       * 280 px oli liiga kitsas: pikk operaatori nimi või teenuste loend ei
+       * mahtunud ridadesse ära ja tekst jooksis popupist VÄLJA (read olid
+       * `nowrap`). Nüüd kast kasvab kuni ekraani lubatud piirini ja sisu
+       * murrab ridu — vt `.popup__table` CSS-is.
+       *
+       * Piir on ekraanist sõltuv, sest telefonis oleks 340 px juba peaaegu
+       * terve laius ja popup kataks selle koha, mille kohta ta räägib.
+       */
+      maxWidth: `min(340px, calc(100vw - 32px))`,
       offset: 14,
     })
       .setLngLat(lngLat)
@@ -479,8 +490,18 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     </div>`;
 }
 
+/**
+ * Popupi tabelirida.
+ *
+ * Ühik käib väärtusega ühte `nowrap`-lahtrisse: "3.8" ja "m" ei tohi eri
+ * ridadele sattuda. Ühikuta väärtus (nimi, teenuste loend, link) tohib ja
+ * PEABKI murduma — just selle keelamine ajas pikad tekstid popupist välja.
+ */
 function row(label: string, value: string, unit: string): string {
-  return `<tr><th>${escapeHtml(label)}</th><td>${value}${unit ? ` <small>${escapeHtml(unit)}</small>` : ''}</td></tr>`;
+  const cell = unit
+    ? `<span class="popup__val">${value} <small>${escapeHtml(unit)}</small></span>`
+    : value;
+  return `<tr><th>${escapeHtml(label)}</th><td>${cell}</td></tr>`;
 }
 
 function formatAge(ageSeconds: number, t: Translate): string {

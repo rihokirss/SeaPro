@@ -21,7 +21,15 @@ import ports from '../data/navily-ports.json';
  * Võti on sadama OSM-nimi ilma täpitähtedeta ja väiketähtedes — nii saab uue
  * rea lisada otse selle nime järgi, mida rakendus kaardil näitab.
  */
-const PORT_IDS = ports as Record<string, number>;
+interface NavilyPort {
+  id: number;
+  /** Nimeosa URL-is. Kontrollitud: server leiab sadama ID järgi ja suvaline
+   *  nimeosa toimib samamoodi — hoiame õiget ainult selleks, et link näeks
+   *  kasutajale välja nii, nagu Navily ise ta kirjutab. */
+  slug: string;
+}
+
+const PORTS = ports as Record<string, NavilyPort>;
 
 function normalize(name: string): string {
   return name
@@ -35,12 +43,15 @@ function normalize(name: string): string {
 }
 
 export function navilyUrl(name: string, lat: number, lon: number): string {
-  const id = PORT_IDS[normalize(name)];
-  if (id !== undefined) return `https://www.navily.com/carte/port/${id}`;
+  const port = PORTS[normalize(name)];
+  // `/port/<slug>/<id>` on sadama LEHT (arvustused, teenused, hinnad).
+  // `/carte/port/<id>` viib ainult kaardile ehk samasse kohta, kuhu
+  // koordinaadilink — see ei anna kasutajale midagi juurde.
+  if (port) return `https://www.navily.com/port/${port.slug}/${port.id}`;
   return `https://www.navily.com/carte/place/${lat.toFixed(6)}/${lon.toFixed(6)}`;
 }
 
 /** Kas link viib sadama enda lehele (mitte lihtsalt kaardile)? */
 export function navilyIsExact(name: string): boolean {
-  return PORT_IDS[normalize(name)] !== undefined;
+  return PORTS[normalize(name)] !== undefined;
 }
