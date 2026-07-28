@@ -1590,6 +1590,18 @@ textarea {
   color: rgba(255, 255, 255, 0.96);
 }
 
+/* Lävendiaste: alla selle väärtuse ei joonista kiht midagi. Täidiseta lahter
+   ütleb seda otse — värvi siia panna ei tohi, sest iga värv oleks vale.
+   Kriipsutus eristab teda taustast, ilma et ta värvina loeks. */
+.legend__step.is-empty {
+  color: var(--text-dim);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 3px,
+    var(--surface-2) 3px 6px
+  );
+}
+
 /* Osakeste canvas kaardi peal. */
 .wind-particles {
   position: absolute;

@@ -55,7 +55,21 @@ export function MapLegend({ variable, speedUnit }: Props) {
           // Legendil kasutame läbipaistmatut värvi: kaardil kasvab alfa koos
           // tugevusega (nõrk tuul ei tohi kaarti katta), aga legendil teeks
           // see ülemised astmed loetamatuks kahvatuks.
-          const [r, g, b] = sampleScale(scale, stop.value);
+          const [r, g, b, a] = sampleScale(scale, stop.value);
+
+          // Alfa 0 on erand ja seda EI TOHI läbipaistmatuks teha. Selline
+          // peatus ei ole värv, vaid lävend: alla selle ei joonistata midagi.
+          // Pilvisuse 10% on tehniliselt valge, ja valge on samal skaalal
+          // "üleni pilves" — täpselt vastupidine sellele, mida ta tähendab.
+          // Tühi lahter ütleb sama asja ilma valetamata.
+          if (a === 0) {
+            return (
+              <li key={stop.value} className="legend__step is-empty">
+                {format(shown[i]!, decimals)}
+              </li>
+            );
+          }
+
           return (
             <li
               key={stop.value}
