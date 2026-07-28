@@ -7,6 +7,7 @@ import type {
   Variable,
 } from '@seapro/shared';
 import { VARIABLES } from '@seapro/shared';
+import { cache } from '../cache.js';
 import { config } from '../config.js';
 import { HttpError } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
@@ -105,6 +106,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     time: new Date().toISOString(),
     // Päringueelarve seis — ilma selleta on "miks tuulekiht kadus?" pime koht.
     budgets: rateLimiter.stats(),
+    // Vahemälu maht: kirjed kasvavad kaardi kerimisega ja piiri lähedus on
+    // ainus märk sellest, et väljatõstmine on tööle hakanud.
+    cache: { entries: cache.size, megabytes: Math.round((cache.bytes / 1048576) * 10) / 10 },
   }));
 
   app.get('/api/config', async () => ({

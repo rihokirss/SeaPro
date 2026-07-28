@@ -23,6 +23,14 @@ interface Entry<T> {
   value: T;
   expiresAt: number;
   storedAt: number;
+  /**
+   * Väärtuse ligikaudne suurus baitides (serialiseeritud kujul).
+   *
+   * Vaja on seda seepärast, et kirjed on VÄGA eri suurusega: jaamamõõtmine on
+   * paar kilobaiti, võrepaan nädala andmetega ligi 200 kB. Ainult kirjete arvu
+   * piiramine tähendaks, et sama piir hoiab kord 2 MB, kord 200 MB.
+   */
+  bytes: number;
 }
 
 interface Pending<T> {
@@ -42,6 +50,33 @@ const MAX_PERSISTED_ENTRY = 512 * 1024;
 
 /** Kirjeid vanemad kui see, ei laadita tagasi — need on niikuinii kasutud. */
 const MAX_PERSISTED_AGE_MS = 24 * 3600 * 1000;
+
+/**
+ * Mälupiir `stale` kihile.
+ *
+ * Miks see olemas on: `stale` on sihilikult AJATU — see ongi varukoopia, mis
+ * peab üle elama allika kadumise. Ajatu tähendas aga ka "kustub alles
+ * taaskäivitusel": iga kaardinihe lõi uue paanivõtme ja ükski vana ei kadunud
+ * kunagi. Kasutaja, kes mööda Läänemerd ringi kerib, kasvatas protsessi mälu
+ * seni, kuni PM2 `max_memory_restart` selle maha võttis — koristus taaskäivituse
+ * kaudu, keset kasutamist.
+ *
+ * 96 MB on valitud paani suuruse järgi: nädala jagu andmeid ühe paani kohta on
+ * ~200 kB, seega mahub siia mitusada paani ehk kordades rohkem, kui üks seanss
+ * jõuab vaadata. Piiri ületamisel kaob KÕIGE AMMU KASUTATUD kirje — mitte
+ * kõige vanem, sest praegu vaadatavat ala hoitakse pidevalt värskena ja see
+ * peab alles jääma.
+ */
+const MAX_MEMORY_BYTES = 96 * 1024 * 1024;
+
+/**
+ * Vanuspiir `stale` kirjele.
+ *
+ * Sama piir mis kettal: üle ööpäeva vana prognoos ei ole enam "veidi vana
+ * andmed", vaid eksitav. Varukoopiana ei kõlba, kettale ei lähe — mälus
+ * hoidmiseks pole samuti põhjust.
+ */
+const MAX_STALE_AGE_MS = MAX_PERSISTED_AGE_MS;
 
 /**
  * Vahemälu faili versioon.
@@ -80,6 +115,53 @@ export class Cache {
   #pending = new Map<string, Pending<unknown>>();
   #dirty = false;
   #flushTimer: NodeJS.Timeout | null = null;
+  /** `stale` kihi ligikaudne mälukulu baitides. */
+  #bytes = 0;
+
+  /**
+   * Paneb kirje mõlemasse kihti ja hoiab mälupiiri.
+   *
+   * KÕIK kirjutamised käivad siit läbi — muidu jääks mõni tee arvestusest
+   * välja ja piir oleks olemas ainult paberil.
+   */
+  #store<T>(key: string, entry: Entry<T>): void {
+    const previous = this.#stale.get(key);
+    if (previous) this.#bytes -= previous.bytes;
+
+    // `delete` enne `set`-i viib võtme Map-i järjekorras lõppu. Just see teeb
+    // järjekorrast kasutusjärjekorra ehk annab meile LRU ilma eraldi
+    // andmestruktuurita.
+    this.#stale.delete(key);
+    this.#stale.set(key, entry);
+    this.#fresh.set(key, entry);
+    this.#bytes += entry.bytes;
+
+    this.#evict();
+  }
+
+  /** Kõige ammu kasutatud kirjed välja, kuni mälupiir on täidetud. */
+  #evict(): void {
+    if (this.#bytes <= MAX_MEMORY_BYTES) return;
+    for (const [key, entry] of this.#stale) {
+      this.#stale.delete(key);
+      this.#fresh.delete(key);
+      this.#bytes -= entry.bytes;
+      if (this.#bytes <= MAX_MEMORY_BYTES) break;
+    }
+  }
+
+  /**
+   * Ligikaudne suurus. `JSON.stringify` on siin ainus aus mõõt, mis meil on,
+   * ja seda tehakse ainult päris võrgupäringu järel (mitte vahemälutabamusel),
+   * seega paar korda minutis — mitte tulises tsüklis.
+   */
+  #sizeOf(value: unknown): number {
+    try {
+      return JSON.stringify(value)?.length ?? 0;
+    } catch {
+      return 0;
+    }
+  }
 
   /**
    * Tagastab vahemälust või kutsub `loader`i.
@@ -92,6 +174,10 @@ export class Cache {
 
     const fresh = this.#fresh.get(key) as Entry<T> | undefined;
     if (fresh && fresh.expiresAt > now) {
+      // Tabamus viib kirje kasutusjärjekorra lõppu — nii ei tõsteta praegu
+      // vaadatavat ala mälupiiri täitumisel välja.
+      this.#stale.delete(key);
+      this.#stale.set(key, fresh);
       return { value: fresh.value, stale: false, ageSeconds: (now - fresh.storedAt) / 1000 };
     }
 
@@ -109,9 +195,12 @@ export class Cache {
     const promise = loader()
       .then((value) => {
         const stamp = Date.now();
-        const entry: Entry<T> = { value, expiresAt: stamp + ttlSeconds * 1000, storedAt: stamp };
-        this.#fresh.set(key, entry);
-        this.#stale.set(key, entry);
+        this.#store(key, {
+          value,
+          expiresAt: stamp + ttlSeconds * 1000,
+          storedAt: stamp,
+          bytes: this.#sizeOf(value),
+        });
         this.#dirty = true;
         return value;
       })
@@ -141,9 +230,12 @@ export class Cache {
   /** Kirjutab väärtuse otse (taustatööde jaoks, mis ise pärivad). */
   set<T>(key: string, ttlSeconds: number, value: T): void {
     const stamp = Date.now();
-    const entry: Entry<T> = { value, expiresAt: stamp + ttlSeconds * 1000, storedAt: stamp };
-    this.#fresh.set(key, entry);
-    this.#stale.set(key, entry);
+    this.#store(key, {
+      value,
+      expiresAt: stamp + ttlSeconds * 1000,
+      storedAt: stamp,
+      bytes: this.#sizeOf(value),
+    });
     this.#dirty = true;
   }
 
@@ -187,9 +279,15 @@ export class Cache {
         if (e.storedAt < cutoff) continue;
 
         const expiresAt = e.expiresAt ?? 0;
-        const entry = { value: e.value, storedAt: e.storedAt, expiresAt };
+        const entry = {
+          value: e.value,
+          storedAt: e.storedAt,
+          expiresAt,
+          bytes: this.#sizeOf(e.value),
+        };
 
         this.#stale.set(e.key, entry);
+        this.#bytes += entry.bytes;
         if (expiresAt > now) {
           this.#fresh.set(e.key, entry);
           stillFresh++;
@@ -217,8 +315,32 @@ export class Cache {
     }
   }
 
+  /**
+   * Viskab välja kirjed, mis on liiga vanad, et enam varukoopiaks kõlvata.
+   *
+   * Mälupiir üksi ei piisaks: seanss võib jääda piirist allapoole ja hoida
+   * ometi eilset prognoosi, mida keegi kuvada ei taha. Vanus ja maht on kaks
+   * eri probleemi ja vajavad kumbki oma piiri.
+   */
+  prune(log?: (msg: string) => void): number {
+    const cutoff = Date.now() - MAX_STALE_AGE_MS;
+    let dropped = 0;
+    for (const [key, entry] of this.#stale) {
+      if (entry.storedAt >= cutoff) continue;
+      this.#stale.delete(key);
+      this.#fresh.delete(key);
+      this.#bytes -= entry.bytes;
+      dropped++;
+    }
+    if (dropped > 0) log?.(`Vahemälust eemaldatud ${dropped} aegunud kirjet`);
+    return dropped;
+  }
+
   /** Kirjutab `stale` kihi kettale. Ohutu kutsuda ka siis, kui midagi ei muutunud. */
   flush(log?: (msg: string) => void): void {
+    // Koristus käib kirjutamisega koos: nii ei lähe kettale seda, mis on
+    // niikuinii üle vanusepiiri, ja eraldi taimerit pole vaja.
+    this.prune(log);
     if (!this.#dirty) return;
 
     const cutoff = Date.now() - MAX_PERSISTED_AGE_MS;
@@ -278,12 +400,19 @@ export class Cache {
   }
 
   delete(key: string): void {
+    const entry = this.#stale.get(key);
+    if (entry) this.#bytes -= entry.bytes;
     this.#fresh.delete(key);
     this.#stale.delete(key);
   }
 
   get size(): number {
     return this.#stale.size;
+  }
+
+  /** Ligikaudne mälukulu baitides — `/api/health` näitab seda. */
+  get bytes(): number {
+    return this.#bytes;
   }
 }
 
