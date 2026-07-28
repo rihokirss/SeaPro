@@ -23,6 +23,7 @@ export interface LayerState {
   stations: boolean;
   vessels: boolean;
   harbours: boolean;
+  anchorages: boolean;
 }
 
 interface Props {
@@ -172,6 +173,12 @@ export function LayerPanel({
               checked={layers.harbours}
               onChange={(v) => set({ harbours: v })}
               label={t('layer.harbours')}
+            />
+            <Toggle
+              checked={layers.anchorages}
+              onChange={(v) => set({ anchorages: v })}
+              label={t('layer.anchorages')}
+              hint={t('layer.anchorages.hint')}
             />
           </section>
 

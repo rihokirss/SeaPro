@@ -157,5 +157,10 @@
   "lang.label": "Keel",
   "harbour.navily": "Navily",
   "harbour.navily.hint": "Ava selle sadama leht Navilys — teiste purjetajate arvustused",
-  "harbour.navily.hintNearby": "Ava see koht Navily kaardil — lähedased sadamad ja ankrukohad"
+  "harbour.navily.hintNearby": "Ava see koht Navily kaardil — lähedased sadamad ja ankrukohad",
+  "layer.anchorages": "Ankrukohad",
+  "layer.anchorages.hint": "OpenStreetMapist; enamik on nimetud",
+  "anchorage.title": "Ankrukoht",
+  "anchorage.seabed": "Põhi",
+  "anchorage.category": "Tüüp"
 }

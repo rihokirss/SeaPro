@@ -1,12 +1,14 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { Feature, FeatureCollection } from 'geojson';
 import type { Harbour } from '@seapro/shared';
-import { HARBOUR_ICON, HARBOUR_ICON_BASIC } from '../icons';
+import { ANCHORAGE_ICON, HARBOUR_ICON, HARBOUR_ICON_BASIC } from '../icons';
 import { insertBefore } from '../layerOrder';
 
 const SOURCE_ID = 'harbours-src';
 export const HARBOURS_LAYER = 'harbours';
 export const HARBOURS_LABEL_LAYER = 'harbours-labels';
+export const ANCHORAGES_LAYER = 'anchorages';
+export const ANCHORAGES_LABEL_LAYER = 'anchorages-labels';
 
 /**
  * Sadamate kiht.
@@ -31,8 +33,14 @@ export function updateHarbours(map: MapLibreMap, list: Harbour[]): void {
     geometry: { type: 'Point', coordinates: [h.lon, h.lat] },
     properties: {
       id: h.id,
+      kind: h.kind,
       name: h.name,
-      icon: hasFacilities(h) ? HARBOUR_ICON : HARBOUR_ICON_BASIC,
+      icon:
+        h.kind === 'anchorage'
+          ? ANCHORAGE_ICON
+          : hasFacilities(h)
+            ? HARBOUR_ICON
+            : HARBOUR_ICON_BASIC,
       category: h.category ?? '',
       phone: h.phone ?? '',
       website: h.website ?? '',
@@ -47,6 +55,8 @@ export function updateHarbours(map: MapLibreMap, list: Harbour[]): void {
       vhf: h.vhf ?? '',
       registryUrl: h.registryUrl ?? '',
       locode: h.locode ?? '',
+      anchorageCategory: h.anchorageCategory ?? '',
+      seabed: h.seabed ?? '',
     },
   }));
 
@@ -62,6 +72,9 @@ export function updateHarbours(map: MapLibreMap, list: Harbour[]): void {
         id: HARBOURS_LAYER,
         type: 'symbol',
         source: SOURCE_ID,
+        // Üks allikas, kaks kihti: nii tuleb mõlemad ühest Overpassi
+        // päringust, aga kasutaja saab neid eraldi sisse-välja lülitada.
+        filter: ['!=', ['get', 'kind'], 'anchorage'],
         minzoom: 7,
         layout: {
           'icon-image': ['get', 'icon'],
@@ -98,6 +111,7 @@ export function updateHarbours(map: MapLibreMap, list: Harbour[]): void {
         id: HARBOURS_LABEL_LAYER,
         type: 'symbol',
         source: SOURCE_ID,
+        filter: ['!=', ['get', 'kind'], 'anchorage'],
         minzoom: 10,
         layout: {
           'text-field': ['get', 'name'],
@@ -118,12 +132,78 @@ export function updateHarbours(map: MapLibreMap, list: Harbour[]): void {
     );
   }
 
-  setHarboursVisible(map, true);
+  if (!map.getLayer(ANCHORAGES_LAYER)) {
+    map.addLayer(
+      {
+        id: ANCHORAGES_LAYER,
+        type: 'symbol',
+        source: SOURCE_ID,
+        filter: ['==', ['get', 'kind'], 'anchorage'],
+        /**
+         * Ankrukoht tuleb nähtavale hiljem kui sadam (9 vs 7).
+         *
+         * Sadam on orientiir, mida vaadatakse kaugelt ("kuhu ma üldse lähen").
+         * Ankrukoht on otsus, mis tehakse kohal olles ("kuhu ma siin lahes
+         * jään") — ja neid on rannikul kordades rohkem kui sadamaid, seega
+         * madalal zoomil oleks see lihtsalt punktimüra üle kogu Läänemere.
+         */
+        minzoom: 9,
+        layout: {
+          'icon-image': ['get', 'icon'],
+          'icon-size': [
+            'interpolate', ['linear'], ['zoom'],
+            9, 0.7,
+            12, 1,
+            14, 1.15,
+          ],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+      },
+      insertBefore(map, ANCHORAGES_LAYER),
+    );
+  }
+
+  if (!map.getLayer(ANCHORAGES_LABEL_LAYER)) {
+    map.addLayer(
+      {
+        id: ANCHORAGES_LABEL_LAYER,
+        type: 'symbol',
+        source: SOURCE_ID,
+        // Nimetuid on enamik — neile ei ole mõtet tühja silti joonistada.
+        filter: ['all', ['==', ['get', 'kind'], 'anchorage'], ['!=', ['get', 'name'], '']],
+        minzoom: 11,
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-offset': [0, 1.1],
+          'text-anchor': 'top',
+          'text-optional': true,
+          'text-max-width': 10,
+        },
+        paint: {
+          'text-color': '#14402f',
+          'text-halo-color': 'rgba(255,255,255,0.92)',
+          'text-halo-width': 1.4,
+        },
+      },
+      insertBefore(map, ANCHORAGES_LABEL_LAYER),
+    );
+  }
 }
 
 export function setHarboursVisible(map: MapLibreMap, visible: boolean): void {
+  setLayersVisible(map, [HARBOURS_LAYER, HARBOURS_LABEL_LAYER], visible);
+}
+
+export function setAnchoragesVisible(map: MapLibreMap, visible: boolean): void {
+  setLayersVisible(map, [ANCHORAGES_LAYER, ANCHORAGES_LABEL_LAYER], visible);
+}
+
+function setLayersVisible(map: MapLibreMap, ids: string[], visible: boolean): void {
   const v = visible ? 'visible' : 'none';
-  for (const id of [HARBOURS_LAYER, HARBOURS_LABEL_LAYER]) {
+  for (const id of ids) {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
   }
 }

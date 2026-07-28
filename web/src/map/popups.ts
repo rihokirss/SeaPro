@@ -6,7 +6,7 @@ import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import { STATIONS_LAYER } from './layers/stations';
 import { VESSEL_LAYERS } from './layers/vessels';
 import { navilyIsExact, navilyUrl } from '../lib/navily';
-import { HARBOURS_LAYER } from './layers/harbours';
+import { ANCHORAGES_LAYER, HARBOURS_LAYER } from './layers/harbours';
 
 /**
  * Kaardimarkerite popupid.
@@ -102,18 +102,21 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     });
   }
 
-  map.on('click', HARBOURS_LAYER, (e) => {
-    const f = e.features?.[0];
-    if (!f) return;
-    e.originalEvent.stopPropagation();
-    const id = `harbour:${String(f.properties?.id ?? '')}`;
-    if (show(id, coordsOf(f, e.lngLat), harbourHtml(f, getContext()))) {
-      hoverTip?.remove();
-    }
-  });
+  // Sama käsitleja mõlemale: popup ise otsustab sisu `kind` järgi.
+  for (const layer of [HARBOURS_LAYER, ANCHORAGES_LAYER]) {
+    map.on('click', layer, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      e.originalEvent.stopPropagation();
+      const id = `harbour:${String(f.properties?.id ?? '')}`;
+      if (show(id, coordsOf(f, e.lngLat), harbourHtml(f, getContext()))) {
+        hoverTip?.remove();
+      }
+    });
+  }
 
   // Kursor ja hover-vihje.
-  for (const layer of [STATIONS_LAYER, HARBOURS_LAYER, ...VESSEL_LAYERS]) {
+  for (const layer of [STATIONS_LAYER, HARBOURS_LAYER, ANCHORAGES_LAYER, ...VESSEL_LAYERS]) {
     map.on('mousemove', layer, (e) => {
       map.getCanvas().style.cursor = 'pointer';
 
@@ -125,7 +128,7 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
       const html =
         layer === STATIONS_LAYER
           ? stationTipHtml(f, getContext())
-          : layer === HARBOURS_LAYER
+          : layer === HARBOURS_LAYER || layer === ANCHORAGES_LAYER
             ? harbourTipHtml(f, getContext())
             : vesselTipHtml(f, getContext());
 
@@ -219,14 +222,21 @@ function harbourTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const p = f.properties as Record<string, unknown>;
   const { t } = ctx;
   const draught = p.maxDraught === null || p.maxDraught === undefined ? null : Number(p.maxDraught);
+  const anchorage = p.kind === 'anchorage';
+
+  // Enamik ankrukohti on OSM-is nimetud. Tühi pealkiri annaks vihje, mis ei
+  // ütle midagi — tüübisilt vähemalt vastab küsimusele "mis märk see on?".
+  const title = String(p.name ?? '') || t(anchorage ? 'anchorage.title' : 'harbour.title');
 
   return tipHtml({
-    title: String(p.name ?? ''),
+    title,
     metric:
       draught !== null
         ? { label: t('harbour.maxDraught'), value: draught.toFixed(1), unit: 'm' }
         : undefined,
-    note: draught === null ? t('harbour.title') : undefined,
+    note: draught === null && title !== t(anchorage ? 'anchorage.title' : 'harbour.title')
+      ? t(anchorage ? 'anchorage.title' : 'harbour.title')
+      : undefined,
   });
 }
 
@@ -357,6 +367,15 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const operator = str(p.operator);
   if (operator) rows.push(row(t('harbour.operator'), escapeHtml(operator), ''));
 
+  // Ankrukoha omad väljad. OSM-i katvus on hõre, aga just need kaks otsustavad,
+  // kas seal ankur peab: mille sisse ta läheb ja kas koht on üldse lubatud.
+  const seabed = str(p.seabed);
+  if (seabed) rows.push(row(t('anchorage.seabed'), escapeHtml(seabed.replace(/_/g, ' ')), ''));
+  const anchorageCategory = str(p.anchorageCategory);
+  if (anchorageCategory) {
+    rows.push(row(t('anchorage.category'), escapeHtml(anchorageCategory.replace(/_/g, ' ')), ''));
+  }
+
   const links: string[] = [];
   const website = str(p.website);
   if (website) {
@@ -391,12 +410,15 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   }
 
   const locode = str(p.locode);
+  const anchorage = p.kind === 'anchorage';
+  const kindLabel = t(anchorage ? 'anchorage.title' : 'harbour.title');
+  const title = str(p.name) || kindLabel;
 
   return `
     <div class="popup">
       <div class="popup__head">
-        <strong>${escapeHtml(str(p.name))}</strong>
-        <span class="popup__kind">${escapeHtml(t('harbour.title'))}${
+        <strong>${escapeHtml(title)}</strong>
+        <span class="popup__kind">${escapeHtml(kindLabel)}${
           locode ? ` · ${escapeHtml(locode)}` : ''
         }</span>
       </div>

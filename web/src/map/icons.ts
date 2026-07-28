@@ -225,7 +225,7 @@ function vesselDot(fill: string): ImageData {
  * Ring ümber eristab teda OpenSeaMapi ankrualade märkidest, mis on samuti
  * ankrukujulised, aga ilma raamita.
  */
-function harbourMarker(fill: string): ImageData {
+function harbourMarker(fill: string, radius = 9.5): ImageData {
   const size = 30;
   const c = makeCanvas(size);
   const { ctx } = c;
@@ -236,13 +236,13 @@ function harbourMarker(fill: string): ImageData {
   ctx.shadowBlur = 3;
   ctx.shadowOffsetY = 1;
   ctx.beginPath();
-  ctx.arc(mid, mid, 9.5, 0, Math.PI * 2);
+  ctx.arc(mid, mid, radius, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.restore();
 
   ctx.beginPath();
-  ctx.arc(mid, mid, 9.5, 0, Math.PI * 2);
+  ctx.arc(mid, mid, radius, 0, Math.PI * 2);
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 1.8;
   ctx.stroke();
@@ -274,11 +274,19 @@ function harbourMarker(fill: string): ImageData {
 
 export const HARBOUR_ICON = 'harbour';
 export const HARBOUR_ICON_BASIC = 'harbour-basic';
+export const ANCHORAGE_ICON = 'anchorage';
 
-/** Sadamamarkeri värvid: täisteenusega vs ilma. */
+/**
+ * Markerivärvid.
+ *
+ * Sadamad on sinised (teenustega tumedam, ilma tuhmim), ankrukoht roheline ja
+ * väiksem. Värv, mitte kuju, sest ankur ON mõlemal õige märk — vahe on selles,
+ * mida koht pakub: sadamas on kai ja teenused, ankrukohas ainult varju.
+ */
 export const HARBOUR_COLORS = {
   full: '#2f7fd1',
   basic: '#7a93a5',
+  anchorage: '#3f9e6e',
 } as const;
 
 /** Jaama ikooninimi kuju ja värskuse järgi. */
@@ -311,6 +319,9 @@ export function registerIcons(map: MapLibreMap): void {
     [WIND_ARROW_LIGHT]: windArrow('#ffffff'),
     [HARBOUR_ICON]: harbourMarker(HARBOUR_COLORS.full),
     [HARBOUR_ICON_BASIC]: harbourMarker(HARBOUR_COLORS.basic),
+    // Väiksem raadius: ankrukohti on rannikul palju ja sadamaga sama suur
+    // marker upuks nendega kokku ning varjaks kaardi ära.
+    [ANCHORAGE_ICON]: harbourMarker(HARBOUR_COLORS.anchorage, 7.5),
   };
 
   for (const kind of ['coastal', 'offshore', 'buoy'] as const) {

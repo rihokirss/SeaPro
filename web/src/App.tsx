@@ -24,7 +24,7 @@ import { setBasemapMuted } from './map/basemapTone';
 import { WindParticleLayer } from './map/layers/windParticles';
 import { setStationsVisible, updateStations } from './map/layers/stations';
 import { setVesselsVisible, updateVessels } from './map/layers/vessels';
-import { setHarboursVisible, updateHarbours } from './map/layers/harbours';
+import { setAnchoragesVisible, setHarboursVisible, updateHarbours } from './map/layers/harbours';
 import { closePopup, registerPopups } from './map/popups';
 import { buildWindField, type Field } from './map/interpolate';
 import { LayerPanel, type LayerState } from './components/LayerPanel';
@@ -44,6 +44,7 @@ const DEFAULT_LAYERS: LayerState = {
   stations: true,
   vessels: true,
   harbours: true,
+  anchorages: false,
 };
 
 /**
@@ -605,8 +606,12 @@ export function App() {
   // --- Sadamad -------------------------------------------------------------
   const [harbours, setHarbours] = useState<Harbour[]>([]);
 
+  // Sadamad ja ankrukohad tulevad ÜHEST päringust (vt server: overpass.ts),
+  // seega piisab sellest, kui kas või üks kiht on sees.
+  const wantPlaces = layers.harbours || layers.anchorages;
+
   useEffect(() => {
-    if (!layers.harbours || !view) return;
+    if (!wantPlaces || !view) return;
 
     const ac = new AbortController();
     api
@@ -618,14 +623,16 @@ export function App() {
       });
     return () => ac.abort();
     // Sõltub AINULT bbox'ist, mitte ajast: sadamad ei muutu tundide kaupa.
-  }, [layers.harbours, view?.bbox.join(',')]);
+  }, [wantPlaces, view?.bbox.join(',')]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    if (layers.harbours && harbours.length > 0) updateHarbours(map, harbours);
-    else setHarboursVisible(map, false);
-  }, [harbours, layers.harbours, mapReady]);
+    if (wantPlaces && harbours.length > 0) updateHarbours(map, harbours);
+    // Nähtavus käib kihtide kaupa: sama allikas, kaks eraldi lülitit.
+    setHarboursVisible(map, layers.harbours && harbours.length > 0);
+    setAnchoragesVisible(map, layers.anchorages && harbours.length > 0);
+  }, [harbours, wantPlaces, layers.harbours, layers.anchorages, mapReady]);
 
   // --- Laevad (AIS) --------------------------------------------------------
   const [vessels, setVessels] = useState<Vessel[]>([]);

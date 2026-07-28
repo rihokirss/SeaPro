@@ -24,6 +24,10 @@ export const LAYER_ORDER = [
   'vessel-hulls-line',
   'vessels',
   'vessels-labels',
+  // Ankrukohad sadamate ALL: neid on kordades rohkem ja sadam on tähtsam
+  // orientiir — kattumisel peab peale jääma sadam.
+  'anchorages',
+  'anchorages-labels',
   'harbours',
   'harbours-labels',
   'stations-dots',

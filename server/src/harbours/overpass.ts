@@ -54,14 +54,28 @@ export async function fetchHarbours(bbox: [number, number, number, number]): Pro
     i < 2 ? Math.floor(v) : Math.ceil(v),
   ) as [number, number, number, number];
 
+  // Ankrukohad tulevad SAMA päringuga, mitte eraldi.
+  //
+  // Kaks põhjust. Overpass on koormatud ja iga lisapäring on uus võimalus 504
+  // saada. Ja vahemälu: sama bbox annab nüüd ühe kirje kahe asemel, ehk kihi
+  // sisselülitamine ei maksa uut ringi allika juurde.
+  //
+  // `anchorage` on ankrupiirkond, `anchor_berth` üksik määratud koht. Mõlemad
+  // on kaatri jaoks sama küsimuse vastus: kuhu ma ööseks jään.
   const query = `[out:json][timeout:60];
 (
   node["leisure"="marina"](${south},${west},${north},${east});
   way["leisure"="marina"](${south},${west},${north},${east});
+  node["seamark:type"="anchorage"](${south},${west},${north},${east});
+  way["seamark:type"="anchorage"](${south},${west},${north},${east});
+  node["seamark:type"="anchor_berth"](${south},${west},${north},${east});
+  way["seamark:type"="anchor_berth"](${south},${west},${north},${east});
 );
 out center tags;`;
 
-  const key = `overpass:harbours:${south},${west},${north},${east}`;
+  // Võtmes on versioon, sest päringu kuju muutus: ilma selleta serveeriks vana
+  // kettavahemälu ööpäeva jagu tulemusi, kus ankrukohti veel polnud.
+  const key = `overpass:harbours:v2:${south},${west},${north},${east}`;
 
   const { value } = await cache.get(key, TTL_SECONDS, () => queryOverpass(query));
   return value;
@@ -111,13 +125,23 @@ export function parseHarbours(res: OverpassResponse): Harbour[] {
 
     const tags = el.tags ?? {};
 
-    // Nimeta sadam on kaardil ainult punkt ilma sisuta — jätame välja.
+    const seamark = tags['seamark:type'];
+    const kind: Harbour['kind'] =
+      seamark === 'anchorage' || seamark === 'anchor_berth' ? 'anchorage' : 'harbour';
+
     const name = tags.name ?? tags['name:et'] ?? tags['seamark:name'];
-    if (!name) continue;
+
+    // Nimeta SADAM on kaardil ainult punkt ilma sisuta — jätame välja.
+    //
+    // Ankrukohaga on vastupidi: OSM-is on enamik neist nimetud, aga asukoht
+    // ISE ONGI info ("siia saab varju jääda"). Nimenõue oleks kihi peaaegu
+    // tühjaks teinud. Nime asemel näitab klient tüübisilti.
+    if (!name && kind === 'harbour') continue;
 
     out.push({
       id: `${el.type}/${el.id}`,
-      name,
+      kind,
+      name: name ?? '',
       lat,
       lon,
       category: tags['seamark:harbour:category'],
@@ -133,10 +157,17 @@ export function parseHarbours(res: OverpassResponse): Harbour[] {
       vhf: tags.vhf_channel ?? tags['seamark:radio_station:channel'],
       registryUrl: tags['sadamaregister:url'],
       locode: tags['ref:LOCODE'],
+      anchorageCategory: tags['seamark:anchorage:category'],
+      seabed: tags['seamark:bottom:nature'] ?? tags['seamark:anchorage:bottom'],
     });
   }
 
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  // Nimetud (ankrukohad) lähevad lõppu — muidu istuks tühi nimi loendi ees.
+  return out.sort((a, b) => {
+    if (!a.name) return b.name ? 1 : 0;
+    if (!b.name) return -1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 /** "3.5", "3,5" või "2.5 m" -> 3.5. Tundmatu kuju -> undefined. */

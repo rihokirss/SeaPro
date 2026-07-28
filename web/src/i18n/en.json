@@ -157,5 +157,10 @@
   "lang.label": "Language",
   "harbour.navily": "Navily",
   "harbour.navily.hint": "Open this harbour on Navily — sailors' reviews",
-  "harbour.navily.hintNearby": "Open this spot on the Navily map — nearby harbours and anchorages"
+  "harbour.navily.hintNearby": "Open this spot on the Navily map — nearby harbours and anchorages",
+  "layer.anchorages": "Anchorages",
+  "layer.anchorages.hint": "From OpenStreetMap; most are unnamed",
+  "anchorage.title": "Anchorage",
+  "anchorage.seabed": "Seabed",
+  "anchorage.category": "Type"
 }

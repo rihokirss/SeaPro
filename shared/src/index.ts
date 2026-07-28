@@ -268,6 +268,15 @@ export interface Vessel {
 export interface Harbour {
   /** OSM tüüp ja id, nt "way/123456". */
   id: string;
+  /**
+   * Sadam või ankrukoht.
+   *
+   * Sama kuju, sest kaatri jaoks on mõlemad "koht, kuhu ööseks jääda", ja
+   * mõlemad tulevad ÜHEST Overpassi päringust. Erinevus on väljade katvuses:
+   * sadamal on teenused ja kontaktid, ankrukohal tavaliselt ainult asukoht,
+   * kaitstus ja põhjatüüp.
+   */
+  kind: 'harbour' | 'anchorage';
   name: string;
   lat: number;
   lon: number;
@@ -290,6 +299,10 @@ export interface Harbour {
   registryUrl?: string;
   /** UN/LOCODE. */
   locode?: string;
+  /** seamark:anchorage:category — "unrestricted", "deep_water", "small_craft" jne. */
+  anchorageCategory?: string;
+  /** Põhjatüüp (OSM `seamark:bottom:nature`) — muda, liiv, kivi. */
+  seabed?: string;
 }
 
 // ---------------------------------------------------------------------------
