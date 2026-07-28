@@ -374,6 +374,30 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     );
   }
 
+  /**
+   * Link Navilysse — LINK, mitte andmed.
+   *
+   * Navilys on see, mida OSM-is ei ole ega tule: teiste purjetajate arvustused,
+   * hinnangud ja ankrukohtade kirjeldused. Selle sisu on nende kasutajate
+   * loodud ja nende platvormi oma, seega me ei tõmba sealt midagi alla — anname
+   * kasutajale ukse, mis avaneb täpselt õigesse kohta.
+   *
+   * `/carte/place/<lat>/<lon>` on nende enda kaardi koordinaadipõhine marsruut
+   * (kontrollitud: avab kaardi selles punktis ja loetleb lähedased sadamad ning
+   * ankrukohad), seega ei ole meil vaja nende sisemisi ID-sid ega ühtki päringut
+   * nende serverile.
+   */
+  const coords = f.geometry.type === 'Point' ? (f.geometry.coordinates as number[]) : null;
+  const lon = coords?.[0];
+  const lat = coords?.[1];
+  if (lat !== undefined && lon !== undefined) {
+    links.push(
+      `<a href="https://www.navily.com/carte/place/${lat.toFixed(6)}/${lon.toFixed(6)}" ` +
+        `target="_blank" rel="noopener noreferrer" title="${escapeHtml(t('harbour.navily.hint'))}">` +
+        `${escapeHtml(t('harbour.navily'))}</a>`,
+    );
+  }
+
   const locode = str(p.locode);
 
   return `

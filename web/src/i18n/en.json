@@ -154,5 +154,7 @@
   "theme.light": "Light",
   "theme.dark": "Dark",
   "theme.hint": "Auto follows your device setting.",
-  "lang.label": "Language"
+  "lang.label": "Language",
+  "harbour.navily": "Navily",
+  "harbour.navily.hint": "Open this spot on the Navily map — sailors' reviews and anchorages"
 }
