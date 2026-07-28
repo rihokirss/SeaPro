@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { DEFAULT_BASE_ID, MUTED_BASE_ID } from './basemaps';
+import { DEFAULT_BASE_ID } from './basemaps';
+import { setDarkBaseVisible } from './darkBase';
 
 /**
  * Aluskaardi vahetus, kui valevärvi-väli on peal.
@@ -8,32 +9,26 @@ import { DEFAULT_BASE_ID, MUTED_BASE_ID } from './basemaps';
  * Selle peale pandud tuule- või lainegradient tekitab kaks võistlevat
  * värvisüsteemi ja kumbki ei loe korralikult.
  *
- * Esimene katse tuhmistas OSM-i `raster-saturation` ja `brightness`-iga.
- * See võttis värvi maha, aga VESI jäi heledaks — rasterkihil saab muuta
- * ainult tervikpilti ja vee eristamiseks pole seal midagi käepärast.
- * Kasutaja märkas seda kohe: "meri pole ikka tumedam".
+ * Kolm katset, selles järjekorras:
  *
- * Lahendus on kasutada aluskaarti, mille vesi ONGI tume. CARTO tume stiil
- * annab täpselt selle, ilma võtmeta ja ilma kvoodita.
+ *  1. OSM tuhmiks `raster-saturation` ja `brightness`-iga. Värv kadus, aga
+ *     VESI jäi heledaks — rasterkihil saab muuta ainult tervikpilti.
+ *  2. Valmis tume paanistik (CARTO `dark_nolabels`). Seal on asi hoopis
+ *     tagurpidi: mõõdetult meri 38, maa 11 ehk vesi on maast HELEDAM.
+ *     Esri Dark Gray Canvas annab õige suuna (meri 35, maa 70), aga on
+ *     üldistatud — sadamaakvatooriume, muule ja kaisid seal pole.
+ *  3. Ise kokku pandud VEKTORSTIIL. Vesi on vektorkaardil oma kihina olemas,
+ *     seega saab talle värvi otse määrata ja kogu OSM-i detail jääb alles.
+ *     Vt `darkBase.ts`.
  *
  * MIDA ME EI PUUDUTA: merekaarti, navigatsioonimärke ega radarit. Nende
  * värv KANNAB TÄHENDUST — punane ja roheline poi, punane sajuala.
  */
 
-/** Väike küllastuse langus tumedal kaardil, et väli oleks ainus värv. */
-const DARK_SATURATION = -0.35;
-
 export function setBasemapMuted(map: MapLibreMap, muted: boolean): void {
-  const show = muted ? MUTED_BASE_ID : DEFAULT_BASE_ID;
-  const hide = muted ? DEFAULT_BASE_ID : MUTED_BASE_ID;
+  setDarkBaseVisible(map, muted);
 
-  if (map.getLayer(show)) {
-    map.setLayoutProperty(show, 'visibility', 'visible');
-    map.setPaintProperty(show, 'raster-saturation', muted ? DARK_SATURATION : 0);
-  }
-  // Peidetud rasterkihi paane MapLibre ei tõmba, seega teine paanistik ei
-  // maksa midagi seni, kuni teda ei näidata.
-  if (map.getLayer(hide)) {
-    map.setLayoutProperty(hide, 'visibility', 'none');
+  if (map.getLayer(DEFAULT_BASE_ID)) {
+    map.setLayoutProperty(DEFAULT_BASE_ID, 'visibility', muted ? 'none' : 'visible');
   }
 }

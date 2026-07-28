@@ -225,7 +225,7 @@ poleks ühtki kvooti ega võtmesõltuvust.
 | Kiht | Allikas | Märkus |
 |---|---|---|
 | Aluskaart | `tile.openstreetmap.org` | |
-| Tume aluskaart | `services.arcgisonline.com/.../Canvas/World_Dark_Gray_Base` | Valevärvi-välja alla. **Nõue: vesi tumedam kui maa.** Mõõdetud keskmine heledus z8 (avameri 58.5/20.0 vs sisemaa 58.6/25.8): Esri Dark Gray meri 35 / maa 70 ✅; CARTO `dark_nolabels` meri 38 / maa 11 ❌; CARTO positron 217/247 ❌; Esri Ocean 207/231 ❌. URL on `{z}/{y}/{x}`. ⚠ Esri litsentsitingimused kontrollimata — vt allpool |
+| Tume aluskaart | `tiles.openfreemap.org/planet` (vektor, OpenMapTiles skeem) | Valevärvi-välja alla. Oma stiil `web/src/map/darkBase.ts`: vesi tume, maa heledam. **Vektor on siin nõue, mitte eelistus** — vt allpool |
 | Merekaart (EE) | `gis.transpordiamet.ee/primar/wms_ip/TranspordiametNutimeri` | WMS, `layers=cells&styles=style-id-263`, bounds 57.45–60.1 N |
 | Merekaart (FI) | `einavigointiin.fi/map/{z}/{x}/{y}` | **CORS puudub → käib meie proxy kaudu** (`/api/tiles/chart-fi/{z}/{x}/{y}`) |
 | Navigatsioonimärgid | `tiles.openseamap.org/seamark/` | globaalne |
@@ -269,25 +269,30 @@ Pärast proxyt: 48 paani, kõik 200, `crossOrigin` loeb pikslid, katvus 100%.
 
 Eesti merekaart tuleb WMS-ilt, mis CORS-i saadab, ja töötab seetõttu otse.
 
-### Tume aluskaart ja Esri litsents
+### Tume aluskaart: miks vektor
 
-Valevärvi-väli vajab tumedat vett: väli joonistatakse merele ja tume taust
-annab talle kontrasti, rannajoon peab samal ajal loetavaks jääma. Rasterkihil
-saab muuta ainult küllastust ja heledust tervikuna, seega vett ja maad eraldi
-puutuda ei saa — valik peab tulema paanistikust endast.
+Valevärvi-väli vajab kaht asja korraga: vesi peab olema maast TUMEDAM (väli
+joonistatakse merele ja vajab kontrasti) ja sadamad peavad jääma näha —
+akvatooriumid, muulid, kaid.
 
-Mõõtsime nelja võtmevaba kandidaati (keskmine heledus 256x256 paanilt, z8):
+Rasterpaanistikuga on see võimatu: `raster-saturation` ja `raster-brightness`
+mõjuvad tervikpildile, vett ja maad eraldi puutuda ei saa. Mõõtsime neli
+võtmevaba paanistikku (keskmine heledus 256x256 paanilt, z8, avameri
+58.5/20.0 vs sisemaa 58.6/25.8):
 
-| Paanistik | Meri | Maa | Sobib |
+| Paanistik | Meri | Maa | Otsus |
 |---|---|---|---|
-| Esri Dark Gray Canvas | 35 | 70 | ✅ maa 2x heledam, kaart jääb tumedaks |
-| CARTO `dark_nolabels` | 38 | 11 | ❌ vale suund |
-| CARTO `light_nolabels` | 217 | 247 | ❌ vale suund ja liiga hele |
-| Esri Ocean Base | 207 | 231 | ❌ liiga hele |
+| CARTO `dark_nolabels` | 38 | 11 | detailne, aga vesi HELEDAM kui maa |
+| CARTO `light_nolabels` | 217 | 247 | vale suund ja liiga hele |
+| Esri Ocean Base | 207 | 231 | liiga hele |
+| Esri Dark Gray Canvas | 35 | 70 | õige suund, aga ÜLDISTATUD — sadamaakvatooriume pole |
 
-⚠ **Lahtine küsimus:** Esri paaniteenus on avalikult ligipääsetav ja annab
-`copyrightText`-i ("Esri, HERE, Garmin, © OpenStreetMap contributors"), mille
-me omistuses ka kuvame, aga Esri kasutustingimused nõuavad osade
-aluskaartide puhul ArcGIS-i kontot. Me ei ole seda kontrollinud. Kui see
-osutub piiravaks, tuleb otsida asendus — ükski mõõdetud võtmevaba CARTO
-variant nõuet ei täida.
+Ükski ei anna mõlemat. Vektorkaardil on vesi oma kihina olemas, seega
+määrame värvi ise ja kogu OSM-i detail jääb alles. Allikas on **OpenFreeMap**
+(OpenMapTiles skeem) — võtmeta ja kvoodita, nagu kõik ülejäänud allikad siin.
+
+Stiilis on sihilikult ainult viis kihti: maa (taust), vesi, veeteed, muulid
+(`transportation`, `class=pier`) ja hooned alates z14. Silte ei ole — need
+tuleksid valevärvi-välja alt loetamatult ja rakendusel on oma sildikihid.
+
+Kontrollitud Kakumäe sadamas (z14): 23 veeobjekti ja 8 muuli.

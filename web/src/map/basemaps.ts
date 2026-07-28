@@ -30,44 +30,16 @@ export const BASE_LAYERS: RasterLayerDef[] = [
     attribution: '© OpenStreetMap contributors',
     maxzoom: 19,
   },
-  {
-    /**
-     * Tume aluskaart valevärvi-välja alla.
-     *
-     * Miks eraldi paanistik, mitte OSM-i tumendamine: rasterkihil saab muuta
-     * ainult küllastust ja heledust TERVIKUNA — vett ja maad ei saa seal
-     * eraldi puutuda.
-     *
-     * Nõue on, et VESI oleks tumedam kui maa: valevärvi-väli joonistatakse
-     * peamiselt merele ja tume vesi annab talle kontrasti, samal ajal kui
-     * rannajoon peab jääma loetavaks.
-     *
-     * Varem oli siin CARTO `dark_nolabels`. Mõõdetuna (keskmine heledus, z8,
-     * avameri 58.5/20.0 vs sisemaa 58.6/25.8) on seal asi TAGURPIDI:
-     * meri 38, maa 11 — vesi heledam kui maa. Mõõdetud alternatiivid:
-     *
-     *   Esri Dark Gray   meri 35, maa 70   <- maa 2x heledam, kaart tume
-     *   CARTO dark_all   meri 38, maa 12   <- vale suund
-     *   CARTO positron   meri 217, maa 247 <- vale suund ja liiga hele
-     *   Esri Ocean       meri 207, maa 231 <- hele
-     *
-     * Sildid puuduvad sihilikult — need tuleksid värvivälja alt loetamatult.
-     * NB: Esri paanide URL on {z}/{y}/{x}, mitte {z}/{x}/{y}.
-     */
-    id: 'esri-dark',
-    labelKey: 'layer.darkBase',
-    tiles: [
-      'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/' +
-        'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    ],
-    attribution: 'Esri, HERE, Garmin, © OpenStreetMap contributors',
-    maxzoom: 16,
-  },
 ];
 
-/** Vaikimisi nähtav aluskaart. Teine lisatakse peidetuna ja lülitub vajadusel. */
+/**
+ * Vaikimisi nähtav aluskaart.
+ *
+ * Tume variant EI OLE siin: ta pole rasterpaanistik, vaid ise kokku pandud
+ * vektorstiil (`darkBase.ts`), sest ainult nii saab vee maast tumedamaks
+ * teha. Vt sealset kommentaari mõõtmiste ja kaalutud alternatiividega.
+ */
 export const DEFAULT_BASE_ID = 'osm';
-export const MUTED_BASE_ID = 'esri-dark';
 
 export const OVERLAY_LAYERS: RasterLayerDef[] = [
   {

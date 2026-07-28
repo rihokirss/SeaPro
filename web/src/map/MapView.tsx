@@ -8,6 +8,7 @@ import {
   baseStyle,
   type RasterLayerDef,
 } from './basemaps';
+import { addDarkBase } from './darkBase';
 import { registerIcons } from './icons';
 import { LAYER_ORDER } from './layerOrder';
 import type { Position } from '../lib/geolocation';
@@ -143,6 +144,9 @@ export function MapView({
           map.setLayoutProperty(def.id, 'visibility', 'none');
         }
       }
+      // Tume aluskaart on vektorstiil, mitte paanistik — vt darkBase.ts.
+      // Lisatakse peidetuna kohe, et järjekord oleks paigas enne andmekihte.
+      addDarkBase(map);
       // Oma asukoha allikas luuakse kohe, et kiht oleks õiges järjekorras
       // olemas ka enne esimest GPS-fixi.
       map.addSource('own-position', {
