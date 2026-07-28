@@ -1,7 +1,7 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { Variable } from '@seapro/shared';
 import { sampleWind, type Field } from '../interpolate';
-import { COLOR_SCALES, sampleScale } from '../colorScales';
+import { COLOR_SCALES } from '../colorScales';
 import { WIND_ARROW_DARK, WIND_ARROW_LIGHT } from '../icons';
 import { insertBefore } from '../layerOrder';
 
@@ -18,9 +18,9 @@ const LAYER_ID = 'wind-arrows';
  * muutuks kirjuks.
  *
  * Nool on ÄÄRISETA. Ääris teeks ta igal taustal loetavaks, aga ka jämedaks ja
- * häguseks, ja tihedas võrgus muutuks pilt müraks. Selle asemel valime iga
- * noole jaoks tumeda või heleda variandi selle järgi, kui tume on värviväli
- * TEMA ALL: hele merepind saab tumeda noole, tugeva tuule tume väli heleda.
+ * häguseks, ja tihedas võrgus muutuks pilt müraks. Selle asemel on kaks
+ * valmisvarianti ja valik käib TAUSTA, mitte üksiku väärtuse järgi:
+ * valevärvi-väli peal -> valge nool, paljas kaart -> tume nool.
  *
  * Nool osutab suunda, KUHU tuul puhub — kaardil loetakse seda kui õhu
  * liikumist. Numbriline suund paneelis jääb meteoroloogiliseks ("kust").
@@ -43,37 +43,26 @@ export interface ArrowGridOptions {
   width: number;
   height: number;
   /**
-   * Milline valevärvi-väli on all. Null = välja pole, taust on hele kaart.
+   * Milline valevärvi-väli on all. Null = välja pole, taust on paljas kaart.
    * Nooleni jõuab siit ainult see, kas variandiks võtta tume või hele.
    */
   fieldVariable: Variable | null;
 }
 
 /**
- * Kas noole all olev väli on nii tume, et nool peab olema hele?
+ * Kas nool peab olema hele?
  *
- * Arvestame nii värvi tajutavat heledust (Rec. 709) kui ALFAT: nõrga tuule
- * korral on väli peaaegu läbipaistev ja tegelik taust on hele merepind,
- * olenemata sellest, mis värv skaalal kirjas on.
+ * Reegel on lihtne: valevärvi-väli peal -> valge nool, välja pole -> tume.
+ *
+ * Varem arvutati siin iga noole all oleva värvi tajutavat heledust (Rec. 709)
+ * ja segati see alfa järgi kaardi taustaga. See oli mõttekas seni, kuni
+ * skaalade alumine ots oli poolläbipaistev ja tegelik taust võis olla hele
+ * merepind. Nüüd on kõik skaalad ühtlaselt küllastunud, seega arvutus andis
+ * ainult ühe tulemuse — ja andis seda ebaühtlaselt: sama välja sees vahetus
+ * noolte värv keset kaarti, mis luges rohkem veana kui infona.
  */
-function needsLightArrow(variable: Variable | null, speed: number): boolean {
-  if (!variable) return false;
-  const scale = COLOR_SCALES[variable];
-  if (!scale) return false;
-
-  // Väli joonistatakse tuulekiiruse järgi; muude väljade puhul ei tea me
-  // siin nende väärtust ja jääme tumeda noole juurde, mis on heleda kaardi
-  // peal ohutum valik.
-  if (variable !== 'wind_speed') return false;
-
-  const [r, g, b, a] = sampleScale(scale, speed);
-  const alpha = a / 255;
-  if (alpha < 0.5) return false;
-
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  // Segame välja värvi heleda merepinnaga tema alfa võrra.
-  const effective = luminance * alpha + 0.82 * (1 - alpha);
-  return effective < 0.5;
+function needsLightArrow(variable: Variable | null): boolean {
+  return variable !== null && COLOR_SCALES[variable] !== undefined;
 }
 
 /**
@@ -105,7 +94,7 @@ function buildArrowFeatures(field: Field, opts: ArrowGridOptions) {
         properties: {
           speed: sample.speed,
           bearing: sample.bearing,
-          icon: needsLightArrow(opts.fieldVariable, sample.speed)
+          icon: needsLightArrow(opts.fieldVariable)
             ? WIND_ARROW_LIGHT
             : WIND_ARROW_DARK,
         },

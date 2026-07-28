@@ -6,6 +6,21 @@ import type { Variable } from '@seapro/shared';
  * Iga skaala on peatuste loend [väärtus, R, G, B, A]. Väärtused on ALATI
  * serveri SI-ühikus (m/s, m, °C, %, mm/h), mitte kasutaja kuvaühikus —
  * nii ei muutu kaardi värvid, kui kasutaja lülitab m/s -> sõlmed.
+ *
+ * ALFA-POLIITIKA. Kõik skaalad on ühtlaselt küllastunud, vahemikus 190–246.
+ * Varem oli igal skaalal oma läbipaistvus (osad algasid 60–120 juurest) ja
+ * tulemus oli, et sama kaart nägi eri parameetrit valides erineva tugevusega
+ * välja — tuul erk, rõhk ja veetase peaaegu olematud. Kolm reeglit:
+ *
+ *   suurusskaalad (tuul, lained, sadu, hoovus) — alfa kasvab 190 -> 246,
+ *     sest suurem väärtus on ka tähtsam;
+ *   kahesuunalised (õhu- ja veetemp, rõhk, veetase) — ÜHTLANE 225, sest
+ *     kumbki ots pole tähtsam ja kasvav alfa privilegeeriks suvaliselt ühte;
+ *   lävendiga (pilved, sadu, hoovus, nähtavus) — "nähtust pole" jääb päris
+ *     läbipaistvaks, aga kõik, mis lävendi ületab, on kohe täies tugevuses.
+ *
+ * Nähtavus on tahtlikult tagurpidi: udu saab täisintensiivsuse ja hea
+ * nähtavus kaob ära, sest kiht on hoiatus, mitte kirjeldus.
  */
 
 export interface ColorStop {
@@ -76,14 +91,14 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     unit: 'm',
     stops: [
       s(0, 215, 240, 247, 190),
-      s(0.25, 168, 220, 234, 200),
-      s(0.5, 110, 200, 176, 205),
-      s(1.0, 168, 207, 110, 215),
-      s(1.5, 226, 201, 78, 220),
-      s(2.0, 232, 137, 61, 230),
-      s(3.0, 212, 74, 58, 240),
-      s(4.0, 138, 43, 122, 245),
-      s(6.0, 80, 25, 90, 250),
+      s(0.25, 168, 220, 234, 197),
+      s(0.5, 110, 200, 176, 204),
+      s(1.0, 168, 207, 110, 211),
+      s(1.5, 226, 201, 78, 218),
+      s(2.0, 232, 137, 61, 225),
+      s(3.0, 212, 74, 58, 232),
+      s(4.0, 138, 43, 122, 239),
+      s(6.0, 80, 25, 90, 246),
     ],
   },
 
@@ -95,11 +110,11 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     transparentBelow: 10,
     stops: [
       s(10, 255, 255, 255, 0),
-      s(30, 245, 248, 250, 70),
-      s(55, 226, 232, 238, 130),
-      s(75, 198, 208, 218, 175),
-      s(90, 165, 178, 190, 205),
-      s(100, 132, 146, 160, 225),
+      s(30, 245, 248, 250, 190),
+      s(55, 226, 232, 238, 204),
+      s(75, 198, 208, 218, 218),
+      s(90, 165, 178, 190, 232),
+      s(100, 132, 146, 160, 246),
     ],
   },
 
@@ -109,13 +124,13 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     unit: 'mm/h',
     transparentBelow: 0.05,
     stops: [
-      s(0.05, 160, 220, 255, 90),
-      s(0.5, 90, 175, 245, 160),
-      s(1.5, 50, 130, 230, 200),
-      s(4.0, 60, 200, 120, 215),
-      s(8.0, 230, 200, 60, 230),
-      s(16.0, 235, 120, 50, 240),
-      s(32.0, 210, 50, 60, 250),
+      s(0.05, 160, 220, 255, 190),
+      s(0.5, 90, 175, 245, 199),
+      s(1.5, 50, 130, 230, 208),
+      s(4.0, 60, 200, 120, 218),
+      s(8.0, 230, 200, 60, 227),
+      s(16.0, 235, 120, 50, 237),
+      s(32.0, 210, 50, 60, 246),
     ],
   },
 
@@ -124,15 +139,15 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     labelKey: 'var.air_temp',
     unit: '°C',
     stops: [
-      s(-25, 60, 30, 110, 210),
-      s(-15, 60, 80, 180, 210),
-      s(-5, 90, 160, 220, 205),
-      s(0, 170, 215, 235, 200),
-      s(5, 150, 210, 175, 200),
-      s(12, 170, 215, 110, 205),
-      s(18, 235, 220, 95, 210),
-      s(25, 235, 150, 60, 220),
-      s(32, 215, 70, 60, 230),
+      s(-25, 60, 30, 110, 225),
+      s(-15, 60, 80, 180, 225),
+      s(-5, 90, 160, 220, 225),
+      s(0, 170, 215, 235, 225),
+      s(5, 150, 210, 175, 225),
+      s(12, 170, 215, 110, 225),
+      s(18, 235, 220, 95, 225),
+      s(25, 235, 150, 60, 225),
+      s(32, 215, 70, 60, 225),
     ],
   },
 
@@ -141,14 +156,14 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     labelKey: 'var.sea_temp',
     unit: '°C',
     stops: [
-      s(-1, 40, 40, 120, 215),
-      s(2, 60, 110, 190, 210),
-      s(6, 90, 175, 215, 205),
-      s(10, 110, 205, 180, 205),
-      s(14, 165, 215, 120, 210),
-      s(18, 235, 215, 95, 215),
+      s(-1, 40, 40, 120, 225),
+      s(2, 60, 110, 190, 225),
+      s(6, 90, 175, 215, 225),
+      s(10, 110, 205, 180, 225),
+      s(14, 165, 215, 120, 225),
+      s(18, 235, 215, 95, 225),
       s(22, 235, 145, 65, 225),
-      s(26, 210, 65, 60, 235),
+      s(26, 210, 65, 60, 225),
     ],
   },
 
@@ -157,12 +172,12 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     labelKey: 'var.pressure',
     unit: 'hPa',
     stops: [
-      s(960, 110, 50, 150, 200),
-      s(980, 90, 110, 210, 195),
-      s(1000, 150, 205, 225, 190),
-      s(1013, 235, 240, 240, 180),
-      s(1025, 235, 205, 110, 190),
-      s(1040, 225, 120, 60, 200),
+      s(960, 110, 50, 150, 225),
+      s(980, 90, 110, 210, 225),
+      s(1000, 150, 205, 225, 225),
+      s(1013, 235, 240, 240, 225),
+      s(1025, 235, 205, 110, 225),
+      s(1040, 225, 120, 60, 225),
     ],
   },
 
@@ -171,12 +186,12 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     labelKey: 'var.sea_level',
     unit: 'm',
     stops: [
-      s(-1.2, 90, 40, 130, 215),
-      s(-0.6, 80, 120, 200, 205),
-      s(-0.2, 165, 210, 230, 195),
-      s(0, 240, 240, 235, 175),
-      s(0.2, 200, 220, 150, 195),
-      s(0.6, 235, 175, 80, 210),
+      s(-1.2, 90, 40, 130, 225),
+      s(-0.6, 80, 120, 200, 225),
+      s(-0.2, 165, 210, 230, 225),
+      s(0, 240, 240, 235, 225),
+      s(0.2, 200, 220, 150, 225),
+      s(0.6, 235, 175, 80, 225),
       s(1.2, 205, 60, 60, 225),
     ],
   },
@@ -187,12 +202,12 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     unit: 'm/s',
     transparentBelow: 0.02,
     stops: [
-      s(0.02, 200, 235, 240, 120),
-      s(0.1, 140, 210, 220, 170),
-      s(0.25, 110, 200, 160, 200),
-      s(0.5, 200, 205, 95, 215),
-      s(0.8, 230, 140, 65, 230),
-      s(1.2, 205, 60, 70, 240),
+      s(0.02, 200, 235, 240, 190),
+      s(0.1, 140, 210, 220, 201),
+      s(0.25, 110, 200, 160, 212),
+      s(0.5, 200, 205, 95, 224),
+      s(0.8, 230, 140, 65, 235),
+      s(1.2, 205, 60, 70, 246),
     ],
   },
 
@@ -202,12 +217,12 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     unit: 'm',
     // Hea nähtavus on läbipaistev; kiht hoiatab AINULT udu eest.
     stops: [
-      s(0, 130, 30, 40, 245),
-      s(500, 200, 70, 60, 235),
-      s(1000, 235, 150, 70, 220),
-      s(2000, 235, 215, 110, 195),
-      s(5000, 200, 225, 205, 140),
-      s(10000, 220, 235, 240, 60),
+      s(0, 130, 30, 40, 246),
+      s(500, 200, 70, 60, 237),
+      s(1000, 235, 150, 70, 227),
+      s(2000, 235, 215, 110, 213),
+      s(5000, 200, 225, 205, 190),
+      s(10000, 220, 235, 240, 70),
       s(20000, 255, 255, 255, 0),
     ],
   },

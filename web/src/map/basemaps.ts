@@ -35,27 +35,39 @@ export const BASE_LAYERS: RasterLayerDef[] = [
      * Tume aluskaart valevärvi-välja alla.
      *
      * Miks eraldi paanistik, mitte OSM-i tumendamine: rasterkihil saab muuta
-     * ainult küllastust ja heledust TERVIKUNA — vee ja maa eristamiseks pole
-     * seal midagi käepärast. Windfinderi mõnus kontrast tuleb sellest, et
-     * nende aluskaardi VESI ongi tume. CARTO tume stiil annab sama: tume
-     * vesi, veel tumedam maa, null värvi. Sildid puuduvad sihilikult
-     * (`_nolabels`) — need tuleksid värvivälja alt niikuinii loetamatult.
+     * ainult küllastust ja heledust TERVIKUNA — vett ja maad ei saa seal
+     * eraldi puutuda.
+     *
+     * Nõue on, et VESI oleks tumedam kui maa: valevärvi-väli joonistatakse
+     * peamiselt merele ja tume vesi annab talle kontrasti, samal ajal kui
+     * rannajoon peab jääma loetavaks.
+     *
+     * Varem oli siin CARTO `dark_nolabels`. Mõõdetuna (keskmine heledus, z8,
+     * avameri 58.5/20.0 vs sisemaa 58.6/25.8) on seal asi TAGURPIDI:
+     * meri 38, maa 11 — vesi heledam kui maa. Mõõdetud alternatiivid:
+     *
+     *   Esri Dark Gray   meri 35, maa 70   <- maa 2x heledam, kaart tume
+     *   CARTO dark_all   meri 38, maa 12   <- vale suund
+     *   CARTO positron   meri 217, maa 247 <- vale suund ja liiga hele
+     *   Esri Ocean       meri 207, maa 231 <- hele
+     *
+     * Sildid puuduvad sihilikult — need tuleksid värvivälja alt loetamatult.
+     * NB: Esri paanide URL on {z}/{y}/{x}, mitte {z}/{x}/{y}.
      */
-    id: 'carto-dark',
+    id: 'esri-dark',
     labelKey: 'layer.darkBase',
     tiles: [
-      'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
-      'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
-      'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+      'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/' +
+        'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
     ],
-    attribution: '© OpenStreetMap contributors © CARTO',
-    maxzoom: 19,
+    attribution: 'Esri, HERE, Garmin, © OpenStreetMap contributors',
+    maxzoom: 16,
   },
 ];
 
 /** Vaikimisi nähtav aluskaart. Teine lisatakse peidetuna ja lülitub vajadusel. */
 export const DEFAULT_BASE_ID = 'osm';
-export const MUTED_BASE_ID = 'carto-dark';
+export const MUTED_BASE_ID = 'esri-dark';
 
 export const OVERLAY_LAYERS: RasterLayerDef[] = [
   {
