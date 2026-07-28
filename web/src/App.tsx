@@ -14,6 +14,7 @@ import { RateLimitedError, api, type AppConfig } from './lib/api';
 import { useGeolocation } from './lib/geolocation';
 import { useFavorites } from './lib/favorites';
 import { loadSpeedUnit, saveSpeedUnit, type SpeedUnit } from './lib/units';
+import { loadMapView, saveMapView } from './lib/mapView';
 import { floorToHour, formatDateTime } from './lib/time';
 import { MapView } from './map/MapView';
 import { hideWindArrows, updateWindArrows } from './map/layers/windArrows';
@@ -729,7 +730,14 @@ export function App() {
   const moveTimer = useRef<number | null>(null);
   const handleMoveEnd = useCallback((bbox: [number, number, number, number], zoom: number) => {
     if (moveTimer.current !== null) window.clearTimeout(moveTimer.current);
-    moveTimer.current = window.setTimeout(() => setView({ bbox, zoom }), 350);
+    moveTimer.current = window.setTimeout(() => {
+      setView({ bbox, zoom });
+      // Keskpunkt tuleb kaardilt endalt — onMoveEnd annab ainult ala ja zoomi.
+      // Salvestus käib sama viivituse sees, et lohistamine ei kirjutaks
+      // localStorage'i iga kaadri kohta.
+      const c = mapRef.current?.getCenter();
+      if (c) saveMapView({ lat: c.lat, lon: c.lng, zoom });
+    }, 350);
   }, []);
   useEffect(() => {
     return () => {
@@ -746,7 +754,18 @@ export function App() {
 
   const i18nValue = useMemo(() => ({ lang, t, setLang }), [lang, t, setLang]);
 
-  const center: [number, number] = [config?.defaultLat ?? 59.0, config?.defaultLon ?? 23.5];
+  /*
+   * Algvaade: viimane salvestatud, muidu serveri vaikeväärtus.
+   *
+   * Loetakse ÜHE KORRA ja hoitakse ref'is. MapView init-effekt jookseb tühjade
+   * sõltuvustega ehk kasutab ainult esimese renderi väärtusi; kui see siin iga
+   * renderiga ümber arvutuks, ei muudaks see midagi, aga tekitaks illusiooni,
+   * et muudab.
+   */
+  const savedView = useRef(loadMapView()).current;
+  const center: [number, number] = savedView
+    ? [savedView.lat, savedView.lon]
+    : [config?.defaultLat ?? 59.0, config?.defaultLon ?? 23.5];
 
   /**
    * Kui kaardikiht ei saanud valitud aja kohta andmeid, jääb ekraanile eelmine
@@ -779,7 +798,7 @@ export function App() {
 
         <MapView
           center={center}
-          zoom={config?.defaultZoom ?? 7}
+          zoom={savedView?.zoom ?? config?.defaultZoom ?? 7}
           activeOverlays={layers.overlays}
           ownPosition={geo.position}
           followMe={geo.followMe}
