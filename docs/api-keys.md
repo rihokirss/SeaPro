@@ -82,16 +82,21 @@ ametlikke WMS-teenuseid, mis on avatud.
 
 ## Päringueelarve, mitte võti
 
-Open-Meteo ei vaja võtit, aga tal on **tunnilimiit 5000 kutset** — ja ta loeb
-mitmepunktilise võrgustikupäringu iga punkti eraldi kutseks.
+Open-Meteo ei vaja võtit, aga tal on **tunnilimiit 5000 ja ööpäevane limiit
+10 000 kutset** — ja ta loeb mitmepunktilise võrgustikupäringu iga punkti
+eraldi kutseks. Päevane piir on see, mis tegelikult maksma jääb: tunnise
+kiirusega saaks selle täis nelja tunniga.
 
-Arenduses jooksis see limiit täis ja kogu tuulekiht kadus ilma ühegi vihjeta
-põhjusest. Nüüd on kolm kaitset (vt `server/src/rateLimit.ts` ja
-[data-sources.md](data-sources.md)), ning eelarve seis on nähtav:
+Seevastu muutujate arv (kuni 10) ja ajavahemik (kuni 14 päeva) on kaalu mõttes
+TASUTA — seetõttu pärimegi alati terve nädala ja kogu muutujate komplekti
+korraga (vt [data-sources.md](data-sources.md)).
+
+Eelarve seis on nähtav:
 
 ```bash
 curl -s localhost:8080/api/health | jq .budgets
-# {"open-meteo": {"spent": 128, "limit": 3000}}
+# {"open-meteo":        {"spent": 128, "limit": 3000, "dailySpent": 640, "dailyLimit": 8000},
+#  "open-meteo-marine": {"spent":  64, "limit": 3000, "dailySpent": 320, "dailyLimit": 8000}}
 ```
 
 Kui `spent` läheneb `limit`-ile, degradeerub rakendus sujuvalt vahemälust

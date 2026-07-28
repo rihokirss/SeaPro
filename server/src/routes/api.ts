@@ -223,7 +223,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         reply.header('Retry-After', String(retryAfterSeconds));
         return reply.code(503).send({
           error: 'rate_limited',
-          source: 'open-meteo',
+          source: err instanceof RateLimitError ? err.source : 'open-meteo',
           retryAfterSeconds,
           message:
             err instanceof Error ? err.message : 'Allikas piirab päringute arvu',

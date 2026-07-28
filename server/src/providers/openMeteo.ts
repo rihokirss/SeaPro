@@ -81,6 +81,38 @@ interface OmResponse {
   hourly_units?: Record<string, string>;
 }
 
+/**
+ * Open-Meteo kutsekaal — nende ENDA valem, mitte meie oletus.
+ *
+ * Allikas: open-meteo/open-meteo, `ForecastApiResult.calculateQueryWeight()`:
+ *
+ *   kaal = summa üle asukohtade: max(1, (muutujad × mudelid / 10) × max(1, päevad / 14))
+ *
+ * Kolm järeldust, millest kogu selle faili eelarveloogika sõltub:
+ *
+ *  1. IGA asukoht maksab vähemalt 1 — mitmepunktiline päring ei ole soodsam
+ *     kui sama arv üksikpäringuid.
+ *  2. Kuni 10 muutujat JA kuni 14 päeva maksavad TÄPSELT sama palju kui üks
+ *     muutuja ja üks tund. Vähem küsida ei anna säästu — see ainult tähendab,
+ *     et sama raha eest saab vähem andmeid vahemällu.
+ *  3. Mudelid korrutavad muutujate arvu. Viis mudelit × 9 muutujat = 45/10
+ *     ehk 4,5 kutset asukoha kohta.
+ *
+ * Punkt 2 on põhjus, miks me pärime tervet plokki päevi ja kogu muutujate
+ * komplekti korraga: sama kutse eest saab kordades rohkem vahemälu.
+ */
+export function queryWeight(opts: {
+  locations: number;
+  variables: number;
+  models?: number;
+  days: number;
+}): number {
+  const variablesFraction = (opts.variables * (opts.models ?? 1)) / 10;
+  const timeFraction = opts.days / 14;
+  const perLocation = Math.max(1, variablesFraction * Math.max(1, timeFraction));
+  return Math.ceil(opts.locations * perLocation);
+}
+
 function secondsToNextHour(): number {
   return Math.ceil((3600_000 - (Date.now() % 3600_000)) / 1000);
 }
@@ -113,16 +145,27 @@ function secondsToUtcMidnight(): number {
  *  4. Õnnestumine LÕPETAB jahtumise. Muidu istuks rakendus ooteajas ka siis,
  *     kui allikas on juba taastunud (nt IP vahetus).
  */
+/**
+ * Kumb eelarve. Prognoosi- ja mere-API on eri hostid ja neil on ERALDI kvoot —
+ * mõõdetult: forecast vastas 429-ga ("Daily API request limit exceeded") samal
+ * ajal, kui marine andis 200. Ühine eelarve tähendaks, et tuulekihi limiit
+ * lülitaks välja ka lainekihi, ilma et selleks põhjust oleks.
+ */
+function budgetFor(url: string): string {
+  return url.startsWith(MARINE_URL) ? 'open-meteo-marine' : 'open-meteo';
+}
+
 async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
-  rateLimiter.spend('open-meteo', cost);
+  const source = budgetFor(url);
+  rateLimiter.spend(source, cost);
   try {
     const result = await fetchJson<T>(url);
     // Õnnestunud vastus tähendab, et allikas on taas saadaval — kui me olime
     // jahtumises, pole selle hoidmine enam põhjendatud.
-    rateLimiter.recovered('open-meteo');
+    rateLimiter.recovered(source);
     return result;
   } catch (err) {
-    rateLimiter.refund('open-meteo', cost);
+    rateLimiter.refund(source, cost);
     if (err instanceof HttpError && err.status === 429) {
       // Open-Meteol on KAKS limiiti ja need lähtestuvad eri ajal. Vastuse keha
       // ütleb, kumma vastu jooksti:
@@ -134,7 +177,7 @@ async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
       // terve päeva jooksul sadu asjatuid päringuid allikale, mis oli meid
       // just üle koormamise eest hoiatanud.
       const daily = /daily/i.test(err.body ?? '');
-      rateLimiter.cooldown('open-meteo', daily ? secondsToUtcMidnight() : secondsToNextHour());
+      rateLimiter.cooldown(source, daily ? secondsToUtcMidnight() : secondsToNextHour());
     }
     throw err;
   }
@@ -162,6 +205,29 @@ async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
  */
 export const TILE_N = 4;
 const MAX_TILES = 4;
+
+/**
+ * Mitu ööpäeva korraga ühte paani tõmmatakse.
+ *
+ * Kaal ei sõltu ajavahemikust kuni 14 päevani (vt `queryWeight`), seega maksab
+ * nädal TÄPSELT sama palju kui üks päev. Varem tõmbasime ühe ööpäeva korraga
+ * ja klient laadis eelhaardega kolm päeva — see oli kolmekordne hind sama
+ * kutsekaalu eest, mille oleks saanud ühe päringuga.
+ *
+ * Miks mitte 14: kaal on sama, aga vastuse maht kasvab lineaarselt. Seitse
+ * päeva mahub kettavahemälu kirjepiiri (512 kB) sisse ja katab prognoosi
+ * kasuliku osa; üle selle on väärtus niikuinii nõrk.
+ */
+const BLOCK_DAYS = 7;
+
+/**
+ * Punktiprognoosi aken päevades (+ 1 päev minevikku).
+ *
+ * Fikseeritud teadlikult: kaal on kuni 14 päevani ühesugune, seega lühem aken
+ * ei säästa midagi, aga muutuv aken lõhub vahemäluvõtme. Kutsujale lõikame
+ * vastuse tema küsitud tundide pikkuseks.
+ */
+const POINT_FORECAST_DAYS = 10;
 const GRID_TARGET_POINTS = 8;
 const LAT_SPACINGS = [0.05, 0.1, 0.25, 0.5, 1, 2];
 const LON_FACTOR = 2;
@@ -210,22 +276,33 @@ export class OpenMeteoProvider implements WeatherProvider {
   async point(q: PointQuery): Promise<TimeSeries[]> {
     const wanted = q.variables?.length ? q.variables : ALL_VARIABLES;
     const models = q.models?.length ? q.models : DEFAULT_MODELS;
+    const realModels = models.filter((m) => m !== 'best_match');
 
-    const atmoVars = wanted.map((v) => ATMO_BY_VARIABLE[v]).filter((x): x is string => !!x);
-    const marineVars = wanted.map((v) => MARINE_BY_VARIABLE[v]).filter((x): x is string => !!x);
+    const wantsAtmo = wanted.some((v) => ATMO_BY_VARIABLE[v]);
+    const wantsMarine = wanted.some((v) => MARINE_BY_VARIABLE[v]);
 
-    // 10 päeva, mitte 8. Open-Meteo annab kuni 16, aga kvoodi mõttes on see
-    // tasuta ainult kuni 2 nädalani (üle selle loetakse üks punkt mitmeks
-    // kutseks) ja prognoosi tegelik väärtus on üle ~7 päeva niikuinii nõrk.
-    // 10 on koht, kus info veel loeb ja kutseid juurde ei tule.
-    const days = Math.min(10, Math.max(1, Math.ceil(q.hours / 24)));
+    // Küsime KÕIK selle API muutujad, mitte ainult praegu vajalikud.
+    //
+    // Põhjus on kaal, mitte laiskus: 9 (atmosfäär) või 10 (meri) muutujat
+    // maksavad täpselt sama palju kui üks. Varem läks vahemäluvõtmesse küsitud
+    // muutujate loend, mistõttu iga uus graafikuvalik tegi uue päringu sama
+    // punkti kohta — sama hinnaga, mille eest oleks saanud kogu komplekti.
+    //
+    // Erand on sama mis võrgustikul: konkreetse mudeli puhul jääme küsitud
+    // muutujate juurde. Siin on lisapõhjus, et mudelid KORRUTAVAD muutujate
+    // arvu — 9 muutujat × 5 mudelit oleks 4,5 kutset ühe asemel.
+    const useAllVars = realModels.length === 0;
+    const atmoVars = useAllVars
+      ? Object.keys(ATMO_VARS)
+      : wanted.map((v) => ATMO_BY_VARIABLE[v]).filter((x): x is string => !!x);
+    const marineVars = useAllVars
+      ? Object.keys(MARINE_VARS)
+      : wanted.map((v) => MARINE_BY_VARIABLE[v]).filter((x): x is string => !!x);
 
     // Atmosfäär ja meri on eri API-des — pärime paralleelselt ja liidame ajatelje järgi.
     const [atmo, marine] = await Promise.all([
-      atmoVars.length ? this.#fetchSeries(FORECAST_URL, q, atmoVars, models, days, ATMO_VARS) : [],
-      marineVars.length
-        ? this.#fetchSeries(MARINE_URL, q, marineVars, ['best_match'], days, MARINE_VARS)
-        : [],
+      wantsAtmo ? this.#fetchSeries(FORECAST_URL, q, atmoVars, models, ATMO_VARS) : [],
+      wantsMarine ? this.#fetchSeries(MARINE_URL, q, marineVars, ['best_match'], MARINE_VARS) : [],
     ]);
 
     return mergeByModel(atmo, marine, models);
@@ -276,12 +353,23 @@ export class OpenMeteoProvider implements WeatherProvider {
     const varMap = isMarine ? MARINE_VARS : ATMO_VARS;
     const byVariable = isMarine ? MARINE_BY_VARIABLE : ATMO_BY_VARIABLE;
 
-    const apiVars = q.variables.map((v) => byVariable[v]).filter((x): x is string => !!x);
-    if (apiVars.length === 0) return [];
+    const wantedApiVars = q.variables.map((v) => byVariable[v]).filter((x): x is string => !!x);
+    if (wantedApiVars.length === 0) return [];
 
-    // Ööpäevane plokk, mis sisaldab küsitud tundi. UTC-päeva piirile joondamine
-    // hoiab vahemäluvõtme stabiilsena — muidu tekiks iga tunni kohta oma plokk.
-    const { blockStart, blockEnd } = dayBlock(q.time);
+    // KÕIK selle API muutujad, mitte ainult küsitud — atmosfääris 9, meres 10,
+    // mõlemad mahuvad kaaluvabasse kümnesse. Kihi vahetamine (tuul -> temperatuur
+    // -> rõhk) tuleb nüüd vahemälust, mitte uue 64-kutselise päringuna.
+    //
+    // Erand: kui kasutaja on valinud KONKREETSE mudeli, jääme küsitud muutujate
+    // juurde. Kõik mudelid ei paku kõiki välju (nt nähtavust) ja puuduv muutuja
+    // annab 400 — terve kaardikiht kaoks selle asemel, et üks väli puududa.
+    const useAllVars = !q.modelId || q.modelId === 'best_match';
+    const apiVars = useAllVars ? Object.keys(varMap) : wantedApiVars;
+
+    // Mitmepäevane plokk, mis sisaldab küsitud tundi. Joondus on UTC-päeva
+    // piiril ja ploki algus on TÄNANE kesköö — nii langevad "täna", "homme" ja
+    // "ülehomme" ühe ja sama vahemäluvõtme sisse.
+    const { blockStart, blockEnd } = timeBlock(q.time);
 
     // Vali võresamm nii, et vaatesse jääks ~GRID_TARGET_POINTS punkti servas,
     // ja kui paane tuleb siiski liiga palju, jämeneda kuni mahub.
@@ -335,10 +423,23 @@ export class OpenMeteoProvider implements WeatherProvider {
     const times = responses[0]?.hourly?.time as string[] | undefined;
     if (!times || times.length === 0) return [];
 
-    const frames: GridFrame[] = times.map((rawTime) => ({
+    // Plokk katab mitu ööpäeva, klient küsib ühe. Väljastame ainult küsitud
+    // päeva: ülejäänu ootab vahemälus ja on järgmise päeva jaoks tasuta.
+    const dayPrefix = new Date(q.time).toISOString().slice(0, 10);
+    const hourIndexes: number[] = [];
+    for (let i = 0; i < times.length; i++) {
+      if (normalizeTime(times[i]!).slice(0, 10) === dayPrefix) hourIndexes.push(i);
+    }
+    if (hourIndexes.length === 0) return [];
+
+    // Väljastame ainult KÜSITUD muutujad, kuigi vahemällu tõmbasime kõik.
+    // Muidu kasvaks kliendi vastus 9 muutuja jagu, ilma et keegi neid vajaks.
+    const outVars = Object.entries(varMap).filter(([, mine]) => q.variables.includes(mine));
+
+    const frames: GridFrame[] = hourIndexes.map((i) => ({
       providerId: this.caps.id,
       modelId: q.modelId,
-      time: normalizeTime(rawTime),
+      time: normalizeTime(times[i]!),
       variables: q.variables,
       points: [] as GridPoint[],
     }));
@@ -355,12 +456,13 @@ export class OpenMeteoProvider implements WeatherProvider {
       const lon = lons[i] ?? res.longitude;
 
       for (let h = 0; h < frames.length; h++) {
+        const t = hourIndexes[h]!;
         const values: GridPoint['values'] = {};
         let any = false;
-        for (const [apiName, mine] of Object.entries(varMap)) {
+        for (const [apiName, mine] of outVars) {
           const col = hourly[apiName] as (number | null)[] | undefined;
           if (!col || col.length === 0) continue;
-          const v = round(col[h], 2);
+          const v = round(col[t], 2);
           values[mine] = v;
           if (v !== null) any = true;
         }
@@ -407,9 +509,9 @@ export class OpenMeteoProvider implements WeatherProvider {
       wind_speed_unit: 'ms',
       timeformat: 'iso8601',
       timezone: 'GMT',
-      // Terve ÖÖPÄEV korraga. Kutseid loetakse punktide, mitte tundide järgi,
-      // seega maksab 24 tundi sama palju kui üks — ja ajaliuguri kerimine on
-      // pärast esimest tõmmet tasuta ja hetkeline.
+      // Terve NÄDAL korraga. Kaal ei sõltu ajavahemikust kuni 14 päevani, seega
+      // maksab 168 tundi sama palju kui üks — ja nii ajaliuguri kerimine kui ka
+      // järgmiste päevade eelhaare on pärast esimest tõmmet tasuta.
       start_hour: blockStart,
       end_hour: blockEnd,
       // Merevälju küsime merelahtritest; tuult ja õhku aga lähimast lahtrist —
@@ -420,9 +522,13 @@ export class OpenMeteoProvider implements WeatherProvider {
     if (modelId && modelId !== 'best_match') params.set('models', modelId);
 
     const key = `om:tile:${params.toString()}`;
+    const cost = queryWeight({
+      locations: lats.length,
+      variables: apiVars.length,
+      days: BLOCK_DAYS,
+    });
     const { value } = await cache.get(key, config.ttl.openMeteo, () =>
-      // Iga võrepunkt on Open-Meteo arvestuses eraldi kutse.
-      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, lats.length),
+      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
     );
     return { lats, lons, value };
   }
@@ -432,7 +538,6 @@ export class OpenMeteoProvider implements WeatherProvider {
     q: PointQuery,
     apiVars: string[],
     models: string[],
-    days: number,
     varMap: Record<string, Variable>,
   ): Promise<TimeSeries[]> {
     const params = new URLSearchParams({
@@ -442,8 +547,12 @@ export class OpenMeteoProvider implements WeatherProvider {
       wind_speed_unit: 'ms',
       timeformat: 'iso8601',
       timezone: 'GMT',
-      forecast_days: String(days),
-      // Näitame ka mõne tunni tagasi, et graafikul oleks kontekst.
+      // Alati sama pikk aken, sõltumata sellest, mitu tundi kutsuja parasjagu
+      // küsis. Lühem aken ei ole odavam (kaal on kuni 14 päevani sama), aga
+      // erinev `forecast_days` tegi igast graafikuvaatest oma vahemäluvõtme.
+      // 10 + 1 päeva = 11, mis mahub kaaluvabasse kaheteistkümnesse.
+      forecast_days: String(POINT_FORECAST_DAYS),
+      // Näitame ka eelmise ööpäeva, et graafikul oleks kontekst.
       past_days: '1',
       cell_selection: url === MARINE_URL ? 'sea' : 'land',
     });
@@ -452,8 +561,14 @@ export class OpenMeteoProvider implements WeatherProvider {
     if (realModels.length) params.set('models', realModels.join(','));
 
     const key = `om:point:${url}:${params.toString()}`;
+    const cost = queryWeight({
+      locations: 1,
+      variables: apiVars.length,
+      models: Math.max(1, realModels.length),
+      days: POINT_FORECAST_DAYS + 1,
+    });
     const { value } = await cache.get(key, config.ttl.openMeteo, () =>
-      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, 1),
+      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
     );
 
     const res = Array.isArray(value) ? value[0] : value;
@@ -465,6 +580,11 @@ export class OpenMeteoProvider implements WeatherProvider {
     // Kui küsisime mitut mudelit, on iga muutuja järelliitega "_<mudel>".
     const modelIds = realModels.length ? realModels : ['best_match'];
 
+    // Vahemälus on alati 11 päeva, kutsuja tahab `q.hours`. Lõikame siin, et
+    // kliendile ei läheks andmeid, mida ta ei küsinud — päring ise oli
+    // niikuinii sama hinnaga.
+    const cutoff = Date.now() + q.hours * 3600_000;
+
     return modelIds.map((modelId) => {
       const suffix = realModels.length > 1 ? `_${modelId}` : '';
       const steps: TimeStep[] = times.map((time, i) => {
@@ -475,7 +595,7 @@ export class OpenMeteoProvider implements WeatherProvider {
           values[mine] = round(col[i], 2);
         }
         return { time: normalizeTime(time), values };
-      });
+      }).filter((step) => new Date(step.time).getTime() <= cutoff);
 
       return {
         providerId: this.caps.id,
@@ -522,15 +642,28 @@ function hourFloor(iso: string): string {
 }
 
 /**
- * UTC-päeva plokk, mis sisaldab antud hetke.
+ * `BLOCK_DAYS` päeva pikkune plokk, mis sisaldab antud hetke.
  *
- * Joondamine päeva piirile on vahemälu jaoks oluline: kui plokk algaks
- * "praegusest tunnist", nihkuks võti iga tunniga ja kogu säästu poleks.
+ * Ankur on TÄNANE UTC-kesköö, mitte küsitud päeva oma. Vahe on kogu säästu
+ * mõte: kui iga küsitud päev alustaks oma plokki, oleks kolme päeva eelhaardel
+ * kolm eri vahemäluvõtit ja kolm eri päringut. Ühine ankur tähendab, et kõik
+ * ploki sisse jäävad päevad tulevad ÜHEST päringust.
+ *
+ * Ploki taha või ette jäävad ajad (minevik, kaugem tulevik) saavad varuvariandina
+ * oma päevaga algava ploki — haruldane, aga ei tohi tühja anda.
  */
-function dayBlock(iso: string): { blockStart: string; blockEnd: string } {
-  const d = new Date(iso);
-  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0));
-  const end = new Date(start.getTime() + 23 * 3600_000);
+function timeBlock(iso: string): { blockStart: string; blockEnd: string } {
+  const now = new Date();
+  const anchor = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const blockMs = BLOCK_DAYS * 24 * 3600_000;
+
+  const wanted = new Date(iso);
+  const wantedDay = Date.UTC(wanted.getUTCFullYear(), wanted.getUTCMonth(), wanted.getUTCDate());
+
+  const start = new Date(
+    wantedDay >= anchor && wantedDay < anchor + blockMs ? anchor : wantedDay,
+  );
+  const end = new Date(start.getTime() + blockMs - 3600_000);
   return {
     blockStart: `${start.toISOString().slice(0, 13)}:00`,
     blockEnd: `${end.toISOString().slice(0, 13)}:00`,

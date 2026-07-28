@@ -16,8 +16,19 @@
 interface Budget {
   /** Kutseid tunnis, mille me endale lubame. */
   limit: number;
+  /**
+   * Kutseid ööpäevas, mille me endale lubame.
+   *
+   * Miks eraldi: Open-Meteo tasuta limiit on 5000 kutset TUNNIS, aga ainult
+   * 10 000 kutset PÄEVAS. Ainult tunnieelarve jälgimine tähendas, et päevane
+   * kvoot sai täis paari-kolme aktiivse tunniga ja ülejäänud päev oli 429 —
+   * täpselt see, mis rakendust pidevalt limiiti ajas.
+   */
+  dailyLimit: number;
   spent: number;
+  dailySpent: number;
   windowStart: number;
+  dayStart: number;
   /**
    * Millal allikas ise meid uuesti lubab.
    *
@@ -38,6 +49,7 @@ interface Budget {
 }
 
 const HOUR_MS = 3600_000;
+const DAY_MS = 24 * HOUR_MS;
 
 /** Kui tihti tohib jahtumise ajal proovipäringut teha. */
 const PROBE_INTERVAL_MS = 60_000;
@@ -46,9 +58,11 @@ export class RateLimitError extends Error {
   constructor(
     readonly source: string,
     readonly retryAfterSeconds: number,
+    readonly window: 'hour' | 'day' = 'hour',
   ) {
     super(
-      `Päringueelarve "${source}" on tunniks täis, järgmine aken ${retryAfterSeconds} s pärast`,
+      `Päringueelarve "${source}" on ${window === 'day' ? 'ööpäevaks' : 'tunniks'} täis, ` +
+        `järgmine aken ${retryAfterSeconds} s pärast`,
     );
     this.name = 'RateLimitError';
   }
@@ -64,11 +78,15 @@ class RateLimiter {
    * vahemälu ei ole täiuslik ja mitu serveri protsessi võivad jagada sama
    * välist IP-d.
    */
-  register(source: string, limit: number): void {
+  register(source: string, limit: number, dailyLimit = Infinity): void {
+    const now = Date.now();
     this.#budgets.set(source, {
       limit,
+      dailyLimit,
       spent: 0,
-      windowStart: Date.now(),
+      dailySpent: 0,
+      windowStart: now,
+      dayStart: Math.floor(now / DAY_MS) * DAY_MS,
       cooldownUntil: 0,
       probeAfter: 0,
     });
@@ -101,12 +119,25 @@ class RateLimiter {
       budget.spent = 0;
     }
 
+    // Päevane aken järgib UTC-kesköö, samamoodi nagu allika oma.
+    const currentDay = Math.floor(now / DAY_MS) * DAY_MS;
+    if (budget.dayStart < currentDay) {
+      budget.dayStart = currentDay;
+      budget.dailySpent = 0;
+    }
+
+    if (budget.dailySpent + cost > budget.dailyLimit) {
+      const retryAfter = Math.ceil((currentDay + DAY_MS - now) / 1000);
+      throw new RateLimitError(source, retryAfter, 'day');
+    }
+
     if (budget.spent + cost > budget.limit) {
       const retryAfter = Math.ceil((currentWindow + HOUR_MS - now) / 1000);
       throw new RateLimitError(source, retryAfter);
     }
 
     budget.spent += cost;
+    budget.dailySpent += cost;
   }
 
   /**
@@ -120,6 +151,7 @@ class RateLimiter {
     const budget = this.#budgets.get(source);
     if (!budget) return;
     budget.spent = Math.max(0, budget.spent - cost);
+    budget.dailySpent = Math.max(0, budget.dailySpent - cost);
   }
 
   /**
@@ -146,18 +178,38 @@ class RateLimiter {
   canSpend(source: string, cost = 1): boolean {
     const budget = this.#budgets.get(source);
     if (!budget) return true;
-    const currentWindow = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+    const now = Date.now();
+
+    const currentDay = Math.floor(now / DAY_MS) * DAY_MS;
+    const dailySpent = budget.dayStart < currentDay ? 0 : budget.dailySpent;
+    if (dailySpent + cost > budget.dailyLimit) return false;
+
+    const currentWindow = Math.floor(now / HOUR_MS) * HOUR_MS;
     if (budget.windowStart < currentWindow) return true;
     return budget.spent + cost <= budget.limit;
   }
 
-  stats(): Record<string, { spent: number; limit: number; cooldownSeconds: number }> {
-    const out: Record<string, { spent: number; limit: number; cooldownSeconds: number }> = {};
+  stats(): Record<
+    string,
+    { spent: number; limit: number; dailySpent: number; dailyLimit: number; cooldownSeconds: number }
+  > {
+    const out: Record<
+      string,
+      {
+        spent: number;
+        limit: number;
+        dailySpent: number;
+        dailyLimit: number;
+        cooldownSeconds: number;
+      }
+    > = {};
     const now = Date.now();
     for (const [source, b] of this.#budgets) {
       out[source] = {
         spent: b.spent,
         limit: b.limit,
+        dailySpent: b.dailySpent,
+        dailyLimit: b.dailyLimit,
         cooldownSeconds: b.cooldownUntil > now ? Math.ceil((b.cooldownUntil - now) / 1000) : 0,
       };
     }
@@ -167,6 +219,12 @@ class RateLimiter {
 
 export const rateLimiter = new RateLimiter();
 
-// Open-Meteo lubab 5000 kutset tunnis. Võtame 3000 — varu jätab ruumi
-// vahemälu möödalaskudele ja hoiab meid allika blokeeringust eemal.
-rateLimiter.register('open-meteo', 3000);
+// Open-Meteo tasuta limiidid: 5000 kutset tunnis JA 10 000 kutset ööpäevas.
+// Võtame 3000 ja 8000 — varu jätab ruumi vahemälu möödalaskudele ja hoiab meid
+// allika blokeeringust eemal.
+//
+// Päevane piir on praktikas see, mis maksma jääb: 3000 kutset tunnis lubaks
+// päevase kvoodi ära kulutada nelja tunniga ja ülejäänud 20 tundi oleks 429.
+// Prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved.
+rateLimiter.register('open-meteo', 3000, 8000);
+rateLimiter.register('open-meteo-marine', 3000, 8000);

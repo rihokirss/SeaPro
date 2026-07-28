@@ -28,15 +28,37 @@ Peamine prognoosiallikas. Annab nii atmosfääri kui merevälju, natiivselt m/s
 (`wind_speed_unit=ms`), ja toetab mitut mudelit korraga
 (`models=metno_nordic,icon_eu,ecmwf_ifs025` → eraldi väljad järelliidetega).
 
-**Päringueelarve on siin kriitiline.** Open-Meteo loeb mitmepunktilise päringu
-IGA PUNKTI eraldi API-kutseks. 16×16 võrgustik = 256 kutset ühe kaardikaadri
-kohta, tunnilimiit on 5000. Arenduses jooksis see täis paari tunniga ja kogu
-tuulekiht kadus ilma vihjeta põhjusest. Kolm kaitset:
+**Päringueelarve on siin kriitiline.** Open-Meteo kutsekaal (nende enda
+`ForecastApiResult.calculateQueryWeight()`):
+
+```
+kaal = summa üle asukohtade: max(1, (muutujad × mudelid / 10) × max(1, päevad / 14))
+```
+
+Sellest tuleneb kolm asja:
+
+- **Iga võrepunkt maksab vähemalt 1.** 16×16 võrgustik = 256 kutset ühe
+  kaardikaadri kohta. Tunnilimiit on 5000, ööpäevane 10 000.
+- **Kuni 10 muutujat ja kuni 14 päeva on sama hinnaga kui üks muutuja ja üks
+  tund.** Vähem küsimine ei säästa midagi — see tähendab ainult, et sama raha
+  eest saab vähem vahemälu.
+- **Mudelid korrutavad muutujate arvu**: 9 muutujat × 5 mudelit = 4,5 kutset
+  asukoha kohta.
+
+Kaitsed:
 
 1. `GRID_MAX_STEPS = 8` — üks kaader maksab kuni 64 kutset
 2. bbox kleebitakse ruudustikule (`routes/api.ts:snapBbox`) — lähestikused
    vaated jagavad ühte vahemälukirjet
-3. `rateLimit.ts` peatab päringu ise 3000 kutse juures tunnis
+3. üks päring toob **7 päeva ja kogu muutujate komplekti** (`BLOCK_DAYS`,
+   `providers/openMeteo.ts`). Sama kaal, kordades rohkem vahemälu: ajaliuguri
+   kerimine, järgmiste päevade eelhaare ja kihi vahetamine on pärast esimest
+   tõmmet tasuta
+4. `rateLimit.ts` peatab päringu ise 3000 kutse juures tunnis ja 8000 juures
+   ööpäevas — päevane piir on praktikas see, mis maksma jääb
+5. prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved
+   (`open-meteo`, `open-meteo-marine`) — tuulekihi limiit ei tohi lainekihti
+   välja lülitada
 
 Kaardil nähtava tiheduse annab **kliendipoolne interpoleerimine**
 (`web/src/map/interpolate.ts`), mitte tihedam päring.

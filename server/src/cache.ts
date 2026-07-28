@@ -52,7 +52,7 @@ const MAX_PERSISTED_AGE_MS = 24 * 3600 * 1000;
  * tabanud enam kunagi ja hoidsid kettal 10 MB — mõõtmise järgi 158 kirjet
  * 159-st.
  */
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = resolve(here, '../../data');
