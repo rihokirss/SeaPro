@@ -20,9 +20,16 @@
      Ookeani sügavusskaala. Tume teema on vaikimisi, sest kaardil on hele
      merepind ja tume raam annab pildile "instrumendi" tunde.
 
-     Pinnad on SIHILIKULT tihked (alfa >= 0.9). Varem olid nad hõredamad ja
-     kaardi kirju taust lõi tekstist läbi — päikese käes muutus paneel
-     loetamatuks. Klaasiefekti annab nüüd hägu, mitte läbipaistvus. */
+     KAKS materjaliastet, mitte neli:
+
+       --float   (0.70)  hõljuvad juhtnupud — vähe teksti, palju kaarti all
+       --surface (0.85)  lugemispinnad — leht, külgpaneel, rippmenüü, popup
+
+     Mõlemad on poolläbipaistvad ja mõlema loetavuse hoiab hägu, mitte täidis.
+     Lugemispind on tihedam ja tugevama häguga (--blur-panel), sest seal on
+     pikk tekst ja tabelid; juhtnupul on paar sõna ja kaart peab läbi paistma.
+     --surface-solid on ainus läbipaistmatu pind ja seda kasutame ainult seal,
+     kus sisu kerib alt läbi (kleepuv tabelipäis, <option>). */
   --abyss: #04121c;
   --deep: #082334;
   --sea: #0d3049;
@@ -30,10 +37,9 @@
   --foam: #e8f4fa;
 
   --bg: var(--abyss);
-  --surface: rgba(8, 33, 49, 0.93);
+  --surface: rgba(7, 30, 45, 0.85);
   --surface-solid: #0b2b3f;
   --surface-2: rgba(150, 205, 235, 0.09);
-  --surface-3: rgba(7, 30, 45, 0.97);
 
   --text: var(--foam);
   --text-dim: #9dbdd0;
@@ -42,9 +48,6 @@
   --line: rgba(150, 205, 235, 0.16);
   --line-strong: rgba(150, 205, 235, 0.32);
 
-  /* Hõljuvad juhtnupud kaardi peal (ajariba tükid) on paneelidest hõredamad:
-     seal on vähe teksti ja palju kaarti, mida ei tohi kinni katta. Loetavuse
-     hoiab hägu ja tugevam piirjoon, mitte täidis. */
   --float: rgba(6, 27, 41, 0.7);
   --float-line: rgba(150, 205, 235, 0.28);
 
@@ -96,22 +99,38 @@
 
   /* --- Raadiused -------------------------------------------------------
      Väikesed raadiused hoiavad pinnad tihedana. Suur ümar nurk sööb paneeli
-     servast nähtavat ruumi ja ajab sisu paratamatult keskele. */
-  --r-xs: 6px;
-  --r-sm: 8px;
-  --r-md: 10px;
-  --r-lg: 14px;
+     servast nähtavat ruumi ja ajab sisu paratamatult keskele. Skaala on
+     sihilikult kandiline: instrument, mitte mullike.
+
+     --r-pill on erand, mitte valik. Ta on alles ainult seal, kus kapslikuju
+     ISE kannab tähendust — lüliti (on füüsiliselt kapsel) ja mikrosildid,
+     mis on nii madalad, et 6 px nurk loeks kriimustusena. */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
   --r-pill: 999px;
 
   /* Puuteala alampiir. Ei ole kunagi läbiräägitav. */
   --touch: 44px;
+
+  /* Ajariba kogukõrgus koos servavahega: näidurida + vahe + lint + alumine
+     serv. Kaardi enda juhtelemendid (suum, omistus, tingmärgid) peavad
+     sellest kõrgemale jääma ja varem oli see arv käsitsi neljas kohas —
+     nüüd ühes ja koosneb samadest osadest mis riba ise. */
+  --ruler-h: 56px;
+  --timebar-h: calc(var(--touch) + var(--s3) + var(--ruler-h) + var(--s4));
 
   /* Varjud tõstavad pinna kaardist lahku, aga ei uju. */
   --shadow-sm: 0 1px 2px rgba(2, 12, 20, 0.4), 0 2px 8px rgba(2, 12, 20, 0.28);
   --shadow: 0 2px 6px rgba(2, 12, 20, 0.4), 0 10px 26px rgba(2, 12, 20, 0.4);
   --shadow-lg: 0 4px 12px rgba(2, 12, 20, 0.45), 0 24px 56px rgba(2, 12, 20, 0.5);
 
+  /* Hägu ASENDAB täidise tiheduse. Lugemispind on hõredam kui juhtnupp on
+     lai, seega vajab ta tugevamat hägu — muidu lööb kaardi muster (rannajoon,
+     linnakvartalid) tabeli numbritest läbi. */
   --blur: blur(14px) saturate(1.25);
+  --blur-panel: blur(24px) saturate(1.3);
 
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
@@ -128,10 +147,9 @@
 @media (prefers-color-scheme: light) {
   :root {
     --bg: #dfeaf1;
-    --surface: rgba(255, 255, 255, 0.94);
+    --surface: rgba(255, 255, 255, 0.85);
     --surface-solid: #ffffff;
     --surface-2: rgba(13, 48, 73, 0.07);
-    --surface-3: rgba(255, 255, 255, 0.98);
 
     --text: #062031;
     --text-dim: #3c5b70;
@@ -160,6 +178,24 @@
     --shadow-sm: 0 1px 2px rgba(20, 50, 70, 0.12), 0 2px 8px rgba(20, 50, 70, 0.1);
     --shadow: 0 2px 6px rgba(20, 50, 70, 0.12), 0 10px 26px rgba(20, 50, 70, 0.14);
     --shadow-lg: 0 4px 12px rgba(20, 50, 70, 0.14), 0 24px 56px rgba(20, 50, 70, 0.18);
+  }
+}
+
+/* Ilma häguta ei ole 0.70 ja 0.85 pinnad loetavad — kaart lööb otse tekstist
+   läbi. See ei ole teoreetiline: backdrop-filter puudub vanematel Androidi
+   veebivaadetel, mis on paadis täiesti tavaline telefon. Sel juhul läheb
+   materjal tagasi tihedaks ja klaasitunne lihtsalt kaob. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --surface: rgba(7, 30, 45, 0.97);
+    --float: rgba(6, 27, 41, 0.94);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --surface: rgba(255, 255, 255, 0.98);
+      --float: rgba(255, 255, 255, 0.95);
+    }
   }
 }
 
@@ -260,8 +296,8 @@ textarea {
   gap: var(--s4);
   min-height: var(--touch);
   padding: var(--s2) var(--s5) var(--s2) var(--s4);
-  border-radius: var(--r-pill);
-  background: var(--surface);
+  border-radius: var(--r-md);
+  background: var(--float);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   border: 1px solid var(--line);
@@ -328,10 +364,10 @@ textarea {
   font-size: var(--t-lg);
   line-height: 1;
   color: var(--text);
-  background: var(--surface);
+  background: var(--float);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--line);
+  border: 1px solid var(--float-line);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
@@ -398,10 +434,10 @@ textarea {
   min-height: var(--touch);
   padding: 0 var(--s4);
   color: var(--text);
-  background: var(--surface);
+  background: var(--float);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--line);
+  border: 1px solid var(--float-line);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-sm);
   font-size: var(--t-base);
@@ -430,9 +466,9 @@ textarea {
   max-height: 55vh;
   overflow-y: auto;
   padding: var(--s2);
-  background: var(--surface-3);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  background: var(--surface);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-lg);
@@ -533,9 +569,9 @@ textarea {
   width: min(370px, 92vw);
   display: flex;
   flex-direction: column;
-  background: var(--surface-3);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  background: var(--surface);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
   border-left: 1px solid var(--line-strong);
   box-shadow: var(--shadow-lg);
   transform: translateX(101%);
@@ -606,6 +642,15 @@ textarea {
   flex: 1;
   height: 1px;
   background: linear-gradient(90deg, var(--line), transparent);
+}
+
+/* Selgitav lause sektsiooni pealkirja all — miks see valik olemas on. Loeb
+   tuhmilt ja tihedalt: see on abitekst, mitte sisu. */
+.panel__hint {
+  margin: 0 0 var(--s5);
+  font-size: var(--t-sm);
+  line-height: 1.4;
+  color: var(--text-faint);
 }
 
 .panel__subhead {
@@ -779,9 +824,9 @@ textarea {
   max-height: 74vh;
   display: flex;
   flex-direction: column;
-  background: var(--surface-3);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  background: var(--surface);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
   border-top: 1px solid var(--line-strong);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   box-shadow: var(--shadow-lg);
@@ -987,8 +1032,11 @@ textarea {
   text-transform: uppercase;
   color: var(--text-dim);
   font-weight: var(--w-bold);
-  background: var(--surface-3);
-  backdrop-filter: var(--blur);
+  /* Kleepuv päis peab olema LÄBIPAISTMATU, mitte lehe materjaliga sama.
+     Poolläbipaistva päise alt kerivad tabeli read läbi ja päis muutub
+     loetamatuks — hägu siin ei aita, sest hägustatakse lehe tagust, mitte
+     päise alt kerivat sisu. */
+  background: var(--surface-solid);
 }
 
 .compare thead th span {
@@ -1008,8 +1056,7 @@ textarea {
   font-weight: var(--w-med);
   position: sticky;
   left: 0;
-  background: var(--surface-3);
-  backdrop-filter: var(--blur);
+  background: var(--surface-solid);
 }
 
 .compare tbody tr:nth-child(even) td {
@@ -1121,14 +1168,14 @@ textarea {
    tõsta. Lauaarvutis on ajariba ainult vasakul pooles — vt allpool. */
 .maplibregl-ctrl-bottom-left,
 .maplibregl-ctrl-bottom-right {
-  margin-bottom: calc(112px + var(--safe-bottom));
+  margin-bottom: calc(var(--timebar-h) + var(--safe-bottom));
 }
 
 .maplibregl-ctrl-group {
-  background: var(--surface) !important;
+  background: var(--float) !important;
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--line) !important;
+  border: 1px solid var(--float-line) !important;
   border-radius: var(--r-md) !important;
   box-shadow: var(--shadow-sm) !important;
   overflow: hidden;
@@ -1159,9 +1206,9 @@ textarea {
 }
 
 .maplibregl-ctrl-scale {
-  background: var(--surface) !important;
+  background: var(--float) !important;
   backdrop-filter: var(--blur);
-  border: 1px solid var(--line) !important;
+  border: 1px solid var(--float-line) !important;
   border-top: 0 !important;
   border-radius: 0 0 var(--r-xs) var(--r-xs);
   color: var(--text-dim) !important;
@@ -1175,9 +1222,9 @@ textarea {
    Kokku volditud kujul on ta aga ainult ⓘ-nupp nurgas ja tekst ilmub
    hiire või puute peale — kaardilt ei võta see praktiliselt midagi. */
 .maplibregl-ctrl-attrib {
-  background: var(--surface) !important;
+  background: var(--float) !important;
   backdrop-filter: var(--blur);
-  border-radius: var(--r-pill) !important;
+  border-radius: var(--r-sm) !important;
   font-size: var(--t-micro);
 }
 
@@ -1197,8 +1244,9 @@ textarea {
 }
 
 .maplibregl-popup-content {
-  background: var(--surface-3) !important;
-  backdrop-filter: var(--blur);
+  background: var(--surface) !important;
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-md) !important;
   box-shadow: var(--shadow) !important;
@@ -1208,18 +1256,21 @@ textarea {
 }
 
 .maplibregl-popup-tip {
-  border-top-color: var(--surface-3) !important;
-  border-bottom-color: var(--surface-3) !important;
+  border-top-color: var(--surface) !important;
+  border-bottom-color: var(--surface) !important;
 }
 
 /* ==========================================================================
-   Ajariba — eraldi hõljuvad tükid kaardi kohal
+   Ajariba — hõljuvad tükid kaardi kohal
 
    Erinevalt paneelidest (kihivalik, leht, popupid) ei ole ajariba lugemispind,
    vaid juhtnupp: seal on vähe teksti ja all palju kaarti. Üks suur läbipaistmatu
    kast sõi kaardi alumise viiendiku; nüüd on iga osa oma väike poolläbipaistev
    tükk ja nende vahelt paistab kaart läbi. Loetavuse hoiab hägu + tihe piirjoon,
    mitte täidise tihedus.
+
+   Alumine tükk on LINT: kellaajad ja päevad liiguvad fikseeritud keskmärgi alt
+   läbi. Vt TimeSlider.tsx, miks pöidlaga liugur siit ära kolis.
    ========================================================================== */
 
 .timebar {
@@ -1238,7 +1289,7 @@ textarea {
 }
 
 /* stretch, mitte center: ühe rea tükid peavad olema täpselt sama kõrged,
-   muidu paistab kõrvutiste kapslite serv paigast ära. Kõrguse annab kõige
+   muidu paistab kõrvutiste tükkide serv paigast ära. Kõrguse annab kõige
    kõrgem tükk, mitte käsitsi kirjutatud arv. */
 .timebar__row {
   display: flex;
@@ -1248,23 +1299,23 @@ textarea {
   min-width: 0;
 }
 
-/* Ühine hõljuva tüki pind. Alfa on madalam kui paneelidel (0.93) sihilikult —
-   siin on eesmärk kaarti näidata, mitte teksti mahutada. */
+/* Ühine hõljuva tüki pind. Alfa on madalam kui lugemispindadel (0.85)
+   sihilikult — siin on eesmärk kaarti näidata, mitte teksti mahutada. */
 .timebar__pod {
   pointer-events: auto;
   background: var(--float);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   border: 1px solid var(--float-line);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-md);
   box-shadow: var(--shadow-sm);
 }
 
 .timebar__readout {
   flex: none;
   display: flex;
-  align-items: center;
-  gap: var(--s3);
+  flex-direction: column;
+  justify-content: center;
   min-height: var(--touch);
   padding: 0 var(--s5);
 }
@@ -1278,222 +1329,21 @@ textarea {
   color: var(--text);
 }
 
-
-/* Mudel ja uuendusaeg — usaldusinfo, mitte dekoratsioon.
-   Kitsal ekraanil kaovad, sest kellaaeg on tähtsam. */
-.timebar__meta {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 1px;
-  min-height: var(--touch);
-  padding: 0 var(--s5);
-  max-width: 150px;
-  /* Kaherealine sisu kapslikujus näeb välja nagu venitatud nupp — sellel
-     tükil on seepärast pehme ristkülik, mitte pill. */
-  border-radius: var(--r-md);
-}
-
-/* Hõredal alusel murdub kõige nõrgem tekst esimesena, seega on siin
-   --text-dim, mitte --text-faint: sama hierarhia, aga kaardi kirju taust
-   ei söö seda ära. */
-.timebar__model,
-.timebar__updated {
+/* Kuupäev oli varem päevasakkide asi. Sakke enam ei ole, seega ütleb näit
+   ise, mis päeva kell see on. */
+.timebar__date {
   font-size: var(--t-micro);
-  line-height: 1.3;
-  color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.timebar__model {
+  line-height: 1.2;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  font-weight: var(--w-med);
-}
-
-/* Rada on visuaalselt 6 px, aga haardeala 44 px kogu tüki laiuses: märja
-   käega paadis ei taba keegi 6 px joont, ja liugur on nüüd ainus viis
-   tundi valida (−/+ nupud on kadunud). Tükk ise on kitsas alus, mis annab
-   rajale kaardi vastu kontrasti — ilma selleta kaob 6 px joon rannajoonde. */
-.timebar__track-wrap {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  height: var(--touch);
-  padding: 0 var(--s5);
-}
-
-.timebar__track {
-  /* Raja ja pideme mõõdud on ühes kohas, sest neid tuleb korrata kahes
-     brauserispetsiifilises pseudoelemendis, mida ei saa ühte reeglisse panna. */
-  --track-h: 8px;
-  --thumb-w: 28px;
-  --thumb-h: 34px;
-
-  display: block;
-  width: 100%;
-  height: var(--touch);
-  margin: 0;
-  background: transparent;
-  -webkit-appearance: none;
-  appearance: none;
-  cursor: grab;
-}
-
-.timebar__track:active {
-  cursor: grabbing;
-}
-
-.timebar__track::-webkit-slider-runnable-track {
-  height: var(--track-h);
-  border-radius: var(--r-pill);
-  background: linear-gradient(90deg, var(--line) 0%, var(--line-strong) 100%);
-  border: 1px solid var(--line-strong);
-}
-
-.timebar__track::-moz-range-track {
-  height: var(--track-h);
-  border-radius: var(--r-pill);
-  background: linear-gradient(90deg, var(--line) 0%, var(--line-strong) 100%);
-  border: 1px solid var(--line-strong);
-}
-
-/* Pide = instrumendi reguleerimisnupp: peaaegu aluse kõrgune kapsel kolme
-   haardejoonega, nagu raadio häälestusnupp. Ta on sihilikult suur — märja
-   käega paadis on ta ainus viis tundi valida, ja hõredamal alusel peab ta
-   olema see, mis silma haarab. Püstine vorm näitab täpset kohta rajal
-   teravamalt kui ümar ketas. */
-.timebar__track::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: var(--thumb-w);
-  height: var(--thumb-h);
-  margin-top: calc((var(--track-h) - var(--thumb-h)) / 2);
-  border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.6) 0 1px,
-      transparent 1px 5px
-    ),
-    linear-gradient(180deg, #9fe2f6 0%, var(--accent) 45%, var(--accent-strong) 100%);
-  background-size: 16px 16px, 100% 100%;
-  background-position: center, center;
-  background-repeat: no-repeat;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -1px 0 rgba(2, 12, 20, 0.25), var(--shadow-sm);
-  transition: transform 0.12s var(--ease), box-shadow 0.16s;
-}
-
-/* Lohistamise tagasiside: pide kasvab veidi ja saab helenduse. */
-.timebar__track:active::-webkit-slider-thumb {
-  transform: scale(1.06);
-  box-shadow: 0 0 0 4px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    var(--shadow-sm);
-}
-
-.timebar__track::-moz-range-thumb {
-  width: var(--thumb-w);
-  height: var(--thumb-h);
-  border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.6) 0 1px,
-      transparent 1px 5px
-    ),
-    linear-gradient(180deg, #9fe2f6 0%, var(--accent) 45%, var(--accent-strong) 100%);
-  background-size: 16px 16px, 100% 100%;
-  background-position: center, center;
-  background-repeat: no-repeat;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -1px 0 rgba(2, 12, 20, 0.25), var(--shadow-sm);
-}
-
-.timebar__track:focus-visible {
-  outline: none;
-}
-
-.timebar__track:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 4px var(--accent-glow), var(--shadow-sm);
-}
-
-.timebar__track:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 4px var(--accent-glow);
-}
-
-/* "Praegu" viip. Sama roheline mis NOW-märgis kellaaja kõrval — "praegu"
-   tähendab kogu ribal ühte ja sama asja, seega ka üht ja sama värvi. */
-.timebar__nowmark {
-  position: absolute;
-  top: calc(50% - 10px);
-  width: 2px;
-  height: 20px;
-  border-radius: 1px;
-  background: var(--ok);
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-/* --- Päevasakid --------------------------------------------------------- */
-
-/* Sakigrupp on täpselt oma sisu laiune, mitte ekraani laiune: laiali venitatud
-   sakid tegid tühjast ruumist täisplokki, mis kattis kaardi ära. Üle ääre
-   minnes kerib grupp ise. */
-.timebar__days {
-  display: flex;
-  flex: 0 1 auto;
-  min-width: 0;
-  gap: var(--s1);
-  padding: var(--s1);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.timebar__days::-webkit-scrollbar {
-  display: none;
-}
-
-/* 44 px kõrgus on puutepiirang, mitte kujundusvalik — märja käega ei taba
-   keegi madalamat sakki. Kompaktsus tuleb siin kitsusest, mitte madalusest. */
-.timebar__day {
-  flex: 0 0 auto;
-  min-width: 58px;
-  min-height: var(--touch);
-  padding: 0 var(--s4);
   color: var(--text-dim);
-  background: none;
-  border: 0;
-  border-radius: var(--r-pill);
-  font-size: var(--t-md);
-  font-weight: var(--w-med);
   white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
 }
 
-.timebar__day:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
-.timebar__day.is-active {
-  background: var(--surface-solid);
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
-}
-
-/* "Nüüd" on tegevus, mitte päev — seepärast oma tükk sakigrupi kõrval.
-   Eristub kirjaviisi ja täidise, mitte oma värviperekonna kaudu: varasem
-   messingnupp oli ribal ainus soe plekk ja tõmbas rohkem tähelepanu kui
-   kellaaeg ise. */
+/* "Nüüd" on tegevus, mitte aja valimine — seepärast oma tükk, mitte koht
+   lindil. Eristub kirjaviisi ja täidise, mitte oma värviperekonna kaudu:
+   varasem messingnupp oli ribal ainus soe plekk ja tõmbas rohkem tähelepanu
+   kui kellaaeg ise. */
 .timebar__now {
   flex: 0 0 auto;
   min-width: 60px;
@@ -1516,6 +1366,219 @@ textarea {
   background: linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%);
   border-color: var(--accent-strong);
   color: var(--on-accent);
+}
+
+/* Mudel ja uuendusaeg — usaldusinfo, mitte dekoratsioon. Kitsal ekraanil
+   kaovad, sest kellaaeg on tähtsam. */
+.timebar__meta {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 1px;
+  min-height: var(--touch);
+  padding: 0 var(--s5);
+  max-width: 150px;
+}
+
+/* Hõredal alusel murdub kõige nõrgem tekst esimesena, seega on siin
+   --text-dim, mitte --text-faint: sama hierarhia, aga kaardi kirju taust
+   ei söö seda ära. */
+.timebar__model,
+.timebar__updated {
+  font-size: var(--t-micro);
+  line-height: 1.3;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.timebar__model {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: var(--w-med);
+}
+
+/* --- Lint ---------------------------------------------------------------
+
+   Kerimise teeb brauser (overflow-x + scroll-snap), mitte meie pointer-
+   matemaatika: hoog, puuteplaat ja täistunnile naksamine tulevad sellega
+   tasuta. `--hour-w` on ainus koht, kus lindi mõõtkava kirjas on — TSX loeb
+   sama väärtuse getComputedStyle'iga, et kerimiskoht ja indeks kokku käiksid.
+   Kui muudad seda, ei ole vaja TSX-is midagi puutuda. */
+
+.timebar__ruler {
+  /* Märk ei ole riba keskel, vaid vasakumal. Prognoosis vaadatakse ETTE:
+     keskele pandud märk jätaks pool riba minevikule, mida on ainult 6 tundi,
+     ja rakenduse avamisel oleks vasak pool lihtsalt tühi. */
+  --needle-pos: 25%;
+
+  position: relative;
+  width: 100%;
+  height: var(--ruler-h);
+  /* Lindi otsad ei tohi ümaratest nurkadest välja ulatuda. */
+  overflow: hidden;
+}
+
+.timebar__scroll {
+  --hour-w: 13px;
+
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  /* Naksamine käib MÄRGI alla, mitte riba keskele. Snapport on kerimisala,
+     millest on paremalt maha võetud nii palju, et tema kese satuks täpselt
+     --needle-pos peale. */
+  scroll-padding-right: calc(100% - 2 * var(--needle-pos));
+  overscroll-behavior-x: contain;
+  /* Püstine liigutus jäägu kaardile ja lehele; lint võtab ainult külgsuuna. */
+  touch-action: pan-x;
+  scrollbar-width: none;
+  cursor: grab;
+  /* Lohistamine ei tohi kellaaegu maalima hakata. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.timebar__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.timebar__scroll:active {
+  cursor: grabbing;
+}
+
+.timebar__scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Vahetükid, et esimene ja viimane tund saaks märgi alla. Vahetükk, mitte
+   protsentpolster: polster kerimiskonteineri lõpus jääb osal brauseritel
+   arvestamata ja viimane tund ei jõuaks enam märgi alla.
+
+   Ees --needle-pos, taga ülejäänu. */
+.timebar__pad {
+  flex: 0 0 var(--needle-pos);
+}
+
+.timebar__pad--end {
+  flex-basis: calc(100% - var(--needle-pos));
+}
+
+.timebar__hour {
+  position: relative;
+  flex: 0 0 var(--hour-w);
+  scroll-snap-align: center;
+}
+
+/* Tunnikriips lahtri keskel — sinna, kuhu keskmärk naksab. */
+.timebar__hour::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  width: 1px;
+  height: 5px;
+  margin-left: -0.5px;
+  background: var(--line-strong);
+}
+
+/* Sildistatud tunnil on kriips pikem — silt ja kriips on üks märk, mitte kaks. */
+.timebar__hour:has(.timebar__hourlabel)::after {
+  height: 9px;
+  background: var(--text-faint);
+}
+
+/* Öö on tumedam. Ööpäeva rütm on merel plaani osa ("enne pimedat tagasi") ja
+   ühe pilguga loetav vöönd ütleb seda kiiremini kui kellanumbrid. */
+.timebar__hour.is-night {
+  background: rgba(2, 12, 20, 0.28);
+}
+
+/* Päevapiir: joon lahtri VASAKUS servas, sest seal vahetub päev. */
+.timebar__hour.is-daystart::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+/* "Praegu" — sama roheline mis mujal liideses. Katab päevapiiri joone, kui
+   need juhtuvad samale tunnile; keskööl on "praegu" tähtsam kui piir. */
+.timebar__hour.is-now::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ok);
+}
+
+.timebar__daylabel {
+  position: absolute;
+  top: 5px;
+  left: 4px;
+  font-size: var(--t-micro);
+  font-weight: var(--w-bold);
+  line-height: 1;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.timebar__hourlabel {
+  position: absolute;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--num);
+  font-size: var(--t-cap);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Keskmärk seisab paigal, lint liigub tema alt läbi. Messing, sest see on
+   instrumendi näidu koht — sama roll mis kompassil luubijoonel. */
+.timebar__needle {
+  position: absolute;
+  left: var(--needle-pos);
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--brass);
+  box-shadow: 0 0 0 1px rgba(2, 12, 20, 0.35);
+  pointer-events: none;
+}
+
+.timebar__needle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--brass);
 }
 
 /* ==========================================================================
@@ -1544,7 +1607,7 @@ textarea {
   margin-bottom: var(--s2);
   padding: 2px 0;
   border-radius: var(--r-xs);
-  background: var(--surface);
+  background: var(--float);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   font-family: var(--num);
@@ -1627,11 +1690,10 @@ textarea {
     bottom: var(--s6);
   }
 
-  /* Lauaarvutis on ruumi küll, aga sakigrupp ei tohi ikkagi kogu laiust
-     täita — vaba ruum riba paremas otsas ongi see, mille kaudu kaart
-     hõljuvate tükkide vahelt paistab. */
-  .timebar__days {
-    max-width: 100%;
+  /* Hiirega on täpsus parem kui sõrmega, aga ekraani on rohkem — laiem samm
+     teeb lindi loetavamaks, ilma et ulatus kannataks. */
+  .timebar__scroll {
+    --hour-w: 17px;
   }
 
   .sheet {
@@ -1659,7 +1721,7 @@ textarea {
   }
 
   .maplibregl-ctrl-bottom-left {
-    margin-bottom: calc(120px + var(--safe-bottom));
+    margin-bottom: calc(var(--timebar-h) + var(--safe-bottom));
   }
 
   /* Ajariba lõpeb paremal enne serva, seega on alumine parem nurk vaba:
@@ -1716,17 +1778,17 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  margin-bottom: var(--s2, 6px);
+  margin-bottom: var(--s2);
 }
 
 .popup__head strong {
-  font-size: var(--t-body, 14px);
-  font-weight: var(--w-bold, 650);
+  font-size: var(--t-base);
+  font-weight: var(--w-bold);
   line-height: 1.25;
 }
 
 .popup__kind {
-  font-size: var(--t-micro, 10px);
+  font-size: var(--t-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -1736,11 +1798,11 @@ textarea {
    peavad ütlema sama asja. */
 .popup__age {
   display: inline-block;
-  margin-bottom: var(--s2, 6px);
+  margin-bottom: var(--s2);
   padding: 1px 7px;
-  border-radius: var(--radius-pill);
-  font-size: var(--t-micro, 10px);
-  font-weight: var(--w-med, 550);
+  border-radius: var(--r-pill);
+  font-size: var(--t-micro);
+  font-weight: var(--w-med);
   background: var(--surface-2);
   color: var(--text-dim);
 }
@@ -1764,14 +1826,14 @@ textarea {
 .popup__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--t-small, 13px);
+  font-size: var(--t-md);
   font-variant-numeric: tabular-nums;
 }
 
 .popup__table th {
   padding: 2px 0;
   text-align: left;
-  font-weight: var(--w-reg, 400);
+  font-weight: var(--w-reg);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -1785,20 +1847,20 @@ textarea {
 
 .popup__table small {
   color: var(--text-faint);
-  font-size: var(--t-micro, 10px);
+  font-size: var(--t-micro);
 }
 
 .popup__empty {
   margin: 0;
-  font-size: var(--t-small, 13px);
+  font-size: var(--t-md);
   color: var(--text-faint);
 }
 
 .popup__source {
-  margin-top: var(--s2, 6px);
-  padding-top: var(--s2, 6px);
+  margin-top: var(--s2);
+  padding-top: var(--s2);
   border-top: 1px solid var(--line);
-  font-size: var(--t-micro, 10px);
+  font-size: var(--t-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -1820,12 +1882,12 @@ textarea {
   position: absolute;
   right: calc(12px + var(--safe-right));
   /* Mobiilis katab ajariba terve laiuse, seega nupp peab jääma sellest kõrgemale. */
-  bottom: calc(124px + var(--safe-bottom));
+  bottom: calc(var(--timebar-h) + var(--s5) + var(--safe-bottom));
   z-index: 16;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--s2, 8px);
+  gap: var(--s2);
   transition: right 0.24s var(--ease), bottom 0.24s var(--ease);
 }
 
@@ -1833,36 +1895,36 @@ textarea {
   width: min(250px, calc(100vw - 32px));
   max-height: min(60vh, 480px);
   overflow-y: auto;
-  padding: var(--s3, 12px) var(--s3, 12px) var(--s2, 8px);
-  background: var(--surface-3);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  padding: var(--s5) var(--s5) var(--s4);
+  background: var(--surface);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--r-md);
   box-shadow: var(--shadow-lg);
   animation: drop-in 0.16s var(--ease);
   scrollbar-width: thin;
 }
 
 .mapkey__panel h3 {
-  margin: 0 0 var(--s2, 8px);
-  font-size: var(--t-micro, 11px);
-  font-weight: var(--w-bold, 650);
+  margin: 0 0 var(--s2);
+  font-size: var(--t-cap);
+  font-weight: var(--w-bold);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-faint);
 }
 
 .mapkey__section + .mapkey__section {
-  margin-top: var(--s3, 12px);
-  padding-top: var(--s3, 12px);
+  margin-top: var(--s3);
+  padding-top: var(--s3);
   border-top: 1px solid var(--line);
 }
 
 .mapkey__panel h4 {
-  margin: var(--s2, 8px) 0 var(--s1, 4px);
-  font-size: var(--t-small, 12px);
-  font-weight: var(--w-bold, 650);
+  margin: var(--s2) 0 var(--s1);
+  font-size: var(--t-sm);
+  font-weight: var(--w-bold);
   color: var(--text-dim);
 }
 
@@ -1879,9 +1941,9 @@ textarea {
 .mapkey__panel li {
   display: flex;
   align-items: center;
-  gap: var(--s2, 8px);
+  gap: var(--s2);
   min-height: 22px;
-  font-size: var(--t-small, 13px);
+  font-size: var(--t-md);
   color: var(--text);
 }
 
@@ -1893,8 +1955,8 @@ textarea {
 }
 
 .mapkey__note {
-  margin: var(--s1, 4px) 0 0;
-  font-size: var(--t-micro, 11px);
+  margin: var(--s1) 0 0;
+  font-size: var(--t-cap);
   line-height: 1.35;
   color: var(--text-faint);
 }
@@ -1908,7 +1970,7 @@ textarea {
 
 .tip .maplibregl-popup-content {
   padding: 7px 11px !important;
-  border-radius: var(--radius) !important;
+  border-radius: var(--r-md) !important;
   box-shadow: var(--shadow-sm) !important;
   /* Vihje on kaks tihedat rida, mitte lõiketekst. Keha päritud reakõrgus
      (1.45) ajas nime ja alarea lahku ning vihje näis lohisev. */
@@ -1922,22 +1984,28 @@ textarea {
 .tip__row {
   display: flex;
   align-items: baseline;
-  gap: var(--s3, 12px);
+  gap: var(--s3);
   white-space: nowrap;
   line-height: 1.25;
 }
 
 .tip__name {
-  font-size: var(--t-small, 13px);
-  font-weight: var(--w-bold, 650);
+  font-size: var(--t-md);
+  font-weight: var(--w-bold);
   line-height: inherit;
   color: var(--text);
 }
 
+.tip__label {
+  font-size: var(--t-sm);
+  line-height: inherit;
+  color: var(--text-dim);
+}
+
 .tip__value {
   margin-left: auto;
-  font-size: var(--t-small, 13px);
-  font-weight: var(--w-med, 550);
+  font-size: var(--t-md);
+  font-weight: var(--w-med);
   font-variant-numeric: tabular-nums;
   line-height: inherit;
   color: var(--text);
@@ -1948,14 +2016,14 @@ textarea {
 .tip__value small {
   display: inline-block;
   margin-left: 2px;
-  font-size: var(--t-micro, 10px);
+  font-size: var(--t-micro);
   line-height: 1;
   color: var(--text-faint);
 }
 
 .tip__sub {
   margin-top: 1px;
-  font-size: var(--t-micro, 11px);
+  font-size: var(--t-cap);
   line-height: 1.25;
   color: var(--text-faint);
   white-space: nowrap;
@@ -1969,9 +2037,11 @@ textarea {
   }
 
   /* Punktiprognoosi paneel istub samas nurgas — nihuta nupp sellest vasakule,
-     muidu jääks ta paneeli alla kättesaamatuks. */
+     muidu jääks ta paneeli alla kättesaamatuks. Vasakul on aga ajariba parem
+     ots (mudeli nimi), seega tuleb ka kõrgemale tõsta. */
   .mapkey.is-shifted {
     right: calc(456px + var(--safe-right));
+    bottom: calc(var(--timebar-h) + var(--safe-bottom));
   }
 
   /* Paneel avaneb nupust ülespoole ja peab mahtuma ekraanile ka siis, kui
@@ -1989,14 +2059,14 @@ textarea {
   transform: translateX(-50%);
   z-index: 18;
   max-width: min(440px, calc(100vw - 32px));
-  padding: 8px 14px;
+  padding: var(--s4) var(--s5);
   background: rgba(224, 168, 63, 0.16);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   border: 1px solid rgba(224, 168, 63, 0.5);
-  border-radius: var(--radius-pill);
+  border-radius: var(--r-md);
   color: var(--warn);
-  font-size: var(--t-small, 13px);
+  font-size: var(--t-md);
   line-height: 1.35;
   text-align: center;
   box-shadow: var(--shadow-sm);
@@ -2022,9 +2092,9 @@ textarea {
 
 .forecast-chart .u-legend {
   width: 100%;
-  margin-top: var(--s2, 8px);
+  margin-top: var(--s2);
   font-family: inherit;
-  font-size: var(--t-small, 12px);
+  font-size: var(--t-sm);
   font-variant-numeric: tabular-nums;
   border-collapse: collapse;
 }
@@ -2033,15 +2103,15 @@ textarea {
 .forecast-chart .u-legend tr:first-child {
   display: flex;
   align-items: baseline;
-  gap: var(--s2, 8px);
-  padding-bottom: var(--s1, 4px);
-  margin-bottom: var(--s1, 4px);
+  gap: var(--s2);
+  padding-bottom: var(--s1);
+  margin-bottom: var(--s1);
   border-bottom: 1px solid var(--line);
 }
 
 .forecast-chart .u-legend tr:first-child th {
-  font-size: var(--t-micro, 10px);
-  font-weight: var(--w-med, 550);
+  font-size: var(--t-micro);
+  font-weight: var(--w-med);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -2049,8 +2119,8 @@ textarea {
 
 .forecast-chart .u-legend tr:first-child .u-value {
   min-width: 0;
-  font-size: var(--t-body, 13px);
-  font-weight: var(--w-bold, 650);
+  font-size: var(--t-md);
+  font-weight: var(--w-bold);
   color: var(--text);
 }
 
@@ -2058,8 +2128,8 @@ textarea {
 .forecast-chart .u-legend tr:not(:first-child) {
   display: inline-flex;
   align-items: baseline;
-  gap: var(--s1, 4px);
-  margin-right: var(--s3, 12px);
+  gap: var(--s1);
+  margin-right: var(--s3);
 }
 
 .forecast-chart .u-legend th,
@@ -2077,26 +2147,22 @@ textarea {
   min-width: 4ch;
   text-align: right;
   font-family: inherit;
-  font-weight: var(--w-med, 550);
+  font-weight: var(--w-med);
   color: var(--text);
   white-space: nowrap;
 }
 
-.forecast-chart .u-legend .u-marker {
-  border-radius: 2px;
-}
-
 .forecast-chart__hint {
-  margin: var(--s1, 4px) 0 0;
-  font-size: var(--t-micro, 11px);
+  margin: var(--s1) 0 0;
+  font-size: var(--t-cap);
   color: var(--text-faint);
   text-align: center;
 }
 
 /* Sadama popupi lingid */
 .popup__links {
-  margin-top: var(--s2, 8px);
-  font-size: var(--t-small, 13px);
+  margin-top: var(--s2);
+  font-size: var(--t-md);
 }
 
 .popup__links a,

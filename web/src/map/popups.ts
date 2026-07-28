@@ -170,7 +170,7 @@ interface TipSpec {
 
 function tipHtml(spec: TipSpec): string {
   const metric = spec.metric
-    ? `<div class="tip__metric">
+    ? `<div class="tip__row">
          <span class="tip__label">${escapeHtml(spec.metric.label)}</span>
          <span class="tip__value">${escapeHtml(spec.metric.value)}${
            spec.metric.unit ? `<small>${escapeHtml(spec.metric.unit)}</small>` : ''
@@ -178,7 +178,7 @@ function tipHtml(spec: TipSpec): string {
        </div>`
     : '';
 
-  const note = spec.note ? `<div class="tip__note">${escapeHtml(spec.note)}</div>` : '';
+  const note = spec.note ? `<div class="tip__sub">${escapeHtml(spec.note)}</div>` : '';
 
   return `<div class="tip__name">${escapeHtml(spec.title)}</div>${metric}${note}`;
 }

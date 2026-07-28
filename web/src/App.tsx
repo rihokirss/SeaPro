@@ -163,6 +163,48 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DAY_OFFSETS = [-1, 0, 1];
 
 /**
+ * Mitu ööpäevakomplekti vahemälus hoiame.
+ *
+ * Kolm on korraga vaja (DAY_OFFSETS); ülejäänu on ajalugu, mis teeb
+ * tagasi-panimise ja päeva vahetamise hetkeliseks. Kaks korda rohkem on
+ * piisavalt, et tavaline edasi-tagasi liikumine mahuks, ja piisavalt vähe,
+ * et mälu ei kasvaks piiramatult.
+ */
+const CACHE_LIMIT = 6;
+
+/**
+ * Küsitav ala, ruudustikule kleebitult.
+ *
+ * Kaardi enda bbox muutub iga piksli nihkega. Kui teha sellest otse päringu
+ * võti, on iga liigutus uus võti, uus päring ja uus tühimik andmetes — see
+ * oli panimise vilkumise teine pool. Server kleebib ala niikuinii oma
+ * ruudustikule ja tagastab väikese nihke peale sama sisu, seega teeme sama
+ * juba siin.
+ *
+ * Samm sõltub ala suurusest (mitte suumitasemest otse), et käitumine oleks
+ * ühesugune nii Läänemere ülevaates kui ühe lahe suuruses vaates. Lisaks
+ * laiendame ala ~20% üle ekraani serva: nii jääb äsja nähtavale tulnud riba
+ * juba tõmmatud andmete sisse.
+ */
+function snapBbox(
+  bbox: [number, number, number, number],
+): [number, number, number, number] {
+  const [s, w, n, e] = bbox;
+  const padLat = (n - s) * 0.2;
+  const padLon = (e - w) * 0.2;
+  const q = (span: number): number =>
+    Math.max(0.05, 2 ** Math.round(Math.log2(Math.max(span, 0.001) / 8)));
+  const qLat = q(n - s);
+  const qLon = q(e - w);
+  return [
+    Math.floor((s - padLat) / qLat) * qLat,
+    Math.floor((w - padLon) / qLon) * qLon,
+    Math.ceil((n + padLat) / qLat) * qLat,
+    Math.ceil((e + padLon) / qLon) * qLon,
+  ];
+}
+
+/**
  * Kaardikihi kaadrid ööpäevade kaupa, JÄRGMINE ÖÖPÄEV ETTE TÕMMATUD.
  *
  * Terve ööpäev ühe päringuga tähendas juba seda, et tunni vahetamine liuguril
@@ -181,28 +223,45 @@ const DAY_OFFSETS = [-1, 0, 1];
  * `bump`.
  */
 function useGridDays(params: {
-  view: { bbox: [number, number, number, number] } | null;
+  bbox: [number, number, number, number] | null;
   vars: Variable[];
   time: Date;
   model: string;
   onNotice(notice: { kind: 'rateLimited'; retryAfterSeconds: number } | { kind: 'error' } | null): void;
 }): GridFrame[] {
-  const { view, vars, time, model, onNotice } = params;
+  const { bbox, vars, time, model, onNotice } = params;
   const cache = useRef(new Map<string, GridFrame[]>());
   const [tick, bump] = useReducer((n: number) => n + 1, 0);
 
   const varsKey = vars.join(',');
-  // Ala kolme komakohani: peenem täpsus tähendaks, et iga piksline nihe teeb
-  // uue võtme ja eelhaare läheks kaotsi.
-  const bboxKey = view ? view.bbox.map((n) => n.toFixed(3)).join(',') : '';
+  const bboxKey = bbox ? bbox.map((n) => n.toFixed(3)).join(',') : '';
   const dayKey = time.toISOString().slice(0, 10);
   const timeRef = useRef(time);
   timeRef.current = time;
 
+  /**
+   * Soovitud võtmed arvutame RENDERIS, mitte ainult efektis: tagastus peab
+   * teadma, millised kaadrid on praegu õiged, ja millised on vana vaate omad,
+   * mida hoiame ainult seni, kuni asendus kohale jõuab.
+   */
+  const wanted = useMemo(() => {
+    const base = timeRef.current.getTime();
+    return DAY_OFFSETS.map(
+      (d) =>
+        `${bboxKey}|${model}|${varsKey}|${new Date(base + d * DAY_MS).toISOString().slice(0, 10)}`,
+    );
+    // `time` asemel `dayKey`: täpne tund ei tohi võtmeid ümber arvutada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bboxKey, model, varsKey, dayKey]);
+
+  const wantedKey = wanted.join(';');
+  const lastGood = useRef<GridFrame[]>([]);
+
   useEffect(() => {
-    if (!view || vars.length === 0) {
+    if (!bbox || vars.length === 0) {
       if (cache.current.size > 0) {
         cache.current.clear();
+        lastGood.current = [];
         bump();
       }
       return;
@@ -210,20 +269,6 @@ function useGridDays(params: {
 
     const base = timeRef.current.getTime();
     const days = DAY_OFFSETS.map((d) => new Date(base + d * DAY_MS));
-    const wanted = days.map(
-      (d) => `${bboxKey}|${model}|${varsKey}|${d.toISOString().slice(0, 10)}`,
-    );
-
-    // Kõik, mida enam ei taheta, läheb minema — muidu kasvaks vahemälu iga
-    // nihke ja päevaga ning hoiaks mälus ammu kehtetuid kaadreid.
-    let pruned = false;
-    for (const key of [...cache.current.keys()]) {
-      if (!wanted.includes(key)) {
-        cache.current.delete(key);
-        pruned = true;
-      }
-    }
-    if (pruned) bump();
 
     const cancels: Array<() => void> = [];
     days.forEach((d, i) => {
@@ -231,12 +276,30 @@ function useGridDays(params: {
       if (cache.current.has(key)) return;
       cancels.push(
         fetchGridDay({
-          bbox: view.bbox,
+          bbox,
           vars,
           time: d,
           model,
           onFrames: (frames) => {
             cache.current.set(key, frames);
+            /**
+             * Koristame ALLES NÜÜD, kui asendus on käes.
+             *
+             * Varem käis puhastus efekti alguses ja see oligi panimise
+             * vilkumise põhjus: vana ala kaadrid kustutati kohe, `bump()`
+             * renderdas tühja komplektiga, kihiefektid said `null`-i ja
+             * peitsid nooled ning valevärvi-välja ära, kuni võrk vastas.
+             * Ekraanil paistis see nii, nagu kaart laadiks end iga nihke
+             * peale uuesti.
+             *
+             * Ülempiir hoiab mälu paigas ka siis, kui kasutaja mööda kaarti
+             * ringi rändab: alles jäävad soovitud võtmed ja natuke ajalugu
+             * (tagasi-panimine on tavaline), ülejäänu läheb vanuse järjekorras.
+             */
+            for (const stale of [...cache.current.keys()]) {
+              if (cache.current.size <= CACHE_LIMIT) break;
+              if (!wanted.includes(stale)) cache.current.delete(stale);
+            }
             bump();
           },
           // Eelhaare EI TOHI teadet muuta. Muidu ütleks rakendus "limiit täis"
@@ -247,18 +310,24 @@ function useGridDays(params: {
       );
     });
     return () => cancels.forEach((c) => c());
-    // `time` on sihilikult välja jäetud: päeva identifitseerib `dayKey` ja
-    // täpne tund ei tohi tõmbamist uuesti käivitada.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bboxKey, model, varsKey, dayKey, onNotice]);
+  }, [wantedKey, onNotice]);
 
   return useMemo(() => {
     const out: GridFrame[] = [];
-    for (const frames of cache.current.values()) out.push(...frames);
+    for (const key of wanted) {
+      const frames = cache.current.get(key);
+      if (frames) out.push(...frames);
+    }
+    // Kuni uuest alast ei ole veel ÜHTKI kaadrit, jääb ekraanile eelmine
+    // pilt. Vale ala kaader on hetkeks vähem vale kui tühi kaart — nihe on
+    // väike (vt snapBbox) ja alternatiiv on kihi kadumine.
+    if (out.length === 0) return lastGood.current;
+    lastGood.current = out;
     return out;
     // `tick` on siin ainus päris sõltuvus — vahemälu ise on ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tick]);
+  }, [tick, wantedKey]);
 }
 
 export function App() {
@@ -308,6 +377,40 @@ export function App() {
   );
 
   /**
+   * Andmete jaoks küsitav ala on ruudustikule kleebitud, kuvamise jaoks
+   * kasutame endiselt päris vaadet. Nii ei tekita väike nihe uut päringut
+   * (ja seega ka mitte tühimikku), aga nooletihedus ja laevade päring
+   * käivad täpselt selle järgi, mida ekraanil näha on.
+   */
+  const lastDataBbox = useRef<[number, number, number, number] | null>(null);
+  const dataBbox = useMemo(() => {
+    if (!view) return null;
+    /**
+     * Ruudustik üksi ei piisa: kui vaate serv juhtub olema ruudu piiri peal,
+     * hüppab võti iga väikese nihkega edasi-tagasi. Seetõttu hoiame eelmist
+     * ala nii kaua, kui see uut vaadet veel katab — ja vahetame alles siis,
+     * kui vaade sellest välja jookseb või läheb nii väikeseks, et vana
+     * ruudustik oleks liiga jäme (suumimine).
+     */
+    const prev = lastDataBbox.current;
+    const [s, w, n, e] = view.bbox;
+    if (
+      prev &&
+      prev[0] <= s &&
+      prev[1] <= w &&
+      prev[2] >= n &&
+      prev[3] >= e &&
+      prev[2] - prev[0] <= (n - s) * 3
+    ) {
+      return prev;
+    }
+    const next = snapBbox(view.bbox);
+    lastDataBbox.current = next;
+    return next;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.bbox.join(',')]);
+
+  /**
    * Kaardikihi seisund, kui andmed EI tule. Varem neelasime need vead vaikselt
    * alla ja kasutaja jaoks näis, nagu rakendus lihtsalt lakkaks uuenemast —
    * ilma ühegi vihjeta, kas asi on võrgus, allikas või meis.
@@ -352,7 +455,7 @@ export function App() {
   const needWind = layers.windDisplay !== 'off' || fieldVar === 'wind_speed';
 
   const dayFrames = useGridDays({
-    view,
+    bbox: dataBbox,
     vars: needWind ? WIND_VARS : EMPTY_VARS,
     // `selectedTime`, mitte viivitatud `dataTime`: aken peab nihkuma juba
     // hetkel, kui liugur uude ööpäeva jõuab, mitte 250 ms pärast lohistamise
@@ -379,7 +482,7 @@ export function App() {
     [fieldVar],
   );
   const fieldDayFrames = useGridDays({
-    view,
+    bbox: dataBbox,
     vars: fieldVars,
     time: selectedTime,
     model: activeModel,
