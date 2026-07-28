@@ -149,6 +149,20 @@ const EMPTY_VARS: Variable[] = [];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Milliseid ööpäevi korraga mälus hoiame, valitud päeva suhtes.
+ *
+ * Esimene katse oli [0, +1] ehk praegune ja järgmine. See tegi ÜHE
+ * ööpäevapiiri sujuvaks, aga liugurit järjest edasi sikutades jõudsid kohe
+ * uuesti akna serva: hetkel, mil ületasid esimese piiri, alles hakati
+ * ülejärgmist tõmbama, ja kiire lohistamise juures jõudsid sinna enne andmeid.
+ *
+ * Liikuv aken tähendab, et valitud hetke ümber on ALATI ööpäev igas suunas,
+ * mitte ainult ühes. Hind on kolm ööpäeva ühe asemel, aga paanide vahemälu
+ * teeb korduvad tõmbed tasuta ja aken nihkub ühe päeva kaupa, mitte tervikuna.
+ */
+const DAY_OFFSETS = [-1, 0, 1];
+
+/**
  * Kaardikihi kaadrid ööpäevade kaupa, JÄRGMINE ÖÖPÄEV ETTE TÕMMATUD.
  *
  * Terve ööpäev ühe päringuga tähendas juba seda, et tunni vahetamine liuguril
@@ -194,7 +208,8 @@ function useGridDays(params: {
       return;
     }
 
-    const days = [new Date(timeRef.current), new Date(timeRef.current.getTime() + DAY_MS)];
+    const base = timeRef.current.getTime();
+    const days = DAY_OFFSETS.map((d) => new Date(base + d * DAY_MS));
     const wanted = days.map(
       (d) => `${bboxKey}|${model}|${varsKey}|${d.toISOString().slice(0, 10)}`,
     );
@@ -227,7 +242,7 @@ function useGridDays(params: {
           // Eelhaare EI TOHI teadet muuta. Muidu ütleks rakendus "limiit täis"
           // olukorras, kus nähtav päev on tegelikult ilusti ekraanil ja ainult
           // ülehomme jäi tõmbamata.
-          onNotice: i === 0 ? onNotice : () => {},
+          onNotice: days[i]!.toISOString().slice(0, 10) === dayKey ? onNotice : () => {},
         }),
       );
     });
@@ -339,7 +354,11 @@ export function App() {
   const dayFrames = useGridDays({
     view,
     vars: needWind ? WIND_VARS : EMPTY_VARS,
-    time: dataTime,
+    // `selectedTime`, mitte viivitatud `dataTime`: aken peab nihkuma juba
+    // hetkel, kui liugur uude ööpäeva jõuab, mitte 250 ms pärast lohistamise
+    // lõppu. Efekt käivitub ainult ööpäeva vahetusel, seega hetkeline aeg ei
+    // maksa siin midagi.
+    time: selectedTime,
     model: activeModel,
     onNotice: setLayerNotice,
   });
@@ -362,7 +381,7 @@ export function App() {
   const fieldDayFrames = useGridDays({
     view,
     vars: fieldVars,
-    time: dataTime,
+    time: selectedTime,
     model: activeModel,
     onNotice: setLayerNotice,
   });
