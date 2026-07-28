@@ -73,6 +73,43 @@ const BBOX = { south: 57.4, west: 19.0, north: 61.0, east: 28.3 };
 /** Mitu spotti maksimaalselt koguda. Piir hoiab skripti ja päringud ohjes. */
 const MAX_SPOTS = 140;
 
+/**
+ * Käsitsi kontrollitud koordinaadid, mis kirjutavad automaatika üle.
+ *
+ * `geocode()` küsib ainult slugi esimest osa, seega liitnimed saavad emalinna
+ * koordinaadi: `porvoo_emasalo` sai Porvoo oma (15 km viga), `kotka_haapasaari`
+ * Kotka oma (30 km). Rannikurakenduses on selline viga tähendusrikas — 30 km
+ * avamerd eemal puhub päris teine tuul.
+ *
+ * Siin loetletud väärtused on ükshaaval Nominatimist eristava nimega üle
+ * küsitud ja silmaga kontrollitud. Ilma selle nimekirjata taastaks järgmine
+ * täisristlus vead vaikselt.
+ */
+const MANUAL_SPOTS: Spot[] = [
+  { slug: 'kotka_haapasaari', name: 'Haapasaari', lat: 60.2884, lon: 27.19 },
+  { slug: 'pernaja_orrengrund', name: 'Orrengrund', lat: 60.2747, lon: 26.4455 },
+  { slug: 'porvoo_emasalo', name: 'Emäsalo', lat: 60.2593, lon: 25.6178 },
+  { slug: 'harmaja_helsinki', name: 'Harmaja', lat: 60.1048, lon: 24.9751 },
+  { slug: 'suomenlinna', name: 'Suomenlinna', lat: 60.1444, lon: 24.9854 },
+  { slug: 'uto', name: 'Utö', lat: 59.7806, lon: 21.3741 },
+  { slug: 'vilsandi', name: 'Vilsandi', lat: 58.3811, lon: 21.859 },
+  { slug: 'kihnu', name: 'Kihnu', lat: 58.1261, lon: 23.9853 },
+  { slug: 'hiiumaa_island_torvanina_beach', name: 'Tõrvanina', lat: 59.0329, lon: 22.676 },
+  { slug: 'kose_harjumaa_estonia', name: 'Kose alevik', lat: 59.1801, lon: 25.1679 },
+  // Ida-rannik. Ristlus ei jõua nendeni — Kunda ja Narva-Jõesuu naaberlingid
+  // viivad sisemaale (Rakvere, Vinni, Kiviõli), mitte mööda rannikut edasi.
+  // Toila katab Sillamäe, Loksa terve Lahemaa (Käsmu, Viinistu, Pärispea).
+  { slug: 'toila', name: 'Toila alevik', lat: 59.4209, lon: 27.5133 },
+  { slug: 'loksa', name: 'Loksa linn', lat: 59.5785, lon: 25.7173 },
+];
+
+/**
+ * Slugid, mille koordinaati ei õnnestunud kinnitada. Vale koordinaat on
+ * halvem kui puuduv spot: nearestSpot valib selle vaikselt välja ja näitab
+ * hoopis teise koha tuult.
+ */
+const REJECT = new Set(['aland_nabben', 'lahe_pank']);
+
 interface Spot {
   slug: string;
   name: string;
@@ -139,9 +176,19 @@ async function main(): Promise<void> {
    */
   const byCoord = new Map<string, Spot>();
   for (const s of spots) {
-    const key = `${s.lat.toFixed(4)},${s.lon.toFixed(4)}`;
+    if (REJECT.has(s.slug)) continue;
+    // Käsitsi kontrollitud koordinaat võidab automaatika oma.
+    const manual = MANUAL_SPOTS.find((m) => m.slug === s.slug);
+    const spot = manual ?? s;
+    const key = `${spot.lat.toFixed(4)},${spot.lon.toFixed(4)}`;
     const kept = byCoord.get(key);
-    if (!kept || s.slug.length < kept.slug.length) byCoord.set(key, s);
+    if (!kept || spot.slug.length < kept.slug.length) byCoord.set(key, spot);
+  }
+  // Käsitsi kirjed, mida ristlus üldse ei leidnud, lisame ikka.
+  for (const m of MANUAL_SPOTS) {
+    if (![...byCoord.values()].some((s) => s.slug === m.slug)) {
+      byCoord.set(`${m.lat.toFixed(4)},${m.lon.toFixed(4)}`, m);
+    }
   }
   const unique = [...byCoord.values()];
   if (unique.length < spots.length) {
