@@ -111,7 +111,7 @@ export function updateStations(
       minzoom: 7,
       layout: {
         'text-field': ['get', 'label'],
-        'text-font': ['Noto Sans Bold'],
+        'text-font': ['Open Sans Bold'],
         'text-size': [
           'interpolate', ['linear'], ['zoom'],
           7, 11,

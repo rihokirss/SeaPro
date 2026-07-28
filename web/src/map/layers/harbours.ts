@@ -101,7 +101,7 @@ export function updateHarbours(map: MapLibreMap, list: Harbour[]): void {
         minzoom: 10,
         layout: {
           'text-field': ['get', 'name'],
-          'text-font': ['Noto Sans Regular'],
+          'text-font': ['Open Sans Regular'],
           'text-size': 11,
           'text-offset': [0, 1.2],
           'text-anchor': 'top',

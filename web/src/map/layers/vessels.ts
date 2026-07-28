@@ -200,7 +200,7 @@ function ensureIconLayers(map: MapLibreMap): void {
       minzoom: 11,
       layout: {
         'text-field': ['get', 'name'],
-        'text-font': ['Noto Sans Regular'],
+        'text-font': ['Open Sans Regular'],
         'text-size': 11,
         'text-offset': [0, 1.1],
         'text-anchor': 'top',

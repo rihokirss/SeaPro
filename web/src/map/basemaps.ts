@@ -124,6 +124,15 @@ export function baseStyle(): StyleSpecification {
   return {
     version: 8,
     // Ilma glyphs'ita ei renderdu ükski tekstisilt (jaamanimed, laevanimed).
+    //
+    // Fondinimi peab olema selline, mida SEE server tegelikult pakub. Puuduva
+    // fondi korral ei vasta ta 404-ga, vaid annab HTML-vealehe staatusega 200;
+    // MapLibre üritab seda protobuf'ina parsida ja vuliseb konsooli iga
+    // koodipunkti kohta hoiatuse "Unimplemented type: 4". Sildid joonistuvad
+    // siis brauseri varufondiga, seega viga on nähtav ainult konsoolis.
+    //
+    // Kontrollitud olemasolevad: Open Sans Regular / Bold / Semibold,
+    // Metropolis Regular. "Noto Sans" siin EI ole — just seda me varem küsisime.
     glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
     sources: {},
     layers: [
