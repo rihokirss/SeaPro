@@ -34,28 +34,39 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
     variable: 'wind_speed',
     labelKey: 'var.wind_speed',
     unit: 'm/s',
-    // Astmed järgivad Beauforti piire, nii et kaardi värv ja Bft-number
-    // tähendavad sama asja.
-    //
-    // Läbipaistvus kasvab koos tuulega, aga algab NÄHTAVAST tasemest.
-    //
-    // Esimene katse algas alfaga 40/255 mõttega, et tuulevaikne meri peab
-    // kaardi (faarvaatrid, sügavused, märgid) vabaks jätma. Praktikas
-    // tähendas see, et Läänemere tavalise 1–3 m/s juures polnud välja üldse
-    // näha ja kiht paistis katki. Nõrga tuule alumine ots on nüüd selgelt
-    // nähtav ja kasvab tormiks peaaegu läbipaistmatuks.
+    /**
+     * Windfinderi palett.
+     *
+     * Varem oli siin Beauforti-põhine hele-sinisest lillani skaala. See oli
+     * loogiline, aga kaardil kahvatu: Läänemere tavaline 2–7 m/s mahtus
+     * mõne lähestikuse sinaka-rohelise tooni sisse ja tuulevälja muster ei
+     * olnud pilguga loetav.
+     *
+     * Windfinderi skaala läheb LILLAST (0) läbi sinise, tsüaani, rohelise,
+     * kollase ja oranži TUMEPUNASENI ning lõpeb magentaga. Kogu spekter
+     * kulub ära juba nõrga tuule juures, seega väikesed erinevused paistavad
+     * kohe välja. Väärtused on nende legendi sõlmeastmed teisendatuna m/s-i
+     * (1 kt = 0.514444 m/s), värvid nende enda gradiendist loetud.
+     *
+     * Alfa hoiab peaaegu ühtlaselt kõrget taset — need toonid on juba
+     * küllastunud ja varasem "nõrk tuul = kahvatu" reegel töötas skaala vastu.
+     */
     stops: [
-      s(0, 150, 205, 230, 125),
-      s(3.4, 96, 186, 214, 150),
-      s(5.5, 63, 181, 156, 170),
-      s(8.0, 92, 191, 106, 185),
-      s(10.8, 168, 201, 68, 200),
-      s(13.9, 232, 185, 60, 215),
-      s(17.2, 239, 143, 52, 225),
-      s(20.8, 230, 97, 47, 235),
-      s(24.5, 212, 53, 53, 240),
-      s(28.5, 184, 40, 95, 245),
-      s(32.7, 102, 38, 143, 250),
+      s(0.0, 150, 0, 254, 190), //  0 kt
+      s(1.54, 100, 0, 254, 195), //  3 kt
+      s(3.6, 0, 50, 254, 200), //  7 kt
+      s(5.66, 0, 150, 254, 205), // 11 kt
+      s(7.72, 0, 230, 240, 210), // 15 kt
+      s(9.77, 17, 212, 17, 215), // 19 kt
+      s(11.83, 0, 250, 0, 220), // 23 kt
+      s(13.89, 254, 254, 0, 225), // 27 kt
+      s(15.95, 254, 200, 0, 228), // 31 kt
+      s(18.01, 254, 150, 0, 231), // 35 kt
+      s(20.06, 230, 100, 0, 234), // 39 kt
+      s(22.12, 200, 50, 29, 237), // 43 kt
+      s(24.18, 170, 0, 29, 240), // 47 kt — tumepunane
+      s(26.24, 200, 0, 100, 243), // 51 kt
+      s(27.27, 254, 0, 150, 246), // 53 kt
     ],
   },
 
