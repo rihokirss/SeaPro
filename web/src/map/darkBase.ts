@@ -30,12 +30,29 @@ import type { LayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
 
 const SOURCE_ID = 'ofm-dark';
 
-/** Maa. Heledam kui vesi — see ongi kogu mõte. */
-const LAND = '#2e3d47';
+/**
+ * Maa. Heledam kui vesi — see ongi kogu mõte.
+ *
+ * Väärtus on valitud KONTRASTI järgi, mis jääb alles PÄRAST valevärvi-välja
+ * pealekandmist, mitte selle järgi, kuidas paljas aluskaart välja näeb.
+ * Väli on ~0.75 läbipaistmatu, seega aluskaardist jõuab pilti ainult veerand
+ * ja algne #2e3d47 (heledus 58) andis nõrga tuule alal maa ja vee vaheks
+ * kõigest ~10 heledusühikut — rannajoon kadus ära.
+ *
+ * Proovitud sai ka teist teed: langetada kogu välja alfat 0.75 -> 0.55. See
+ * andis arvutatult vahe 17.5, aga ekraanil polnud vahet praktiliselt näha ja
+ * hinnaks oli kogu värviskaala nõrgenemine. Maa heledamaks tegemine annab
+ * sama kontrasti, ilma et väli midagi kaotaks.
+ */
+const LAND = '#4a6070';
 /** Vesi. Nii tume, et küllastunud valevärvi-väli loeks selle peal selgelt. */
 const WATER = '#0a151c';
-/** Muulid, kaid, lainemurdjad — sadama loetavuse jaoks olulisim joonestik. */
-const PIER = '#46586485';
+/**
+ * Muulid, kaid, lainemurdjad — sadama loetavuse jaoks olulisim joonestik.
+ * Peab olema maast HELEDAM: muul algab kaldalt ja peab sealt eristuma, mitte
+ * maasse ära kaduma.
+ */
+const PIER = '#8ea6b6c0';
 
 export const DARK_BASE_LAYER_IDS = [
   'dark-land',
@@ -90,7 +107,8 @@ function layers(): LayerSpecification[] {
       source: SOURCE_ID,
       'source-layer': 'building',
       minzoom: 14,
-      paint: { 'fill-color': '#3a4b57', 'fill-opacity': 0.75 },
+      // Samuti maast heledam, muidu loeksid hooned aukudena.
+      paint: { 'fill-color': '#63798a', 'fill-opacity': 0.8 },
     },
   ];
 }

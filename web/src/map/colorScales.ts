@@ -21,6 +21,12 @@ import type { Variable } from '@seapro/shared';
  *
  * Nähtavus on tahtlikult tagurpidi: udu saab täisintensiivsuse ja hea
  * nähtavus kaob ära, sest kiht on hoiatus, mitte kirjeldus.
+ *
+ * Ühist läbipaistvuse kordajat SIIN EI OLE, kuigi see sai proovitud. Nõrga
+ * tuule lilla ja tume vesi on tume tumedal, seega alfa langetamine 0.75 -> 0.55
+ * andis arvutatult maa/vee kontrastiks 9.8 -> 17.5 ühikut, aga ekraanil polnud
+ * vahet praktiliselt näha. Aluskaardi MAA heledus on tõhusam hoob ja ei
+ * nõrgesta värvi — vt `darkBase.ts`.
  */
 
 export interface ColorStop {
@@ -232,6 +238,7 @@ export const COLOR_SCALES: Record<string, ColorScale> = {
 export const SCALAR_FIELDS = Object.keys(COLOR_SCALES) as Variable[];
 
 /** Lineaarne interpolatsioon skaalal. Väljaspool piire klammerdub otstesse. */
+
 export function sampleScale(scale: ColorScale, value: number): [number, number, number, number] {
   const stops = scale.stops;
   if (scale.transparentBelow !== undefined && value < scale.transparentBelow) {
