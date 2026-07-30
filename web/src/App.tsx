@@ -784,10 +784,7 @@ export function App() {
 
   const goTo = useCallback((lat: number, lon: number, zoom = 11) => {
     mapRef.current?.easeTo({ center: [lon, lat], zoom });
-    // Kasutaja hüppas mujale — lõpeta enda asukoha järgimine, muidu kaart
-    // hüppaks järgmise GPS-fixi peale kohe tagasi.
-    geo.setFollowMe(false);
-  }, [geo]);
+  }, []);
 
   const i18nValue = useMemo(() => ({ lang, t, setLang }), [lang, t, setLang]);
 
@@ -838,7 +835,6 @@ export function App() {
           zoom={savedView?.zoom ?? config?.defaultZoom ?? 7}
           activeOverlays={layers.overlays}
           ownPosition={geo.position}
-          followMe={geo.followMe}
           onReady={handleReady}
           onMoveEnd={handleMoveEnd}
           onPick={handlePick}

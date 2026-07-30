@@ -829,9 +829,15 @@ textarea {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Punktiprognoos elab ajariba kohal, mitte selle peal. Mõlemad on kaardi
+     suhtes absolute-positsiooniga, seega ei lükka nad teineteist tavavoo
+     kaudu ise eest ära. */
+  bottom: calc(var(--timebar-h) + var(--safe-bottom));
   z-index: 22;
-  max-height: 74vh;
+  max-height: min(
+    74vh,
+    calc(100vh - var(--timebar-h) - var(--safe-top) - var(--safe-bottom) - var(--s4))
+  );
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -841,12 +847,25 @@ textarea {
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   box-shadow: var(--shadow-lg);
   transform: translateY(102%);
-  transition: transform 0.3s var(--ease);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.3s var(--ease),
+    opacity 0.2s ease,
+    visibility 0s linear 0.3s;
   will-change: transform;
 }
 
 .sheet.is-open {
   transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 0.3s var(--ease),
+    opacity 0.2s ease,
+    visibility 0s;
 }
 
 .sheet__grip {

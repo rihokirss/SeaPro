@@ -14,7 +14,6 @@ export interface MapViewProps {
   /** Millised overlay-kihid on sisse lülitatud. */
   activeOverlays: string[];
   ownPosition: Position | null;
-  followMe: boolean;
   onReady(map: MapLibreMap): void;
   onMoveEnd(bbox: [number, number, number, number], zoom: number): void;
   onPick(lat: number, lon: number): void;
@@ -72,7 +71,6 @@ export function MapView({
   zoom,
   activeOverlays,
   ownPosition,
-  followMe,
   onReady,
   onMoveEnd,
   onPick,
@@ -280,21 +278,6 @@ export function MapView({
         : [],
     });
   }, [ownPosition, styleReady]);
-
-  // Esimene GPS-fix tsentreerib kaardi. Edaspidi ainult siis, kui kasutaja
-  // pole vahepeal ise kaarti liigutanud (followMe).
-  const centredOnce = useRef(false);
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ownPosition || !followMe) return;
-
-    if (!centredOnce.current) {
-      centredOnce.current = true;
-      map.easeTo({ center: [ownPosition.lon, ownPosition.lat], zoom: Math.max(map.getZoom(), 11) });
-    } else {
-      map.easeTo({ center: [ownPosition.lon, ownPosition.lat], duration: 600 });
-    }
-  }, [ownPosition, followMe]);
 
   return <div ref={container} className="map-container" />;
 }
