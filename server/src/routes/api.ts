@@ -115,6 +115,38 @@ function snapBbox([south, west, north, east]: [number, number, number, number]):
   ];
 }
 
+/**
+ * Punktipäringu koordinaadi samm.
+ *
+ * Pikkuskraadi samm on kahekordne samal põhjusel mis võrgustikul: Läänemere
+ * laiuskraadidel on pikkuskraad ~2x kitsam, seega annab 0.05/0.1 kilomeetrites
+ * ligikaudu ruudu (~5.6 km x ~5.7 km 59°N-il).
+ */
+const POINT_SNAP_LAT = 0.05;
+const POINT_SNAP_LON = 0.1;
+
+/**
+ * Kleebib klikitud punkti jämedale võrele.
+ *
+ * Miks: `/api/point` vahemäluvõti sisaldab koordinaati täpselt sellisena, nagu
+ * see päringusse läks (klient saadab 4 kohta ehk ~11 m). Ilma kleepimiseta on
+ * PRAKTILISELT IGA klikk uus võti ja uus kutse Open-Meteole — ka siis, kui
+ * kasutaja klikib sama lahe peale kümme korda järjest.
+ *
+ * Miks see andmeid ei riku: Open-Meteo ümardab niikuinii mudeli lahtrini
+ * (ICON-EU ~7 km, GFS ~25 km) — kaks klikki paarisaja meetri kaugusel annavad
+ * juba praegu identsed arvud, ainult kaks eri hinda. Kleepimise suurim nihe on
+ * pool sammu ehk ~4 km diagonaalis, mis jääb peenima mudeli lahtri sisse.
+ *
+ * Kleebitakse AINULT päringu koordinaat. Vastuses `lat`/`lon` jäävad kasutaja
+ * omaks, et UI näitaks kohta, kuhu ta tegelikult klikkis.
+ */
+export function snapPoint(lat: number, lon: number): { lat: number; lon: number } {
+  const snap = (v: number, step: number): number =>
+    Number((Math.round(v / step) * step).toFixed(4));
+  return { lat: snap(lat, POINT_SNAP_LAT), lon: snap(lon, POINT_SNAP_LON) };
+}
+
 /** Kleebib aja täistunnile — prognoosid ongi tunnisammuga. */
 function snapHour(iso: string): string {
   const d = new Date(iso);
@@ -178,19 +210,28 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const hours = Math.min(240, Math.max(1, Number(q.hours) || 72));
     const variables = parseVariables(q.vars);
     const models = parseList(q.models);
+    // Lainemudel on eraldi parameeter, sest mere-API-l on oma mudelinimed —
+    // atmosfäärimudeli ID sinna saates tuleb 200 täis nulle.
+    const waveModel = typeof q.waveModel === 'string' && q.waveModel ? q.waveModel : undefined;
+
+    // Kleebime enne katvuse kontrolli, et kontroll käiks sama punkti kohta,
+    // mille me tegelikult alt küsime.
+    const snapped = snapPoint(lat, lon);
 
     const requested = parseList(q.providers);
     const providers = (requested
       ? requested.map(getProvider).filter((p): p is NonNullable<typeof p> => !!p)
       : enabledProviders()
-    ).filter((p) => coversPoint(p, lat, lon));
+    ).filter((p) => coversPoint(p, snapped.lat, snapped.lon));
 
     const series: TimeSeries[] = [];
     const errors: ProviderError[] = [];
 
     // Iga provider eraldi — ühe kukkumine ei tohi kogu vastust nurjata.
     const results = await Promise.allSettled(
-      providers.map((p) => p.point({ lat, lon, hours, variables, models })),
+      providers.map((p) =>
+        p.point({ lat: snapped.lat, lon: snapped.lon, hours, variables, models, waveModel }),
+      ),
     );
 
     results.forEach((res, i) => {
@@ -229,6 +270,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const variables = parseVariables(q.vars) ?? (['wind_speed', 'wind_dir'] as Variable[]);
     const steps = Math.min(16, Math.max(2, Number(q.steps) || 10));
     const modelId = typeof q.model === 'string' ? q.model : undefined;
+    const waveModelId = typeof q.waveModel === 'string' ? q.waveModel : undefined;
 
     // Kleebime bbox'i ja aja jämedale ruudustikule.
     //
@@ -247,11 +289,11 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       if (wantDay) {
-        const frames = await provider.gridDay!({ bbox: snapped, steps, variables, time, modelId });
+        const frames = await provider.gridDay!({ bbox: snapped, steps, variables, time, modelId, waveModelId });
         reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
         return { frames };
       }
-      const frame = await provider.grid({ bbox: snapped, steps, variables, time, modelId });
+      const frame = await provider.grid({ bbox: snapped, steps, variables, time, modelId, waveModelId });
       reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
       return frame;
     } catch (err) {

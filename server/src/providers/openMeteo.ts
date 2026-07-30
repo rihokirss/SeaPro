@@ -31,21 +31,38 @@ const ATMO_VARS: Record<string, Variable> = {
   visibility: 'visibility',
 };
 
-const MARINE_VARS: Record<string, Variable> = {
+/**
+ * Mere-API muutujad, mida LAINEmudelid oskavad.
+ *
+ * Eraldi loend, sest EWAM ja GWAM on puhtad lainemudelid: mõõdetuna annavad
+ * nad `sea_surface_temperature`, `sea_level_height_msl` ja hoovused nullina.
+ * Kui lainemudel läheks kaasa ka nendele väljadele, kaoks meretemperatuuri- või
+ * hoovusekiht ekraanilt kohe, kui kasutaja lainemudeli valib.
+ */
+const WAVE_VARS: Record<string, Variable> = {
   wave_height: 'wave_height',
   wave_direction: 'wave_dir',
   wave_period: 'wave_period',
   swell_wave_height: 'swell_height',
   swell_wave_direction: 'swell_dir',
   swell_wave_period: 'swell_period',
+};
+
+/** Mere-API ülejäänud väljad — need tulevad alati `best_match`-ist. */
+const OCEAN_VARS: Record<string, Variable> = {
   sea_surface_temperature: 'sea_temp',
   sea_level_height_msl: 'sea_level',
   ocean_current_velocity: 'current_speed',
   ocean_current_direction: 'current_dir',
 };
 
+const MARINE_VARS: Record<string, Variable> = { ...WAVE_VARS, ...OCEAN_VARS };
+
+const WAVE_VARIABLE_SET = new Set<Variable>(Object.values(WAVE_VARS));
+
 const ATMO_BY_VARIABLE = invert(ATMO_VARS);
 const MARINE_BY_VARIABLE = invert(MARINE_VARS);
+const OCEAN_BY_VARIABLE = invert(OCEAN_VARS);
 
 function invert(map: Record<string, Variable>): Partial<Record<Variable, string>> {
   const out: Partial<Record<Variable, string>> = {};
@@ -69,10 +86,20 @@ const DEFAULT_MODELS = ['best_match'];
 
 /** Lainemudelid on eraldi API-s ja eraldi nimedega. */
 const WAVE_MODELS = [
-  { id: 'best_match', label: 'Automaatne' },
-  { id: 'ewam', label: 'DWD EWAM', note: '5 km, Euroopa rannikumered' },
+  { id: 'ewam', label: 'DWD EWAM', note: '5 km, Euroopa rannikumered — parim Läänemerel' },
+  { id: 'best_match', label: 'Automaatne', note: 'Open-Meteo valik (Läänemerel MFWAM, ~8 km)' },
   { id: 'gwam', label: 'DWD GWAM', note: '25 km, globaalne' },
 ] as const;
+
+/**
+ * Vaikimisi lainemudel.
+ *
+ * EWAM, mitte `best_match`: mõõdetuna valib Open-Meteo Läänemerel MFWAM-i
+ * (~8 km globaalne mudel), kuigi EWAM on samas kohas 5 km ja tehtud just
+ * Euroopa rannikumerede jaoks. Lühikese ja liigendatud rannikuga Läänemerel
+ * on see vahe sisuline.
+ */
+const DEFAULT_WAVE_MODEL = 'ewam';
 
 interface OmResponse {
   latitude: number;
@@ -183,6 +210,74 @@ async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
   }
 }
 
+/** Kas vastuses on kas või üks päris arv? */
+function hasAnyValue(value: OmResponse | OmResponse[], apiVars: string[]): boolean {
+  for (const res of Array.isArray(value) ? value : [value]) {
+    const hourly = res.hourly;
+    if (!hourly) continue;
+    for (const name of apiVars) {
+      const col = hourly[name] as (number | null)[] | undefined;
+      if (col?.some((v) => v !== null && v !== undefined)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Merepäring koos varuvariandiga, kui lainemudel seda kohta ei kata.
+ *
+ * Miks seda vaja on: EWAM-i domeen on ebakorrapärane. Mõõdetuna katab see
+ * Läänemere, Põhjamere, Vahemere ja Musta mere, aga MITTE avaookeani.
+ *
+ * Domeenist väljas käitub API KAHTMOODI ja mõlemad tuleb katta:
+ *
+ *   üksikpunkt      -> 200 OK, iga väärtus null (`hourly_units` on "undefined")
+ *   mitu punkti     -> 400 {"reason":"No data is available for this location"}
+ *
+ * Esimene on salakavalam: vastus näeb terve välja ja meie nullipunktide filter
+ * (õigustatult olemas, muidu joonistaks valevärvi-kiht üle maismaa nulllaine)
+ * teeks kihi vaikselt tühjaks. Teine katkestaks paani ja jätaks samuti augu.
+ *
+ * Domeeni kasti me sisse ei kirjuta: see on ebakorrapärane ja proovipunktidest
+ * tuletatud piir oleks arvamus, mis vananeb esimese mudelivahetusega. Selle
+ * asemel küsime järele — kui valitud mudel ei anna ÜHTKI arvu või ütleb "pole
+ * andmeid", kordame `best_match`-iga, mis on globaalne.
+ *
+ * Hind: katmata alal kaks kutset ühe asemel. Kutsuja paneb tulemuse vahemällu
+ * VALITUD mudeli võtme alla, seega teine kutse tehakse tunnis üks kord paani
+ * kohta, mitte iga päringu peale.
+ */
+async function fetchMarineWithFallback(
+  url: string,
+  params: URLSearchParams,
+  apiVars: string[],
+  cost: number,
+): Promise<OmResponse | OmResponse[]> {
+  const retryWithBestMatch = (): Promise<OmResponse | OmResponse[]> => {
+    const fallback = new URLSearchParams(params);
+    fallback.delete('models');
+    return fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${fallback}`, cost);
+  };
+
+  if (!params.has('models')) {
+    return fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost);
+  }
+
+  let first: OmResponse | OmResponse[];
+  try {
+    first = await fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost);
+  } catch (err) {
+    // AINULT 400. 429 tähendab "liiga palju päringuid" — kordamine oleks siis
+    // täpselt vale ravim ja sööks eelarvet, mis on juba otsas. Kõik muu
+    // (võrk, 5xx) on ajutine ja peab kutsujani jõudma, mitte vaikselt teise
+    // mudeli vastu vahetuma.
+    if (!(err instanceof HttpError) || err.status !== 400) throw err;
+    return retryWithBestMatch();
+  }
+
+  return hasAnyValue(first, apiVars) ? first : retryWithBestMatch();
+}
+
 /**
  * Miks fikseeritud võre, mitte vaatest arvutatud võrgustik.
  *
@@ -265,6 +360,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     kind: 'forecast',
     variables: ALL_VARIABLES,
     models: [...MODELS],
+    waveModels: [...WAVE_MODELS],
     supportsGrid: true,
     supportsStations: false,
     forecastHours: 10 * 24,
@@ -279,7 +375,13 @@ export class OpenMeteoProvider implements WeatherProvider {
     const realModels = models.filter((m) => m !== 'best_match');
 
     const wantsAtmo = wanted.some((v) => ATMO_BY_VARIABLE[v]);
-    const wantsMarine = wanted.some((v) => MARINE_BY_VARIABLE[v]);
+    // Meri jaguneb kaheks, sest lainemudel kehtib ainult lainetele: EWAM ja
+    // GWAM annavad meretemperatuuri, veetaseme ja hoovused nullina. Üks päring
+    // kogu merekomplekti peale tähendaks, et lainemudeli valik kustutaks
+    // graafikult meretemperatuuri.
+    const wantsWaves = wanted.some((v) => WAVE_VARIABLE_SET.has(v));
+    const wantsOcean = wanted.some((v) => OCEAN_BY_VARIABLE[v]);
+    const waveModel = q.waveModel ?? DEFAULT_WAVE_MODEL;
 
     // Küsime KÕIK selle API muutujad, mitte ainult praegu vajalikud.
     //
@@ -295,17 +397,21 @@ export class OpenMeteoProvider implements WeatherProvider {
     const atmoVars = useAllVars
       ? Object.keys(ATMO_VARS)
       : wanted.map((v) => ATMO_BY_VARIABLE[v]).filter((x): x is string => !!x);
-    const marineVars = useAllVars
-      ? Object.keys(MARINE_VARS)
-      : wanted.map((v) => MARINE_BY_VARIABLE[v]).filter((x): x is string => !!x);
+    // Mere pooled saavad KUMBKI oma täiskomplekti. Kaal on kummalgi 1
+    // (6 ja 4 muutujat, mõlemad alla kümne), seega kaks kutset ühe asemel
+    // maksavad kokku 2 — merepäringute kogukulu on niikuinii ühekohaline arv,
+    // ja vastu saame lainemudeli valiku, mis ei kustuta meretemperatuuri.
+    const waveVars = Object.keys(WAVE_VARS);
+    const oceanVars = Object.keys(OCEAN_VARS);
 
     // Atmosfäär ja meri on eri API-des — pärime paralleelselt ja liidame ajatelje järgi.
-    const [atmo, marine] = await Promise.all([
+    const [atmo, waves, ocean] = await Promise.all([
       wantsAtmo ? this.#fetchSeries(FORECAST_URL, q, atmoVars, models, ATMO_VARS) : [],
-      wantsMarine ? this.#fetchSeries(MARINE_URL, q, marineVars, ['best_match'], MARINE_VARS) : [],
+      wantsWaves ? this.#fetchSeries(MARINE_URL, q, waveVars, [waveModel], WAVE_VARS) : [],
+      wantsOcean ? this.#fetchSeries(MARINE_URL, q, oceanVars, ['best_match'], OCEAN_VARS) : [],
     ]);
 
-    return mergeByModel(atmo, marine, models);
+    return mergeByModel(atmo, mergeSteps(waves, ocean), models);
   }
 
   /** Üks tund. Ehitatud sama ööpäevase ploki pealt mis `gridDay`. */
@@ -353,6 +459,19 @@ export class OpenMeteoProvider implements WeatherProvider {
     const varMap = isMarine ? MARINE_VARS : ATMO_VARS;
     const byVariable = isMarine ? MARINE_BY_VARIABLE : ATMO_BY_VARIABLE;
 
+    // Meri saab lainemudeli, atmosfäär atmosfäärimudeli. Neid ei tohi segada:
+    // `models=icon_eu` mere-API-le annab 200 täis nulle ehk tühja kihi.
+    //
+    // Ja lainemudel kehtib ainult LAINEväljadele — meretemperatuur, veetase ja
+    // hoovused tulevad EWAM/GWAM-iga samuti nullina, seega neile jääb
+    // `best_match`.
+    const wavesOnly = isMarine && q.variables.every((v) => WAVE_VARIABLE_SET.has(v));
+    const modelId = isMarine
+      ? wavesOnly
+        ? q.waveModelId ?? DEFAULT_WAVE_MODEL
+        : undefined
+      : q.modelId;
+
     const wantedApiVars = q.variables.map((v) => byVariable[v]).filter((x): x is string => !!x);
     if (wantedApiVars.length === 0) return [];
 
@@ -363,8 +482,15 @@ export class OpenMeteoProvider implements WeatherProvider {
     // Erand: kui kasutaja on valinud KONKREETSE mudeli, jääme küsitud muutujate
     // juurde. Kõik mudelid ei paku kõiki välju (nt nähtavust) ja puuduv muutuja
     // annab 400 — terve kaardikiht kaoks selle asemel, et üks väli puududa.
-    const useAllVars = !q.modelId || q.modelId === 'best_match';
-    const apiVars = useAllVars ? Object.keys(varMap) : wantedApiVars;
+    //
+    // Merel on "kõik" tingimuslik: lainemudeliga küsime ainult lainevälju,
+    // sest ülejäänud neli tuleksid nullina ja ainult raiskaksid vastuse mahtu.
+    const useAllVars = !modelId || modelId === 'best_match';
+    const apiVars = useAllVars
+      ? Object.keys(varMap)
+      : isMarine
+        ? Object.keys(WAVE_VARS)
+        : wantedApiVars;
 
     // Mitmepäevane plokk, mis sisaldab küsitud tundi. Joondus on UTC-päeva
     // piiril ja ploki algus on TÄNANE kesköö — nii langevad "täna", "homme" ja
@@ -394,7 +520,7 @@ export class OpenMeteoProvider implements WeatherProvider {
           url,
           apiVars,
           isMarine,
-          modelId: q.modelId,
+          modelId,
           spacing,
           tile,
           blockStart,
@@ -438,7 +564,9 @@ export class OpenMeteoProvider implements WeatherProvider {
 
     const frames: GridFrame[] = hourIndexes.map((i) => ({
       providerId: this.caps.id,
-      modelId: q.modelId,
+      // TEGELIK mudel, mitte küsitud: merel on see lainemudel, mitte `q.modelId`.
+      // Kaadri silt peab ütlema, mida kasutaja päriselt vaatab.
+      modelId,
       time: normalizeTime(times[i]!),
       variables: q.variables,
       points: [] as GridPoint[],
@@ -528,7 +656,9 @@ export class OpenMeteoProvider implements WeatherProvider {
       days: BLOCK_DAYS,
     });
     const { value } = await cache.get(key, config.ttl.openMeteo, () =>
-      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
+      isMarine
+        ? fetchMarineWithFallback(url, params, apiVars, cost)
+        : fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
     );
     return { lats, lons, value };
   }
@@ -568,7 +698,9 @@ export class OpenMeteoProvider implements WeatherProvider {
       days: POINT_FORECAST_DAYS + 1,
     });
     const { value } = await cache.get(key, config.ttl.openMeteo, () =>
-      fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
+      url === MARINE_URL
+        ? fetchMarineWithFallback(url, params, apiVars, cost)
+        : fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
     );
 
     const res = Array.isArray(value) ? value[0] : value;
@@ -613,6 +745,30 @@ export class OpenMeteoProvider implements WeatherProvider {
  * Merevälju on ainult üks komplekt (lainemudelid on atmosfäärimudelitest eraldi),
  * seega kanname sama merearvutuse kõigile mudelireadadele.
  */
+/**
+ * Liidab kaks ajarida ühte, ajatempli järgi.
+ *
+ * Vaja on seda, sest meri tuleb nüüd KAHE päringuna: laineväljad valitud
+ * lainemudelist, meretemperatuur/veetase/hoovused `best_match`-ist. Graafiku
+ * jaoks peavad need olema üks seeria, muidu näeks kasutaja sama punkti kohta
+ * kahte rida.
+ */
+function mergeSteps(primary: TimeSeries[], secondary: TimeSeries[]): TimeSeries[] {
+  if (primary.length === 0) return secondary;
+  if (secondary.length === 0) return primary;
+
+  const byTime = new Map<string, TimeStep['values']>();
+  for (const step of secondary[0]!.steps) byTime.set(step.time, step.values);
+
+  return primary.map((series) => ({
+    ...series,
+    steps: series.steps.map((step) => {
+      const extra = byTime.get(step.time);
+      return extra ? { time: step.time, values: { ...step.values, ...extra } } : step;
+    }),
+  }));
+}
+
 function mergeByModel(atmo: TimeSeries[], marine: TimeSeries[], models: string[]): TimeSeries[] {
   if (atmo.length === 0) return marine;
   if (marine.length === 0) return atmo;

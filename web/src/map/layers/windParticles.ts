@@ -37,8 +37,39 @@ const TRAIL_FADE = 0.96;
  * aeglaselt, et animatsioon paistaks seisvat. Väärtus on valitud silma järgi:
  * piisavalt, et voolu suund oleks kohe loetav, aga mitte nii kiiresti, et
  * pilt muutuks rahutuks ja kaardi lugemist segaks.
+ *
+ * Väärtus on kalibreeritud `REFERENCE_ZOOM`-i juures: 10 m/s tuul liigub seal
+ * ~30 px/s. Enne suumikompensatsiooni pidi see olema tagasihoidlikum (0.18),
+ * sest sisse suumides läks tempo niikuinii käest ära — nüüd, kui kiirus on
+ * igal suumil ühesugune, kannatab põhitempo olla tunduvalt elavam.
  */
-const SPEED_FACTOR = 0.18;
+const SPEED_FACTOR = 0.5;
+
+/**
+ * Suumitase, mille juures `SPEED_FACTOR` on silma järgi paika sätitud.
+ *
+ * Sama mis `DEFAULT_ZOOM` serveris — see ongi vaade, mida enamik kasutajaid
+ * kõige rohkem näeb, ja tempo on selle järgi valitud.
+ */
+const REFERENCE_ZOOM = 7;
+
+/**
+ * Kompenseerib suumi mõju animatsiooni tempole.
+ *
+ * Probleem: `SPEED_FACTOR` annab sammu KRAADIDES, aga osake joonistatakse
+ * PIKSLITES. Üks kraad on aga iga suumitasemega kaks korda rohkem piksleid,
+ * seega kahekordistus animatsiooni kiirus iga sisse suumimise sammuga. Vaikevaates
+ * (z7) oli tempo paras, z12 juures juba 32x kiirem — pilt muutus rahutuks
+ * täpselt siis, kui kasutaja tahab detaili vaadata.
+ *
+ * Lahendus: jaga samm suumi skaalaga, nii et EKRAANIL liiguvad osakesed
+ * ühtlase tempoga sõltumata suumist. Animatsioon näeb igal tasemel välja
+ * täpselt nagu vaikevaates.
+ *
+ * Väärtus 1 = täielik kompensatsioon. Väiksem (nt 0.85) jätaks sisse suumides
+ * veidi kiirenemist alles, kui see kunagi soovitud on.
+ */
+const ZOOM_COMPENSATION = 1;
 
 interface Particle {
   x: number;
@@ -178,6 +209,9 @@ export class WindParticleLayer {
     ctx.lineWidth = 1.4;
     ctx.lineCap = 'round';
 
+    // Üks kord kaadris, mitte iga osakese kohta — suum on kogu kaadri jaoks sama.
+    const zoomScale = 2 ** ((this.#map.getZoom() - REFERENCE_ZOOM) * ZOOM_COMPENSATION);
+
     for (const p of this.#particles) {
       p.age++;
       if (p.age > MAX_AGE) {
@@ -197,7 +231,7 @@ export class WindParticleLayer {
       // punkti, et nihe oleks õige ka kaardi servades, kus Mercatori venitus
       // on tugev.
       const rad = (sample.bearing * Math.PI) / 180;
-      const stepDeg = (sample.speed * SPEED_FACTOR) / 3600;
+      const stepDeg = (sample.speed * SPEED_FACTOR) / 3600 / zoomScale;
       const next = this.#map.project([
         ll.lng + (stepDeg * Math.sin(rad)) / Math.cos((ll.lat * Math.PI) / 180),
         ll.lat + stepDeg * Math.cos(rad),

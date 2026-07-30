@@ -66,7 +66,14 @@ export const api = {
   providers: (signal?: AbortSignal) => get<ProviderCapabilities[]>('/api/providers', signal),
 
   point(
-    opts: { lat: number; lon: number; hours?: number; providers?: string[]; models?: string[] },
+    opts: {
+      lat: number;
+      lon: number;
+      hours?: number;
+      providers?: string[];
+      models?: string[];
+      waveModel?: string;
+    },
     signal?: AbortSignal,
   ): Promise<PointResult> {
     const p = new URLSearchParams({
@@ -76,6 +83,7 @@ export const api = {
     });
     if (opts.providers?.length) p.set('providers', opts.providers.join(','));
     if (opts.models?.length) p.set('models', opts.models.join(','));
+    if (opts.waveModel) p.set('waveModel', opts.waveModel);
     return get<PointResult>(`/api/point?${p}`, signal);
   },
 
@@ -120,6 +128,7 @@ export const api = {
       time: string;
       provider?: string;
       model?: string;
+      waveModel?: string;
     },
     signal?: AbortSignal,
   ): Promise<{ frames: GridFrame[] }> {
@@ -132,6 +141,7 @@ export const api = {
     });
     if (opts.provider) p.set('provider', opts.provider);
     if (opts.model) p.set('model', opts.model);
+    if (opts.waveModel) p.set('waveModel', opts.waveModel);
     return get<{ frames: GridFrame[] }>(`/api/grid?${p}`, signal);
   },
 

@@ -9,6 +9,7 @@ import type {
   Variable,
   Vessel,
 } from '@seapro/shared';
+import { isWaveVariable } from '@seapro/shared';
 import { I18nContext, detectLang, makeTranslate, saveLang, type Lang } from './i18n';
 import { RateLimitedError, api, type AppConfig } from './lib/api';
 import { useGeolocation } from './lib/geolocation';
@@ -115,6 +116,7 @@ function fetchGridDay(opts: {
   vars: Variable[];
   time: Date;
   model: string;
+  waveModel?: string;
   onFrames(frames: GridFrame[]): void;
   onNotice(notice: { kind: 'rateLimited'; retryAfterSeconds: number } | { kind: 'error' } | null): void;
 }): () => void {
@@ -127,6 +129,7 @@ function fetchGridDay(opts: {
         vars: opts.vars,
         time: opts.time.toISOString(),
         model: opts.model === 'best_match' ? undefined : opts.model,
+        waveModel: opts.waveModel,
       },
       ac.signal,
     )
@@ -232,9 +235,10 @@ function useGridDays(params: {
   vars: Variable[];
   time: Date;
   model: string;
+  waveModel?: string;
   onNotice(notice: { kind: 'rateLimited'; retryAfterSeconds: number } | { kind: 'error' } | null): void;
 }): GridFrame[] {
-  const { bbox, vars, time, model, onNotice } = params;
+  const { bbox, vars, time, model, waveModel, onNotice } = params;
   const cache = useRef(new Map<string, GridFrame[]>());
   const [tick, bump] = useReducer((n: number) => n + 1, 0);
 
@@ -253,11 +257,13 @@ function useGridDays(params: {
     const base = timeRef.current.getTime();
     return DAY_OFFSETS.map(
       (d) =>
-        `${bboxKey}|${model}|${varsKey}|${new Date(base + d * DAY_MS).toISOString().slice(0, 10)}`,
+        `${bboxKey}|${model}|${waveModel ?? '-'}|${varsKey}|${new Date(base + d * DAY_MS)
+          .toISOString()
+          .slice(0, 10)}`,
     );
     // `time` asemel `dayKey`: täpne tund ei tohi võtmeid ümber arvutada.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bboxKey, model, varsKey, dayKey]);
+  }, [bboxKey, model, waveModel, varsKey, dayKey]);
 
   const wantedKey = wanted.join(';');
   const lastGood = useRef<GridFrame[]>([]);
@@ -285,6 +291,7 @@ function useGridDays(params: {
           vars,
           time: d,
           model,
+          waveModel,
           onFrames: (frames) => {
             cache.current.set(key, frames);
             /**
@@ -378,6 +385,11 @@ export function App() {
   const [providers, setProviders] = useState<ProviderCapabilities[]>([]);
   const [activeProviders, setActiveProviders] = useState<string[]>([]);
   const [activeModel, setActiveModel] = useState('best_match');
+  // Lainemudel on eraldi olek, mitte `activeModel` osa: mere-API-l on oma
+  // mudelinimed ja atmosfäärimudeli ID sinna saates tuleb 200 täis nulle ehk
+  // tühi kiht. Vaikeväärtuse annab server (EWAM) — 'best_match' siin
+  // tähendaks, et me kirjutaksime selle valiku üle.
+  const [activeWaveModel, setActiveWaveModel] = useState<string | undefined>(undefined);
 
   const [layers, setLayers] = useState<LayerState>(DEFAULT_LAYERS);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -516,11 +528,21 @@ export function App() {
     () => (fieldVar && fieldVar !== 'wind_speed' ? [fieldVar] : EMPTY_VARS),
     [fieldVar],
   );
+  /**
+   * Valevärvi-välja mudel.
+   *
+   * Lainevälja puhul EI tohi atmosfäärimudel kaasa minna: mere-API vastab
+   * `models=icon_eu` peale 200-ga, aga iga väärtus on null — kiht kaoks
+   * ekraanilt ilma ühegi veateateta. Saadame selle asemel lainemudeli ja
+   * jätame `model` automaatseks.
+   */
+  const fieldIsWave = fieldVar !== null && isWaveVariable(fieldVar);
   const fieldDayFrames = useGridDays({
     bbox: dataBbox,
     vars: fieldVars,
     time: selectedTime,
-    model: activeModel,
+    model: fieldIsWave ? 'best_match' : activeModel,
+    waveModel: fieldIsWave ? activeWaveModel : undefined,
     onNotice: setLayerNotice,
   });
 
@@ -720,6 +742,9 @@ export function App() {
           hours: FORECAST_HOURS,
           providers: activeProviders.length ? activeProviders : undefined,
           models: activeModel === 'best_match' ? undefined : [activeModel],
+          // Graafiku laineread peavad tulema samast mudelist mis kaardikiht,
+          // muidu näitaks popup ja kaart sama koha kohta eri arve.
+          waveModel: activeWaveModel,
         },
         ac.signal,
       )
@@ -732,7 +757,7 @@ export function App() {
         if (!ac.signal.aborted) setPointLoading(false);
       });
     return () => ac.abort();
-  }, [picked, activeProviders, activeModel, t]);
+  }, [picked, activeProviders, activeModel, activeWaveModel, t]);
 
   /**
    * Klikk tühjal merel.
@@ -896,6 +921,8 @@ export function App() {
           onProvidersChange={setActiveProviders}
           activeModel={activeModel}
           onModelChange={setActiveModel}
+          activeWaveModel={activeWaveModel}
+          onWaveModelChange={setActiveWaveModel}
           speedUnit={speedUnit}
           onSpeedUnitChange={changeSpeedUnit}
           theme={theme}

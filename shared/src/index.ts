@@ -36,6 +36,28 @@ export const VARIABLES = [
 
 export type Variable = (typeof VARIABLES)[number];
 
+/**
+ * Muutujad, mis tulevad LAINEmudelist.
+ *
+ * Miks eraldi loend: lainemudelid (DWD EWAM, GWAM) on puhtad lainemudelid —
+ * meretemperatuur, veetase ja hoovused tulevad neist nullina, kuigi need on
+ * samuti "mere" muutujad ja samast API-st. Lainemudeli valik tohib puudutada
+ * ainult neid välju; ülejäänud jäävad automaatvalikule.
+ */
+export const WAVE_VARIABLES = [
+  'wave_height',
+  'wave_max_height',
+  'wave_period',
+  'wave_dir',
+  'swell_height',
+  'swell_period',
+  'swell_dir',
+] as const satisfies readonly Variable[];
+
+export function isWaveVariable(v: Variable): boolean {
+  return (WAVE_VARIABLES as readonly Variable[]).includes(v);
+}
+
 /** SI-ühik, milles server iga muutujat tagastab. Ainult kuvamiseks/kontrolliks. */
 export const VARIABLE_UNITS: Record<Variable, string> = {
   wind_speed: 'm/s',
@@ -94,6 +116,15 @@ export interface ProviderCapabilities {
   variables: Variable[];
   /** Valitavad mudelid; puudub, kui providereil pole mudelivalikut. */
   models?: ProviderModel[];
+  /**
+   * Valitavad LAINEmudelid, kui allikal on merele oma mudelikomplekt.
+   *
+   * Eraldi väli, mitte `models` sisse segatud: Open-Meteo mere-API on eri host
+   * eri mudelinimedega ja atmosfäärimudeli ID sinna saates tuleb vastuseks
+   * 200 täis nulle — kiht kaob ekraanilt ilma veateateta. Kaks komplekti
+   * peavad seetõttu ka tüübitasemel lahus olema.
+   */
+  waveModels?: ProviderModel[];
   /** Kas provider oskab ühe päringuga mitut punkti (võrgustiku kiht). */
   supportsGrid: boolean;
   /** Kas provider pakub nimelisi mõõtejaamu/poisid. */

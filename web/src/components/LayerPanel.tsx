@@ -36,6 +36,9 @@ interface Props {
   onProvidersChange(next: string[]): void;
   activeModel: string;
   onModelChange(next: string): void;
+  /** `undefined` = serveri vaikevalik (EWAM). */
+  activeWaveModel: string | undefined;
+  onWaveModelChange(next: string): void;
   speedUnit: SpeedUnit;
   onSpeedUnitChange(next: SpeedUnit): void;
   theme: Theme;
@@ -100,6 +103,8 @@ export function LayerPanel({
   onProvidersChange,
   activeModel,
   onModelChange,
+  activeWaveModel,
+  onWaveModelChange,
   speedUnit,
   onSpeedUnitChange,
   theme,
@@ -123,7 +128,12 @@ export function LayerPanel({
 
   const forecastProviders = providers.filter((p) => p.kind === 'forecast');
   const observationProviders = providers.filter((p) => p.kind === 'observation');
-  const models = providers.find((p) => p.id === 'open-meteo')?.models ?? [];
+  const openMeteo = providers.find((p) => p.id === 'open-meteo');
+  const models = openMeteo?.models ?? [];
+  const waveModels = openMeteo?.waveModels ?? [];
+  // Server otsustab vaikimisi lainemudeli; kuni kasutaja pole valinud, näitame
+  // aktiivsena loendi esimest, mis ongi serveri vaikevalik.
+  const selectedWaveModel = activeWaveModel ?? waveModels[0]?.id;
 
   return (
     <>
@@ -262,6 +272,8 @@ export function LayerPanel({
             <section className="panel__section">
               <h3>{t('source.mapLayer')}</h3>
               <p className="panel__hint">{t('source.mapLayer.hint')}</p>
+
+              <h4 className="panel__subhead">{t('source.model.atmo')}</h4>
               <div className="chips">
                 {models.map((m) => (
                   <button
@@ -275,6 +287,31 @@ export function LayerPanel({
                   </button>
                 ))}
               </div>
+
+              {/*
+                Lained eraldi, sest need tulevad teisest API-st teiste
+                mudelinimedega. Ühte loendisse pandult valiks kasutaja
+                lainekihile atmosfäärimudeli ja kiht kaoks vaikselt ära.
+              */}
+              {waveModels.length > 0 ? (
+                <>
+                  <h4 className="panel__subhead">{t('source.model.wave')}</h4>
+                  <div className="chips">
+                    {waveModels.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className={`chip${selectedWaveModel === m.id ? ' is-active' : ''}`}
+                        onClick={() => onWaveModelChange(m.id)}
+                        title={m.note}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="panel__hint">{t('source.model.wave.hint')}</p>
+                </>
+              ) : null}
             </section>
           ) : null}
 

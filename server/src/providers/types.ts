@@ -15,6 +15,8 @@ export interface PointQuery {
   variables?: Variable[];
   /** Millised mudelid. Tühi = provideri vaikimisi valik. */
   models?: string[];
+  /** Lainemudel. Eraldi `models`-ist, sest mere-API-l on oma mudelinimed. */
+  waveModel?: string;
 }
 
 export interface GridQuery {
@@ -26,6 +28,13 @@ export interface GridQuery {
   /** ISO 8601 UTC ajahetk, mille kohta väli tahetakse. */
   time: string;
   modelId?: string;
+  /**
+   * Lainemudel merevälja jaoks.
+   *
+   * `modelId` EI kõlba mereväljale: see sisaldab atmosfäärimudeli ID-d
+   * (`icon_eu` jne), mille peale mere-API vastab 200-ga ja ainult nullidega.
+   */
+  waveModelId?: string;
 }
 
 /**

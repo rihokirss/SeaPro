@@ -54,9 +54,21 @@ Kaitsed:
    `providers/openMeteo.ts`). Sama kaal, kordades rohkem vahemälu: ajaliuguri
    kerimine, järgmiste päevade eelhaare ja kihi vahetamine on pärast esimest
    tõmmet tasuta
-4. `rateLimit.ts` peatab päringu ise 3000 kutse juures tunnis ja 8000 juures
+4. klikitud punkt kleebitakse omakorda võrele 0.05°/0.1°
+   (`routes/api.ts:snapPoint`) — Open-Meteo ümardab niikuinii mudeli lahtrini
+   (ICON-EU ~7 km), seega kordusklikid samas lahes on tasuta. Vastuses
+   `lat`/`lon` jäävad kasutaja omaks
+5. `rateLimit.ts` peatab päringu ise 3000 kutse juures tunnis ja 8000 juures
    ööpäevas — päevane piir on praktikas see, mis maksma jääb
-5. prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved
+6. lainekiht kasutab **lainemudelit** (`waveModel`, vaikimisi DWD EWAM 5 km),
+   mitte atmosfäärimudelit. Need on eri komplektid: `models=icon_eu`
+   mere-API-le annab üksikpunktil 200 täis nulle ja mitmepunktilisel 400
+   ("No data is available for this location") — mõlemal juhul tühja kihi.
+   Lainemudel kehtib AINULT lainemuutujatele (`WAVE_VARIABLES`); meretemp,
+   veetase ja hoovused tulevad alati `best_match`-ist, sest EWAM/GWAM neid ei
+   arvuta. EWAM-i domeenist väljas (avaookean) kordab server päringu
+   automaatselt `best_match`-iga — vt `fetchMarineWithFallback`
+7. prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved
    (`open-meteo`, `open-meteo-marine`) — tuulekihi limiit ei tohi lainekihti
    välja lülitada
 
