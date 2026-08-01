@@ -4,6 +4,7 @@ import { vessels } from './ais/registry.js';
 import { transpordiamet } from './ais/transpordiamet.js';
 import { config } from './config.js';
 import { listProviders } from './providers/registry.js';
+import { aisAtons } from './navigation/aisAton.js';
 
 interface Logger {
   info(msg: string): void;
@@ -73,7 +74,10 @@ function startAis(log: Logger): void {
   timers.push(poll);
 
   // Vananenud positsioonid kustuvad mälust, muidu kasvaks register piiramatult.
-  const prune = setInterval(() => vessels.prune(), 5 * 60 * 1000);
+  const prune = setInterval(() => {
+    vessels.prune();
+    aisAtons.prune();
+  }, 5 * 60 * 1000);
   prune.unref();
   timers.push(prune);
 
@@ -84,6 +88,7 @@ function startAis(log: Logger): void {
   }
 
   transpordiamet.start((msg) => log.info(msg));
+  aisAtons.start((msg) => log.info(msg));
 }
 
 export function stopBackgroundJobs(): void {
@@ -91,4 +96,5 @@ export function stopBackgroundJobs(): void {
   timers.length = 0;
   aisstream.stop();
   transpordiamet.stop();
+  aisAtons.stop();
 }

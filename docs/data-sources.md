@@ -338,6 +338,31 @@ kaart sadamas seisvat laeva 102-sõlmese kiirusega.
 
 ---
 
+## Navigatsiooniohutus ja ametlikud merendusobjektid
+
+Transpordiameti avalikud ArcGIS-teenused täiendavad merekaarti nelja valikulise
+andmerühmaga. `/api/navigation` võtab alati bbox'i ja `include` loendi, nii et
+server ei tõmba ega saada väljalülitatud kihte.
+
+| Kiht | Allikas | Uuendamine |
+|---|---|---|
+| Navigatsioonihoiatused | `Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer`, kihid 7–9 | 2 min vahemälu; aegunud hoiatused filtreeritakse välja |
+| AIS navigatsioonimärgid | `AIS-aton-stream-out/StreamServer/subscribe` | püsiv WebSocket; klient küsib serveri registrit iga 30 s |
+| Vrakid | `HIS/HIS_avalik/MapServer`, kiht 7 | 24 h vahemälu |
+| Ametlikud laevateed ja püsi-, ujuv- ning hooajalised märgid | `Nutimeri/pohiandmed/MapServer`, kihid 0–3 | 24 h vahemälu |
+
+AIS AToN ühendatakse koordinaadi järgi sama füüsilise registrimärgiga; virtuaalne
+AIS-märk jääb alati eraldi. Ametlikud laevateed ja märgid võivad ENC merekaardi
+sisu dubleerida, mistõttu nende kiht on vaikimisi väljas. Hoiatused ja reaalaja
+AIS-märgid on vaikimisi sees.
+
+Sama Nutimeri teenuse sadamakiht 4 rikastab `/api/harbours` OSM-i kirjeid.
+Esmane ühendusvõti on normaliseeritud UN/LOCODE (`EE RST` = `EERST`), seejärel
+nimi ja asukoht. Nii jääb näiteks Ristna või Alliklepa kaardile ühe markerina:
+OSM-ist tulevad kontaktid ja teenused, ametlikust registrist süvis ja registrilink.
+
+---
+
 ## Kaardikihid
 
 Kõik ilma võtmeta. MapTiler/Mapbox on sihilikult VÄLDITUD, et rakendusel

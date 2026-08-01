@@ -17,6 +17,14 @@ import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
 import { searchPlaces } from '../search/photon.js';
 import {
+  fetchNavigationWarnings,
+  fetchOfficialHarbours,
+  fetchOfficialNavigation,
+  fetchWrecks,
+} from '../navigation/arcgis.js';
+import { aisAtons } from '../navigation/aisAton.js';
+import { mergeHarbours, mergeNavigationAids } from '../navigation/merge.js';
+import {
   coversPoint,
   enabledProviders,
   getProvider,
@@ -344,7 +352,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  /** Sadamad OpenStreetMapist. */
+  /** Sadamad OSM-ist, ametliku sadamaregistri väljadega rikastatult. */
   app.get('/api/harbours', async (req, reply) => {
     const q = req.query as Record<string, unknown>;
     const parts = String(q.bbox ?? '').split(',').map(Number);
@@ -352,10 +360,64 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'bbox peab olema "lõuna,lääs,põhi,ida"' });
     }
 
-    const harbours = await fetchHarbours(parts as [number, number, number, number]);
+    const bbox = parts as [number, number, number, number];
+    const [osmResult, officialResult] = await Promise.allSettled([
+      fetchHarbours(bbox),
+      fetchOfficialHarbours(bbox),
+    ]);
+    if (osmResult.status === 'rejected' && officialResult.status === 'rejected') {
+      throw osmResult.reason;
+    }
+    const harbours = mergeHarbours(
+      osmResult.status === 'fulfilled' ? osmResult.value : [],
+      officialResult.status === 'fulfilled' ? officialResult.value : [],
+    );
     // Sadamad ei liigu — laseme brauseril neid julgelt hoida.
     reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
     return { harbours };
+  });
+
+  /** Hoiatused, vrakid, ametlikud laevateed ja navigatsioonimärgid. */
+  app.get('/api/navigation', async (req, reply) => {
+    const q = req.query as Record<string, unknown>;
+    const parts = String(q.bbox ?? '').split(',').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+      return reply.code(400).send({ error: 'bbox peab olema "lõuna,lääs,põhi,ida"' });
+    }
+    const bbox = parts as [number, number, number, number];
+    const requested = new Set(parseList(q.include) ?? [
+      'warnings',
+      'wrecks',
+      'official',
+      'aids',
+    ]);
+    const wantWarnings = requested.has('warnings');
+    const wantWrecks = requested.has('wrecks');
+    const wantOfficial = requested.has('official');
+    const [warningResult, wreckResult, officialResult] = await Promise.allSettled([
+      wantWarnings ? fetchNavigationWarnings(bbox) : Promise.resolve([]),
+      wantWrecks ? fetchWrecks(bbox) : Promise.resolve([]),
+      wantOfficial ? fetchOfficialNavigation(bbox) : Promise.resolve({ aids: [], fairways: [] }),
+    ]);
+    const official = officialResult.status === 'fulfilled'
+      ? officialResult.value
+      : { aids: [], fairways: [] };
+
+    reply.header('Cache-Control', 'no-store');
+    return {
+      warnings: warningResult.status === 'fulfilled' ? warningResult.value : [],
+      wrecks: wreckResult.status === 'fulfilled' ? wreckResult.value : [],
+      fairways: official.fairways,
+      aids: mergeNavigationAids(
+        official.aids,
+        requested.has('aids') ? aisAtons.query(bbox) : [],
+      ),
+      errors: [warningResult, wreckResult, officialResult]
+        .map((result, index) => result.status === 'rejected'
+          ? ['warnings', 'wrecks', 'official'][index]
+          : null)
+        .filter(Boolean),
+    };
   });
 
   /** Trackid — liides on olemas, allikaid veel pole (Traccar / GPX tulevad hiljem). */

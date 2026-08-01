@@ -25,6 +25,10 @@ export interface LayerState {
   harbours: boolean;
   anchorages: boolean;
   placeLabels: boolean;
+  navigationWarnings: boolean;
+  navigationAids: boolean;
+  wrecks: boolean;
+  officialNavigation: boolean;
 }
 
 interface Props {
@@ -227,6 +231,27 @@ export function LayerPanel({
               checked={layers.placeLabels}
               onChange={(v) => set({ placeLabels: v })}
               label={t('layer.placeLabels')}
+            />
+            <Toggle
+              checked={layers.navigationWarnings}
+              onChange={(v) => set({ navigationWarnings: v })}
+              label={t('layer.navigationWarnings')}
+            />
+            <Toggle
+              checked={layers.navigationAids}
+              onChange={(v) => set({ navigationAids: v })}
+              label={t('layer.navigationAids')}
+            />
+            <Toggle
+              checked={layers.wrecks}
+              onChange={(v) => set({ wrecks: v })}
+              label={t('layer.wrecks')}
+            />
+            <Toggle
+              checked={layers.officialNavigation}
+              onChange={(v) => set({ officialNavigation: v })}
+              label={t('layer.officialNavigation')}
+              hint={t('layer.officialNavigation.hint')}
             />
             {OVERLAY_CONTROLS.map((def) => (
               <Toggle

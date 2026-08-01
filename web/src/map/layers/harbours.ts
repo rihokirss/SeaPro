@@ -57,6 +57,8 @@ export function updateHarbours(map: MapLibreMap, list: Harbour[]): void {
       locode: h.locode ?? '',
       anchorageCategory: h.anchorageCategory ?? '',
       seabed: h.seabed ?? '',
+      sources: (h.sources ?? ['osm']).join(','),
+      officialId: h.officialId ?? '',
     },
   }));
 

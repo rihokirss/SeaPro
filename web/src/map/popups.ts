@@ -7,6 +7,7 @@ import { STATIONS_LAYER } from './layers/stations';
 import { VESSEL_LAYERS } from './layers/vessels';
 import { navilyUrl } from '../lib/navily';
 import { ANCHORAGES_LAYER, HARBOURS_LAYER } from './layers/harbours';
+import { NAVIGATION_CLICK_LAYERS } from './layers/navigation';
 
 /**
  * Kaardimarkerite popupid.
@@ -113,6 +114,18 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     });
   }
 
+  for (const layer of NAVIGATION_CLICK_LAYERS) {
+    map.on('click', layer, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      e.originalEvent.stopPropagation();
+      const id = `navigation:${String(f.properties?.id ?? '')}`;
+      if (show(id, coordsOf(f, e.lngLat), navigationHtml(f, getContext()))) {
+        hoverTip?.remove();
+      }
+    });
+  }
+
   // Sama käsitleja mõlemale: popup ise otsustab sisu `kind` järgi.
   for (const layer of [HARBOURS_LAYER, ANCHORAGES_LAYER]) {
     map.on('click', layer, (e) => {
@@ -127,7 +140,13 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
   }
 
   // Kursor ja hover-vihje.
-  for (const layer of [STATIONS_LAYER, HARBOURS_LAYER, ANCHORAGES_LAYER, ...VESSEL_LAYERS]) {
+  for (const layer of [
+    STATIONS_LAYER,
+    HARBOURS_LAYER,
+    ANCHORAGES_LAYER,
+    ...VESSEL_LAYERS,
+    ...NAVIGATION_CLICK_LAYERS,
+  ]) {
     map.on('mousemove', layer, (e) => {
       map.getCanvas().style.cursor = 'pointer';
 
@@ -141,7 +160,9 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
           ? stationTipHtml(f, getContext())
           : layer === HARBOURS_LAYER || layer === ANCHORAGES_LAYER
             ? harbourTipHtml(f, getContext())
-            : vesselTipHtml(f, getContext());
+            : NAVIGATION_CLICK_LAYERS.includes(layer)
+              ? navigationTipHtml(f, getContext())
+              : vesselTipHtml(f, getContext());
 
       if (!hoverTip) {
         hoverTip = new maplibregl.Popup({
@@ -424,6 +445,12 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const anchorage = p.kind === 'anchorage';
   const kindLabel = t(anchorage ? 'anchorage.title' : 'harbour.title');
   const title = str(p.name) || kindLabel;
+  const harbourSources = str(p.sources);
+  const sourceLabel = harbourSources.includes('transpordiamet')
+    ? harbourSources.includes('osm')
+      ? 'OpenStreetMap + Transpordiamet'
+      : 'Transpordiamet'
+    : 'OpenStreetMap';
 
   return `
     <div class="popup">
@@ -435,7 +462,7 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       </div>
       ${rows.length ? `<table class="popup__table">${rows.join('')}</table>` : ''}
       ${links.length ? `<div class="popup__links">${links.join(' · ')}</div>` : ''}
-      <div class="popup__source">OpenStreetMap</div>
+      <div class="popup__source">${sourceLabel}</div>
     </div>`;
 }
 
@@ -511,6 +538,119 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       <table class="popup__table">${rows.join('')}</table>
       <div class="popup__source">AIS · ${escapeHtml(String(p.source ?? ''))}</div>
     </div>`;
+}
+
+function navigationTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
+  const p = f.properties as Record<string, unknown>;
+  const kind = String(p.featureKind ?? '');
+  const title = kind === 'warning'
+    ? localized(p.titleEt, p.titleEn, ctx) || ctx.t('navigation.warning')
+    : String(p.name ?? '').trim() || ctx.t(`navigation.${kind}`);
+  return tipHtml({ title, note: ctx.t(`navigation.${kind}`) });
+}
+
+function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
+  const p = f.properties as Record<string, unknown>;
+  const { t } = ctx;
+  const kind = String(p.featureKind ?? '');
+  const rows: string[] = [];
+  let title = String(p.name ?? '').trim();
+  let kindLabel = t(`navigation.${kind}`);
+  let notice = '';
+
+  if (kind === 'warning') {
+    title = localized(p.titleEt, p.titleEn, ctx) || t('navigation.warning');
+    kindLabel = t('navigation.warning');
+    const number = nullableNumber(p.number);
+    if (number !== null) rows.push(row(t('navigation.warningNumber'), String(number), ''));
+    const text = localized(p.textEt, p.textEn, ctx);
+    if (text) rows.push(row(kindLabel, multiline(text), ''));
+    const validity = formatDateRange(String(p.validFrom ?? ''), String(p.validTo ?? ''), ctx.lang);
+    if (validity) rows.push(row(t('navigation.validity'), escapeHtml(validity), ''));
+    const charts = String(p.charts ?? '').trim();
+    if (charts) rows.push(row(t('navigation.charts'), escapeHtml(charts), ''));
+  } else if (kind === 'wreck') {
+    title ||= t('navigation.wreck');
+    addMetric(rows, t('navigation.wreckDepth'), p.wreckDepthM, 'm');
+    addMetric(rows, t('navigation.surroundingDepth'), p.surroundingDepthM, 'm');
+    const length = nullableNumber(p.lengthM);
+    const width = nullableNumber(p.widthM);
+    if (length !== null) rows.push(row(t('vessel.size'), `${length} × ${width ?? '?'}`, 'm'));
+    addText(rows, t('navigation.sunkAt'), p.sunkAt);
+    addText(rows, t('navigation.reason'), p.sunkReason);
+    addText(rows, t('navigation.condition'), p.condition);
+  } else if (kind === 'aid') {
+    title ||= t('navigation.aid');
+    if (Boolean(p.virtual)) notice = t('navigation.virtual');
+    if (Boolean(p.offPosition)) notice = t('navigation.offPosition');
+    addText(rows, 'MMSI', p.mmsi);
+    const light = String(p.lightColour ?? '').trim();
+    if (light || p.lightActive === true) {
+      rows.push(row(t('navigation.light'), escapeHtml(light || 'AIS'), ''));
+    }
+    addText(rows, t('navigation.owner'), p.owner);
+  } else if (kind === 'fairway') {
+    title ||= t('navigation.fairway');
+    kindLabel = t('navigation.fairway');
+    addMetric(rows, t('navigation.depth'), p.depthM, 'm');
+    addMetric(rows, t('navigation.shipDraught'), p.shipDraughtM, 'm');
+    addMetric(rows, t('navigation.width'), p.widthM, 'm');
+    addText(rows, t('navigation.fairway'), p.fairwayType);
+  }
+
+  return `
+    <div class="popup">
+      <div class="popup__head">
+        <strong>${escapeHtml(title || kindLabel)}</strong>
+        <span class="popup__kind">${escapeHtml(kindLabel)}</span>
+      </div>
+      ${notice ? `<div class="popup__age popup__age--stale">${escapeHtml(notice)}</div>` : ''}
+      ${rows.length ? `<table class="popup__table">${rows.join('')}</table>` : ''}
+      <div class="popup__source">Transpordiamet · Nutimeri</div>
+    </div>`;
+}
+
+function localized(et: unknown, en: unknown, ctx: PopupContext): string {
+  const primary = ctx.lang === 'et' ? et : en;
+  const fallback = ctx.lang === 'et' ? en : et;
+  return String(primary ?? '').trim() || String(fallback ?? '').trim();
+}
+
+function multiline(value: string): string {
+  return escapeHtml(value).replace(/\n/g, '<br>');
+}
+
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function addMetric(rows: string[], label: string, value: unknown, unit: string): void {
+  const number = nullableNumber(value);
+  if (number !== null) rows.push(row(label, String(number), unit));
+}
+
+function addText(rows: string[], label: string, value: unknown): void {
+  const text = String(value ?? '').trim();
+  if (text) rows.push(row(label, escapeHtml(text), ''));
+}
+
+function formatDateRange(from: string, to: string, lang: string): string {
+  const format = (value: string): string => {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return '';
+    return new Intl.DateTimeFormat(lang === 'et' ? 'et-EE' : 'en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
+  const start = format(from);
+  const end = format(to);
+  return start && end ? `${start} – ${end}` : start || end;
 }
 
 function formatVesselEta(value: string, lang: string): string {

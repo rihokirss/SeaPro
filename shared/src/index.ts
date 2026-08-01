@@ -345,6 +345,98 @@ export interface Harbour {
   anchorageCategory?: string;
   /** Põhjatüüp (OSM `seamark:bottom:nature`) — muda, liiv, kivi. */
   seabed?: string;
+  /** Millistest registritest kirje kokku pandi. */
+  sources?: Array<'osm' | 'transpordiamet'>;
+  /** Transpordiameti sadamaregistri objekti id. */
+  officialId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Navigatsiooniohutus ja ametlikud merendusobjektid
+// ---------------------------------------------------------------------------
+
+export type NavigationGeometry =
+  | { type: 'Point'; coordinates: [number, number] }
+  | { type: 'LineString'; coordinates: [number, number][] }
+  | { type: 'MultiLineString'; coordinates: [number, number][][] }
+  | { type: 'Polygon'; coordinates: [number, number][][] }
+  | { type: 'MultiPolygon'; coordinates: [number, number][][][] };
+
+export interface NavigationWarning {
+  id: string;
+  geometry: NavigationGeometry;
+  number?: number;
+  titleEt?: string;
+  titleEn?: string;
+  textEt?: string;
+  textEn?: string;
+  areaEt?: string;
+  areaEn?: string;
+  charts?: string;
+  validFrom?: string;
+  validTo?: string;
+  documentUrl?: string;
+}
+
+export interface Wreck {
+  id: string;
+  lat: number;
+  lon: number;
+  name: string;
+  wreckDepthM?: number;
+  surroundingDepthM?: number;
+  heightM?: number;
+  lengthM?: number;
+  widthM?: number;
+  vesselType?: string;
+  sunkAt?: string;
+  sunkReason?: string;
+  condition?: string;
+  history?: string;
+  notes?: string;
+  model3dUrl?: string;
+}
+
+export interface NavigationAid {
+  id: string;
+  lat: number;
+  lon: number;
+  name: string;
+  nameEn?: string;
+  kind: 'fixed' | 'floating' | 'seasonal' | 'ais' | 'virtual';
+  atonCode?: string;
+  atonType?: number;
+  status?: number;
+  offPosition?: boolean;
+  virtual?: boolean;
+  mmsi?: number;
+  lightActive?: boolean;
+  lightColour?: string;
+  owner?: string;
+  activeFrom?: string;
+  activeTill?: string;
+  updatedAt?: string;
+  sources: Array<'registry' | 'ais'>;
+}
+
+export interface Fairway {
+  id: string;
+  geometry:
+    | { type: 'LineString'; coordinates: [number, number][] }
+    | { type: 'MultiLineString'; coordinates: [number, number][][] };
+  name: string;
+  fairwayClass?: string;
+  depthM?: number;
+  shipDraughtM?: number;
+  widthM?: number;
+  type?: string;
+}
+
+export interface NavigationData {
+  warnings: NavigationWarning[];
+  wrecks: Wreck[];
+  aids: NavigationAid[];
+  fairways: Fairway[];
 }
 
 // ---------------------------------------------------------------------------

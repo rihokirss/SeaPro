@@ -8,6 +8,7 @@ import type {
   StationReading,
   Variable,
   Vessel,
+  NavigationData,
 } from '@seapro/shared';
 import { isWaveVariable } from '@seapro/shared';
 import { I18nContext, detectLang, makeTranslate, saveLang, type Lang } from './i18n';
@@ -36,6 +37,10 @@ import { MapLegend } from './components/MapLegend';
 import { MapKey } from './components/MapKey';
 import { LocateButton } from './components/LocateButton';
 import { setPlaceLabelsVisible } from './map/layers/placeLabels';
+import {
+  setNavigationVisibility,
+  updateNavigation,
+} from './map/layers/navigation';
 
 const DEFAULT_LAYERS: LayerState = {
   overlays: ['seamark'],
@@ -48,6 +53,17 @@ const DEFAULT_LAYERS: LayerState = {
   harbours: true,
   anchorages: false,
   placeLabels: true,
+  navigationWarnings: true,
+  navigationAids: true,
+  wrecks: false,
+  officialNavigation: false,
+};
+
+const EMPTY_NAVIGATION: NavigationData = {
+  warnings: [],
+  wrecks: [],
+  aids: [],
+  fairways: [],
 };
 
 /**
@@ -663,6 +679,62 @@ export function App() {
     setHarboursVisible(map, layers.harbours && harbours.length > 0);
     setAnchoragesVisible(map, layers.anchorages && harbours.length > 0);
   }, [harbours, wantPlaces, layers.harbours, layers.anchorages, mapReady]);
+
+  // --- Navigatsiooniohutus -------------------------------------------------
+  const [navigationData, setNavigationData] = useState<NavigationData>(EMPTY_NAVIGATION);
+  const wantNavigation =
+    layers.navigationWarnings ||
+    layers.navigationAids ||
+    layers.wrecks ||
+    layers.officialNavigation;
+
+  useEffect(() => {
+    if (!wantNavigation || !view) return;
+    let cancelled = false;
+
+    const include: Array<'warnings' | 'aids' | 'wrecks' | 'official'> = [];
+    if (layers.navigationWarnings) include.push('warnings');
+    if (layers.navigationAids) include.push('aids');
+    if (layers.wrecks) include.push('wrecks');
+    if (layers.officialNavigation) include.push('official');
+
+    const load = (): void => {
+      api.navigation(view.bbox, include).then((data) => {
+        if (!cancelled) setNavigationData(data);
+      }).catch(() => {
+        // Staatilised kihid on serveris kettavahemälus ja vana edukas
+        // vastus jääb ekraanile; üks allikatõrge ei kustuta ohutusinfot.
+      });
+    };
+
+    load();
+    // AIS AToN on reaalajas. Staatilised ArcGIS-kihid tulevad sama päringuga
+    // vahemälust, seega 30 s klientpoll ei koorma nende algallikat.
+    const timer = window.setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [
+    wantNavigation,
+    layers.navigationWarnings,
+    layers.navigationAids,
+    layers.wrecks,
+    layers.officialNavigation,
+    view?.bbox.join(','),
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (wantNavigation) updateNavigation(map, navigationData);
+    setNavigationVisibility(map, {
+      warnings: layers.navigationWarnings,
+      aids: layers.navigationAids,
+      wrecks: layers.wrecks,
+      official: layers.officialNavigation,
+    });
+  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.wrecks, layers.officialNavigation, mapReady]);
 
   // --- Laevad (AIS) --------------------------------------------------------
   const [vessels, setVessels] = useState<Vessel[]>([]);

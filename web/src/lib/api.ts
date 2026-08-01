@@ -1,6 +1,7 @@
 import type {
   GridFrame,
   Harbour,
+  NavigationData,
   PointResult,
   ProviderCapabilities,
   ProviderError,
@@ -159,5 +160,15 @@ export const api = {
   vessels(bbox: [number, number, number, number], signal?: AbortSignal) {
     const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
     return get<{ vessels: Vessel[]; sources: string[] }>(`/api/ais?${p}`, signal);
+  },
+
+  navigation(
+    bbox: [number, number, number, number],
+    include: Array<'warnings' | 'aids' | 'wrecks' | 'official'>,
+    signal?: AbortSignal,
+  ) {
+    const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
+    p.set('include', include.join(','));
+    return get<NavigationData & { errors?: string[] }>(`/api/navigation?${p}`, signal);
   },
 };
