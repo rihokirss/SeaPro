@@ -328,7 +328,7 @@ Navily koordinaadivaates.
 
 `server/scripts/scan-navily-links.ts` võtab Eesti ranniku, Soome lahe
 põhjakalda ning Turu–Ahvenamaa edelasaarestiku sadamad OSM Overpassist ja
-otsib nende avalikke Navily URL-e Brave Searchi indeksist. Navily API-t ega
+otsib nende avalikke Navily URL-e Tavily Search API indeksist. Navily API-t ega
 sadamalehti skript ei rooma.
 
 ```bash
@@ -350,7 +350,9 @@ npm run navily:scan --workspace=server -- \
 ```
 
 Otsingud on 30 päeva vahemälus failis `data/navily-scan-state.json`. HTTP
-403/429/503 või botikontroll peatab jooksu ja paneb kuueks tunniks cooldown'i.
+429/432/433/503 peatab jooksu ja paneb kuueks tunniks cooldown'i. Tavily võti
+on ainult kohalikus `.env` failis (`TAVILY_API_KEY`); basic-otsing kasutab ühe
+krediidi sadama kohta ja PM2 piir on 20 päringut ööpäevas.
 Automaatne vaste kirjutatakse `web/src/data/navily-ports.json` faili ainult
 siis, kui üks tulemus katab vähemalt 80% sadama eristavatest nimetokenitest ja
 teine kandidaat pole peaaegu sama tugev. Samanimelised sadamad eristatakse OSM

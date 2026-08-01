@@ -18,6 +18,20 @@ const GENERIC_WORDS = new Set([
   'boat',
   'venesatama',
   'satama',
+  'vierasvenesatama',
+  'vierassatama',
+  'gasthamn',
+  'besokshamn',
+  'hamn',
+  'hamnen',
+  'brygga',
+  'batklubb',
+  'segelklubb',
+  'pursiseura',
+  'venekerho',
+  'kausipaikat',
+  'oy',
+  'ry',
   'on',
   'navily',
 ]);
@@ -39,29 +53,35 @@ function tokens(name: string): string[] {
     .filter((word) => word.length > 1 && !GENERIC_WORDS.has(word));
 }
 
+/** Eemaldab otsingust üldised sadamatüübid, mis võivad Navilys teises keeles
+ * või turundusnimega olla. Vaste kontroll kasutab pärast ikkagi algset nime. */
+export function navilySearchTerms(name: string): string {
+  return tokens(name).join(' ');
+}
+
 /**
- * Brave'i HTML sisaldab serveri renderdatud otsingutulemusi JavaScripti
- * andmeobjektina. Loeme ainult Navily kanoonilise port-URL-i kõrval oleva
- * pealkirja; reklaami-, pildi- ja profiililingid jäävad välja.
+ * Tavily vastusest loeme ainult Navily kanoonilised port-URL-id. Vastuse
+ * sisukokkuvõtteid ega lehe teksti ei talletata.
  */
-export function extractBraveCandidates(html: string): NavilySearchCandidate[] {
+export function extractTavilyCandidates(payload: unknown): NavilySearchCandidate[] {
   const found = new Map<string, NavilySearchCandidate>();
-  const result =
-    /title:"((?:\\.|[^"])*)",url:"(https:\/\/www\.navily\.com\/port\/([a-z0-9-]+)\/(\d+))"/g;
+  if (!payload || typeof payload !== 'object') return [];
+  const results = (payload as { results?: unknown }).results;
+  if (!Array.isArray(results)) return [];
 
-  for (const match of html.matchAll(result)) {
-    const [, encodedTitle, url, slug, rawId] = match;
-    if (!encodedTitle || !url || !slug || !rawId) continue;
+  for (const result of results) {
+    if (!result || typeof result !== 'object') continue;
+    const { title, url: rawUrl } = result as { title?: unknown; url?: unknown };
+    if (typeof title !== 'string' || typeof rawUrl !== 'string') continue;
+    const match = rawUrl.match(
+      /^https:\/\/(?:www\.)?navily\.com\/(?:[a-z]{2}\/)?port\/([a-z0-9-]+)\/(\d+)\/?(?:[?#].*)?$/i,
+    );
+    if (!match?.[1] || !match[2]) continue;
 
-    let title: string;
-    try {
-      title = JSON.parse(`"${encodedTitle}"`) as string;
-    } catch {
-      continue;
-    }
-
-    const id = Number(rawId);
+    const slug = match[1].toLowerCase();
+    const id = Number(match[2]);
     if (!Number.isSafeInteger(id) || id <= 0) continue;
+    const url = `https://www.navily.com/port/${slug}/${id}`;
     found.set(url, { title, url, slug, id });
   }
 

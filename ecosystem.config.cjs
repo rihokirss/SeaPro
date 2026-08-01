@@ -53,6 +53,7 @@ module.exports = {
         '--interval-hours=24',
       ],
       cwd: __dirname,
+      node_args: '--env-file-if-exists=.env',
       watch: false,
       autorestart: true,
       restart_delay: 60_000,

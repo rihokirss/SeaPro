@@ -3,8 +3,8 @@
  *
  * Oluline: skript EI rooma Navily API-t ega sadamalehti. Navily API
  * robots.txt keelab roomamise ja veeb on Cloudflare'i taga. Otsing tehakse
- * aeglaselt Brave Searchi avalikust HTML-ist, mis juba sisaldab indekseeritud
- * kanoonilisi URL-e.
+ * aeglaselt Tavily ametlikust otsingu-API-st, mis tagastab indekseeritud
+ * kanoonilised URL-id struktureeritud JSON-ina.
  *
  * Ohutus päringueelarvele:
  *   - vaikimisi kuni 8 otsingut ühe käivituse kohta;
@@ -26,8 +26,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   chooseNavilyCandidate,
-  extractBraveCandidates,
+  extractTavilyCandidates,
   normalizeNavilyName,
+  navilySearchTerms,
   type NavilySearchCandidate,
 } from '../src/navily/scanner.js';
 
@@ -36,15 +37,14 @@ const ROOT = resolve(here, '../..');
 const OUT = resolve(ROOT, 'web/src/data/navily-ports.json');
 const STATE_FILE = resolve(ROOT, 'data/navily-scan-state.json');
 
-const SEARCH_URL = 'https://search.brave.com/search';
+const SEARCH_URL = 'https://api.tavily.com/search';
+const SEARCH_PROVIDER = 'tavily-v1';
+const MATCHER_VERSION = 2;
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.osm.ch/api/interpreter',
 ];
-const USER_AGENT =
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
-  'Chrome/126.0 Safari/537.36 SeaPro-Navily-Link-Maintainer/1.0';
 const OVERPASS_USER_AGENT = 'SeaPro-harbour-index/1.0';
 
 const REGIONS = [
@@ -92,6 +92,8 @@ interface SearchRecord {
 
 interface ScannerState {
   version: 2;
+  searchProvider?: string;
+  matcherVersion?: number;
   osmRegionVersion?: number;
   osmFetchedAt?: number;
   lastRequestAt?: number;
@@ -144,7 +146,9 @@ async function smokeTest(args: Args): Promise<void> {
     requests += 1;
     const candidates = await searchNavily(name, 'Estonia');
     const expectedUrl = navilyUrl(expected);
-    const found = candidates.some((candidate) => candidate.url === expectedUrl);
+    // Navily muudab vahel URL-i nimeosa; sadama identiteet on stabiilne ID.
+    // Mõlemad slugid suunavad samale lehele, seega kontrollime õiget ID-d.
+    const found = candidates.some((candidate) => candidate.id === expected.id);
     console.log(`${found ? 'OK' : 'VIGA'}  ${name} -> ${expectedUrl}`);
     if (!found) {
       throw new Error(
@@ -161,6 +165,23 @@ async function smokeTest(args: Args): Promise<void> {
 async function scanBatch(args: Args): Promise<number | undefined> {
   const state = await readState();
   const ports = await readPorts();
+
+  // Eelmise HTML-otsingu 429 cooldown ei kehti uue ametliku API kohta.
+  if (state.searchProvider !== SEARCH_PROVIDER) {
+    state.searchProvider = SEARCH_PROVIDER;
+    state.blockedUntil = undefined;
+    await writeState(state);
+  }
+
+  // Nimetokenite reegli muutumisel tuleb varasemad nõrgad tulemused uuesti
+  // hinnata. Juba kinnitatud URL-id jäävad alles ega kuluta uut krediiti.
+  if (state.matcherVersion !== MATCHER_VERSION) {
+    state.searches = Object.fromEntries(
+      Object.entries(state.searches).filter(([, search]) => search.acceptedUrl),
+    );
+    state.matcherVersion = MATCHER_VERSION;
+    await writeState(state);
+  }
 
   if (state.blockedUntil && state.blockedUntil > Date.now()) {
     const remainingMs = state.blockedUntil - Date.now();
@@ -186,6 +207,7 @@ async function scanBatch(args: Args): Promise<number | undefined> {
   }
 
   const cutoff = Date.now() - args.refreshDays * 86400_000;
+  const seenNames = new Set<string>();
   const queue = state.harbours
     .filter((harbour) => {
       const key = normalizeNavilyName(harbour.name);
@@ -198,7 +220,16 @@ async function scanBatch(args: Args): Promise<number | undefined> {
         (b.priority ?? 0) - (a.priority ?? 0) ||
         a.country.localeCompare(b.country) ||
         a.name.localeCompare(b.name),
-    );
+    )
+    // OSM-is võib sama sadam olla nii node'i kui alana. Otsing on nimepõhine,
+    // seega teine identne päring kulutaks ainult krediiti ja võiks sama Navily
+    // ID kahe koordinaadi külge kirjutada.
+    .filter((harbour) => {
+      const key = normalizeNavilyName(harbour.name);
+      if (seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    });
 
   if (queue.length === 0) {
     console.log('Kõik praegu teadaolevad sadamad on tabelis või värskelt kontrollitud.');
@@ -285,34 +316,47 @@ async function searchNavily(
   name: string,
   country: string,
 ): Promise<NavilySearchCandidate[]> {
-  const query = `site:navily.com/port/ "${name}" "${country}"`;
-  const url = `${SEARCH_URL}?q=${encodeURIComponent(query)}&source=web`;
-  const response = await fetch(url, {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    throw new Error('TAVILY_API_KEY puudub .env failist');
+  }
+
+  const response = await fetch(SEARCH_URL, {
+    method: 'POST',
     headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'text/html,application/xhtml+xml',
-      'Accept-Language': 'en-US,en;q=0.8',
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
     },
-    redirect: 'follow',
+    body: JSON.stringify({
+      // Tavily semantiline otsing leiab kohaliku ja Navily nime erinevuse
+      // (nt "Pirita sadam" -> "Pirita Top"). Täpne jutumärgipäring surus
+      // mõõdetult õige tulemuse välja; vale vaste peatab allpool endiselt
+      // konservatiivne tokeniskoor ja mitme võrdse kandidaadi kontroll.
+      query: `${navilySearchTerms(name) || name} Navily ${country}`,
+      topic: 'general',
+      search_depth: 'basic',
+      max_results: 10,
+      include_domains: ['navily.com'],
+      include_answer: false,
+      include_raw_content: false,
+      include_images: false,
+    }),
     signal: AbortSignal.timeout(30_000),
   });
 
-  if ([403, 429, 503].includes(response.status)) {
+  if ([429, 432, 433, 503].includes(response.status)) {
     const retry = response.headers.get('retry-after');
     throw new RateLimitError(
       `otsing vastas HTTP ${response.status}${retry ? `; Retry-After ${retry}` : ''}`,
     );
   }
-  if (!response.ok) throw new Error(`Brave Search HTTP ${response.status}`);
-
-  const html = await response.text();
-  if (
-    /<title>[^<]*(captcha|verify|blocked|too many requests)/i.test(html) ||
-    /cf-mitigated|__cf_chl_/i.test(html)
-  ) {
-    throw new RateLimitError('otsing näitas captcha/botikontrolli');
+  if (!response.ok) {
+    // Keha võib sisaldada kontoinfot; logisse läheb teadlikult ainult staatus.
+    throw new Error(`Tavily Search HTTP ${response.status}`);
   }
-  return extractBraveCandidates(html);
+
+  return extractTavilyCandidates(await response.json());
 }
 
 async function fetchHarbours(): Promise<Harbour[]> {
