@@ -19,11 +19,17 @@ interface VesselMeta {
   callSign?: string;
   imo?: number;
   shipType?: number;
+  flag?: string;
   destination?: string;
   toBow?: number;
   toStern?: number;
   toPort?: number;
   toStarboard?: number;
+  lengthM?: number;
+  beamM?: number;
+  eta?: string;
+  draughtM?: number;
+  positionFixType?: number;
   updatedAt: number;
 }
 
@@ -52,7 +58,7 @@ const MAX_POSITION_AGE_MS = 30 * 60 * 1000;
 /** Metaandmeid hoiame kauem — laeva nimi ei vanane. */
 const MAX_META_AGE_MS = 24 * 3600 * 1000;
 
-class VesselRegistry {
+export class VesselRegistry {
   #positions = new Map<number, StoredPosition>();
   #meta = new Map<number, VesselMeta>();
 
@@ -78,11 +84,17 @@ class VesselRegistry {
       callSign: meta.callSign ?? existing.callSign,
       imo: meta.imo ?? existing.imo,
       shipType: meta.shipType ?? existing.shipType,
+      flag: meta.flag ?? existing.flag,
       destination: meta.destination ?? existing.destination,
       toBow: meta.toBow ?? existing.toBow,
       toStern: meta.toStern ?? existing.toStern,
       toPort: meta.toPort ?? existing.toPort,
       toStarboard: meta.toStarboard ?? existing.toStarboard,
+      lengthM: meta.lengthM ?? existing.lengthM,
+      beamM: meta.beamM ?? existing.beamM,
+      eta: meta.eta ?? existing.eta,
+      draughtM: meta.draughtM ?? existing.draughtM,
+      positionFixType: meta.positionFixType ?? existing.positionFixType,
       updatedAt: Date.now(),
     });
   }
@@ -133,11 +145,17 @@ function stripUndefined(meta: VesselMeta): Partial<Vessel> {
   if (meta.callSign) out.callSign = meta.callSign;
   if (meta.imo) out.imo = meta.imo;
   if (meta.shipType !== undefined) out.shipType = meta.shipType;
+  if (meta.flag) out.flag = meta.flag;
   if (meta.destination) out.destination = meta.destination;
   if (meta.toBow !== undefined) out.toBow = meta.toBow;
   if (meta.toStern !== undefined) out.toStern = meta.toStern;
   if (meta.toPort !== undefined) out.toPort = meta.toPort;
   if (meta.toStarboard !== undefined) out.toStarboard = meta.toStarboard;
+  if (meta.lengthM !== undefined) out.lengthM = meta.lengthM;
+  if (meta.beamM !== undefined) out.beamM = meta.beamM;
+  if (meta.eta) out.eta = meta.eta;
+  if (meta.draughtM !== undefined) out.draughtM = meta.draughtM;
+  if (meta.positionFixType !== undefined) out.positionFixType = meta.positionFixType;
   return out;
 }
 

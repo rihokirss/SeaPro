@@ -28,16 +28,52 @@ interface AisStreamMessage {
       TrueHeading?: number;
       NavigationalStatus?: number;
     };
+    StandardClassBPositionReport?: PositionBody;
+    ExtendedClassBPositionReport?: PositionBody & {
+      Name?: string;
+      Type?: number;
+      Dimension?: Dimension;
+      FixType?: number;
+    };
     ShipStaticData?: {
       Name?: string;
       CallSign?: string;
       ImoNumber?: number;
       Type?: number;
       Destination?: string;
+      Eta?: { Month?: number; Day?: number; Hour?: number; Minute?: number };
+      MaximumStaticDraught?: number;
+      FixType?: number;
       /** aisstream annab mõõtmed pesastatud objektina. */
-      Dimension?: { A?: number; B?: number; C?: number; D?: number };
+      Dimension?: Dimension;
+    };
+    StaticDataReport?: {
+      ReportA?: { Name?: string; Valid?: boolean };
+      ReportB?: {
+        CallSign?: string;
+        ShipType?: number;
+        Dimension?: Dimension;
+        FixType?: number;
+        Valid?: boolean;
+      };
     };
   };
+}
+
+interface PositionBody {
+  Latitude?: number;
+  Longitude?: number;
+  Sog?: number;
+  Cog?: number;
+  TrueHeading?: number;
+  NavigationalStatus?: number;
+}
+
+interface Dimension {
+  A?: number;
+  B?: number;
+  C?: number;
+  D?: number;
 }
 
 /**
@@ -101,7 +137,15 @@ export class AisStream {
           APIKey: config.aisstreamKey,
           // aisstream ootab [[[lat, lon], [lat, lon]]] — lõunalääs, kirdenurk.
           BoundingBoxes: [[[south, west], [north, east]]],
-          FilterMessageTypes: ['PositionReport', 'ShipStaticData'],
+          // Class B ja type 24 on väikelaevade jaoks vältimatud. Ainult
+          // PositionReport + ShipStaticData piiraks voo sisuliselt Class A-le.
+          FilterMessageTypes: [
+            'PositionReport',
+            'StandardClassBPositionReport',
+            'ExtendedClassBPositionReport',
+            'ShipStaticData',
+            'StaticDataReport',
+          ],
         }),
       );
       this.#backoff = 2000;
@@ -144,7 +188,10 @@ export class AisStream {
     const mmsi = msg.MetaData?.MMSI;
     if (!mmsi) return;
 
-    const pos = msg.Message?.PositionReport;
+    const pos =
+      msg.Message?.PositionReport ??
+      msg.Message?.StandardClassBPositionReport ??
+      msg.Message?.ExtendedClassBPositionReport;
     if (pos && pos.Latitude !== undefined && pos.Longitude !== undefined) {
       vessels.upsertPosition({
         mmsi,
@@ -170,12 +217,22 @@ export class AisStream {
 
     const stat = msg.Message?.ShipStaticData;
     if (stat) {
+      const lengthM = dimensionLength(stat.Dimension);
+      const beamM = dimensionBeam(stat.Dimension);
       vessels.upsertMeta(mmsi, {
         name: stat.Name?.trim() || undefined,
         callSign: stat.CallSign?.trim() || undefined,
         imo: stat.ImoNumber || undefined,
         shipType: stat.Type,
         destination: stat.Destination?.trim() || undefined,
+        eta: etaFromParts(stat.Eta),
+        draughtM:
+          stat.MaximumStaticDraught && stat.MaximumStaticDraught < 25.5
+            ? stat.MaximumStaticDraught
+            : undefined,
+        lengthM,
+        beamM,
+        positionFixType: validFixType(stat.FixType),
         // 0 tähendab AIS-is "teadmata", mitte nullpikkust.
         toBow: stat.Dimension?.A || undefined,
         toStern: stat.Dimension?.B || undefined,
@@ -183,7 +240,70 @@ export class AisStream {
         toStarboard: stat.Dimension?.D || undefined,
       });
     }
+
+    const extended = msg.Message?.ExtendedClassBPositionReport;
+    if (extended) {
+      vessels.upsertMeta(mmsi, {
+        name: extended.Name?.trim() || undefined,
+        shipType: extended.Type,
+        toBow: extended.Dimension?.A || undefined,
+        toStern: extended.Dimension?.B || undefined,
+        toPort: extended.Dimension?.C || undefined,
+        toStarboard: extended.Dimension?.D || undefined,
+        lengthM: dimensionLength(extended.Dimension),
+        beamM: dimensionBeam(extended.Dimension),
+        positionFixType: validFixType(extended.FixType),
+      });
+    }
+
+    const report = msg.Message?.StaticDataReport;
+    if (report) {
+      const partA = report.ReportA?.Valid === false ? undefined : report.ReportA;
+      const partB = report.ReportB?.Valid === false ? undefined : report.ReportB;
+      vessels.upsertMeta(mmsi, {
+        name: partA?.Name?.trim() || undefined,
+        callSign: partB?.CallSign?.trim() || undefined,
+        shipType: partB?.ShipType,
+        toBow: partB?.Dimension?.A || undefined,
+        toStern: partB?.Dimension?.B || undefined,
+        toPort: partB?.Dimension?.C || undefined,
+        toStarboard: partB?.Dimension?.D || undefined,
+        lengthM: dimensionLength(partB?.Dimension),
+        beamM: dimensionBeam(partB?.Dimension),
+        positionFixType: validFixType(partB?.FixType),
+      });
+    }
   }
+}
+
+function dimensionLength(dimension: Dimension | undefined): number | undefined {
+  const length = (dimension?.A ?? 0) + (dimension?.B ?? 0);
+  return length > 0 ? length : undefined;
+}
+
+function dimensionBeam(dimension: Dimension | undefined): number | undefined {
+  const beam = (dimension?.C ?? 0) + (dimension?.D ?? 0);
+  return beam > 0 ? beam : undefined;
+}
+
+function validFixType(value: number | undefined): number | undefined {
+  return value !== undefined && value >= 0 && value < 15 ? value : undefined;
+}
+
+/** AIS ETA-l puudub aasta; valime lähima tulevase mõistliku kuupäeva. */
+function etaFromParts(
+  eta: { Month?: number; Day?: number; Hour?: number; Minute?: number } | undefined,
+): string | undefined {
+  const { Month: month, Day: day, Hour: hour, Minute: minute } = eta ?? {};
+  if (!month || !day || hour === undefined || minute === undefined) return undefined;
+  if (month > 12 || day > 31 || hour > 23 || minute > 59) return undefined;
+
+  const now = new Date();
+  const candidate = new Date(Date.UTC(now.getUTCFullYear(), month - 1, day, hour, minute));
+  if (candidate.getTime() < now.getTime() - 31 * 24 * 3600_000) {
+    candidate.setUTCFullYear(candidate.getUTCFullYear() + 1);
+  }
+  return candidate.toISOString();
 }
 
 export const aisstream = new AisStream();

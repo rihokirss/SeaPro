@@ -340,7 +340,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     reply.header('Cache-Control', 'no-store');
     return {
       vessels: list,
-      sources: ['digitraffic', ...(aisstream.enabled ? ['aisstream'] : [])],
+      sources: ['digitraffic', 'transpordiamet', ...(aisstream.enabled ? ['aisstream'] : [])],
     };
   });
 

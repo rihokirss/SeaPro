@@ -44,11 +44,17 @@ function realCog(cog: number | undefined): number | undefined {
 
 interface VesselMetadata {
   mmsi: number;
+  timestamp?: number;
   name?: string;
   callSign?: string;
   imo?: number;
   shipType?: number;
   destination?: string;
+  /** AIS-i pakitud MM-DD-hh-mm väärtus. */
+  eta?: number;
+  /** Detsimeetrites. */
+  draught?: number;
+  posType?: number;
   /** AIS-i mõõtmed antennist: A vöör, B ahter, C pakpoord, D tüürpoord. */
   referencePointA?: number;
   referencePointB?: number;
@@ -126,12 +132,19 @@ export class DigitrafficAis {
         timeoutMs: 30_000,
       });
       for (const v of list) {
+        const lengthM = sumPositive(v.referencePointA, v.referencePointB);
+        const beamM = sumPositive(v.referencePointC, v.referencePointD);
         vessels.upsertMeta(v.mmsi, {
           name: v.name?.trim() || undefined,
           callSign: v.callSign?.trim() || undefined,
           imo: v.imo || undefined,
           shipType: v.shipType,
           destination: v.destination?.trim() || undefined,
+          eta: decodePackedEta(v.eta, v.timestamp ?? Date.now()),
+          draughtM: v.draught && v.draught < 255 ? v.draught / 10 : undefined,
+          lengthM,
+          beamM,
+          positionFixType: v.posType !== undefined && v.posType < 15 ? v.posType : undefined,
           // 0 tähendab AIS-is "teadmata", mitte nullpikkust.
           toBow: v.referencePointA || undefined,
           toStern: v.referencePointB || undefined,
@@ -144,6 +157,32 @@ export class DigitrafficAis {
       // Nimed puuduvad, positsioonid töötavad edasi. Proovime järgmisel ringil.
     }
   }
+}
+
+function sumPositive(a: number | undefined, b: number | undefined): number | undefined {
+  const sum = (a ?? 0) + (b ?? 0);
+  return sum > 0 ? sum : undefined;
+}
+
+/** AIS ETA: 4 bitti kuu, 5 päev, 5 tund, 6 minut; aastat sõnumis pole. */
+function decodePackedEta(value: number | undefined, referenceMs: number): string | undefined {
+  if (!value) return undefined;
+  const minute = value & 0x3f;
+  const hour = (value >> 6) & 0x1f;
+  const day = (value >> 11) & 0x1f;
+  const month = (value >> 16) & 0x0f;
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) {
+    return undefined;
+  }
+
+  const reference = new Date(referenceMs);
+  const candidate = new Date(Date.UTC(reference.getUTCFullYear(), month - 1, day, hour, minute));
+  // Aastat AIS ei edasta. Kui kuupäev on üle kuu minevikus, tähendab see
+  // tavaliselt järgmise aasta reisi (oluline detsembri/jaanuari piiril).
+  if (candidate.getTime() < reference.getTime() - 31 * 24 * 3600_000) {
+    candidate.setUTCFullYear(candidate.getUTCFullYear() + 1);
+  }
+  return candidate.toISOString();
 }
 
 export const digitraffic = new DigitrafficAis();

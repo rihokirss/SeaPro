@@ -249,6 +249,8 @@ export interface Vessel {
   imo?: number;
   /** AIS ship type kood (0-99). */
   shipType?: number;
+  /** Lipuriigi kolmetäheline kood, nt EST või FIN. */
+  flag?: string;
   /**
    * Laeva mõõtmed AIS-i staatilisest sõnumist, meetrites.
    *
@@ -267,6 +269,9 @@ export interface Vessel {
   toStern?: number;
   toPort?: number;
   toStarboard?: number;
+  /** Kogupikkus ja -laius, kui allikas ei anna antenni A/B/C/D nihkeid. */
+  lengthM?: number;
+  beamM?: number;
   lat: number;
   lon: number;
   /** Kiirus üle põhja, sõlmedes — AIS-i natiivne ühik, jääb sõlmedeks. */
@@ -278,10 +283,16 @@ export interface Vessel {
   /** AIS navigational status kood. */
   navStat?: number;
   destination?: string;
+  /** Laeva raporteeritud ETA ISO 8601 UTC kujul. */
+  eta?: string;
+  /** Laeva raporteeritud süvis meetrites. */
+  draughtM?: number;
+  /** AIS-positsioneerimisseadme kood. */
+  positionFixType?: number;
   /** ISO 8601 UTC. */
   timestamp: string;
   /** Kust see positsioon tuli. */
-  source: 'digitraffic' | 'aisstream';
+  source: 'digitraffic' | 'aisstream' | 'transpordiamet';
 }
 
 // ---------------------------------------------------------------------------

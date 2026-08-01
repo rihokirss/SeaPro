@@ -1,6 +1,7 @@
 import { aisstream } from './ais/aisstream.js';
 import { digitraffic } from './ais/digitraffic.js';
 import { vessels } from './ais/registry.js';
+import { transpordiamet } from './ais/transpordiamet.js';
 import { config } from './config.js';
 import { listProviders } from './providers/registry.js';
 
@@ -52,9 +53,9 @@ export function startBackgroundJobs(log: Logger): void {
 /**
  * AIS-i taustatööd.
  *
- * Digitraffic on REST ja vajab küsimist; aisstream on WebSocket ja lükkab ise.
- * Mõlemad kirjutavad samasse registrisse, seega kumbagi kadumine jätab teise
- * tööle — see on kogu kaheallikalise lahenduse mõte.
+ * Digitraffic on REST ja vajab küsimist; aisstream ning Transpordiamet on
+ * WebSocketid ja lükkavad ise. Kõik kirjutavad samasse registrisse, seega ühe
+ * kadumine jätab teised tööle.
  */
 function startAis(log: Logger): void {
   const pollAis = async (): Promise<void> => {
@@ -81,10 +82,13 @@ function startAis(log: Logger): void {
   } else {
     log.info('aisstream on välja lülitatud (AISSTREAM_KEY puudub)');
   }
+
+  transpordiamet.start((msg) => log.info(msg));
 }
 
 export function stopBackgroundJobs(): void {
   for (const t of timers) clearInterval(t);
   timers.length = 0;
   aisstream.stop();
+  transpordiamet.stop();
 }

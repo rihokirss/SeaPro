@@ -81,7 +81,8 @@ export const config = {
   defaultLat: num('DEFAULT_LAT', 59.0),
   defaultLon: num('DEFAULT_LON', 23.5),
   defaultZoom: num('DEFAULT_ZOOM', 7),
-  aisBbox: bbox('AIS_BBOX', [57.0, 20.0, 60.5, 29.0]),
+  // Kogu Läänemeri: Taani väinadest Botnia lahe põhjaosani.
+  aisBbox: bbox('AIS_BBOX', [53.0, 9.0, 66.0, 31.5]),
 } as const;
 
 export function warnAboutConfig(log: (msg: string) => void): void {
@@ -94,7 +95,7 @@ export function warnAboutConfig(log: (msg: string) => void): void {
   if (!config.aisstreamKey) {
     log(
       'AISSTREAM_KEY puudub — AIS töötab ainult Digitraffici kaudu ' +
-        '(Soome laht kaetud, Liivi laht mitte). Vt docs/api-keys.md.',
+        'ja Transpordiameti Eesti AIS-voost. Vt docs/api-keys.md.',
     );
   }
 }

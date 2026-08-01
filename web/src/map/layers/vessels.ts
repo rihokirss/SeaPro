@@ -81,6 +81,10 @@ function commonProps(v: Vessel, category: string, moving: boolean, hasHeading: b
     shipType: v.shipType ?? null,
     callSign: v.callSign ?? '',
     imo: v.imo ?? null,
+    flag: v.flag ?? '',
+    eta: v.eta ?? '',
+    draughtM: v.draughtM ?? null,
+    positionFixType: v.positionFixType ?? null,
     timestamp: v.timestamp,
     source: v.source,
     moving,
@@ -102,6 +106,8 @@ export function updateVessels(map: MapLibreMap, list: Vessel[], zoom: number): v
 
     const dims = hullDimensions(v);
     const lengthPx = dims.lengthM / metersPerPixel(zoom, v.lat);
+    const reportedLengthM = dims.known ? dims.lengthM : v.lengthM;
+    const reportedBeamM = dims.known ? dims.beamM : v.beamM;
 
     // Ainult päris mõõtmetega laevad saavad kere — oletatud 12 m kere
     // valetaks suurust ja seda pole kuidagi näha.
@@ -118,8 +124,8 @@ export function updateVessels(map: MapLibreMap, list: Vessel[], zoom: number): v
         properties: {
           ...props,
           icon: hasHeading ? `vessel-arrow-${category}` : `vessel-dot-${category}`,
-          lengthM: dims.known ? Math.round(dims.lengthM) : null,
-          beamM: dims.known ? Math.round(dims.beamM) : null,
+          lengthM: reportedLengthM !== undefined ? Math.round(reportedLengthM) : null,
+          beamM: reportedBeamM !== undefined ? Math.round(reportedBeamM) : null,
         },
       });
     }

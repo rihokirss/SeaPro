@@ -452,6 +452,14 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const beamM = p.beamM === null || p.beamM === undefined ? null : Number(p.beamM);
   const destination = String(p.destination ?? '').trim();
   const callSign = String(p.callSign ?? '').trim();
+  const imo = p.imo === null || p.imo === undefined ? null : Number(p.imo);
+  const flag = String(p.flag ?? '').trim();
+  const eta = String(p.eta ?? '').trim();
+  const draughtM = p.draughtM === null || p.draughtM === undefined ? null : Number(p.draughtM);
+  const positionFixType =
+    p.positionFixType === null || p.positionFixType === undefined
+      ? null
+      : Number(p.positionFixType);
 
   const rows: string[] = [];
 
@@ -472,8 +480,23 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   if (destination) {
     rows.push(row(t('vessel.destination'), escapeHtml(destination), ''));
   }
+  if (eta) {
+    rows.push(row(t('vessel.eta'), escapeHtml(formatVesselEta(eta, ctx.lang)), ''));
+  }
+  if (draughtM !== null) {
+    rows.push(row(t('vessel.draught'), draughtM.toFixed(1), 'm'));
+  }
   if (callSign) {
-    rows.push(row('Callsign', escapeHtml(callSign), ''));
+    rows.push(row(t('vessel.callSign'), escapeHtml(callSign), ''));
+  }
+  if (imo !== null) {
+    rows.push(row('IMO', escapeHtml(String(imo)), ''));
+  }
+  if (flag) {
+    rows.push(row(t('vessel.flag'), escapeHtml(flag), ''));
+  }
+  if (positionFixType !== null) {
+    rows.push(row(t('vessel.positionFix'), escapeHtml(positionFixName(positionFixType)), ''));
   }
 
   const stopped = sog !== null && sog < 0.5;
@@ -488,6 +511,35 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       <table class="popup__table">${rows.join('')}</table>
       <div class="popup__source">AIS · ${escapeHtml(String(p.source ?? ''))}</div>
     </div>`;
+}
+
+function formatVesselEta(value: string, lang: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat(lang === 'et' ? 'et-EE' : 'en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  }).format(date);
+}
+
+function positionFixName(code: number): string {
+  return (
+    [
+      'Undefined',
+      'GPS',
+      'GLONASS',
+      'GPS + GLONASS',
+      'Loran-C',
+      'Chayka',
+      'Integrated navigation system',
+      'Surveyed',
+      'Galileo',
+    ][code] ?? `AIS ${code}`
+  );
 }
 
 /**

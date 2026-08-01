@@ -35,9 +35,9 @@ AISSTREAM_KEY=
 
 Ainus päris API võti kogu projektis.
 
-**Mida see annab:** AIS-laevade katvuse Liivi lahes, Väinameres ja Lõuna-
-Läänemeres. Ilma selleta töötab AIS edasi Fintraffic Digitraffici kaudu, mis
-katab Soome lahe ja Eesti põhjaranniku, aga mitte lõunapoolseid vesi.
+**Mida see annab:** täiendava kogukondliku AIS-katvuse. Ilma selleta töötab
+AIS edasi Fintraffic Digitraffici ja Transpordiameti Nutimere avaliku voo
+kaudu.
 
 **Kuidas hankida** (~2 minutit):
 

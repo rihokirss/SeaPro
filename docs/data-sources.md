@@ -266,8 +266,26 @@ Kolm päringut käivad `Promise.allSettled` kaudu — ühe katkemine ei tohi
 
 ## AIS — laevade asukohad
 
-Kaks allikat, üks ühine register (`ais/registry.ts`). Liidetakse MMSI järgi,
-võidab värskeim ajatempel. Kumbagi kadumine jätab teise tööle.
+Kolm allikat, üks ühine register (`ais/registry.ts`). Positsioon liidetakse MMSI
+järgi ja võidab värskeim ajatempel. Metaandmeid liidetakse väljade kaupa: ühe
+allika tühi väärtus ei kustuta teiselt saadud nime, kutsungit, IMO numbrit,
+lipuriiki, tüüpi, sihtkohta, ETA-t, süvist ega mõõtmeid. Nii võib sama laeva
+värske asukoht tulla Transpordiametilt ja täielikum staatiline kirjeldus
+Digitrafficult või aisstreamist. Ühe allika kadumine jätab teised tööle.
+
+### Transpordiamet Nutimeri — `ais/transpordiamet.ts`
+
+| | |
+|---|---|
+| Otspunkt | `gis.transpordiamet.ee/.../AIS-vessels-stream-out/StreamServer` |
+| Võti | ei vaja |
+| Katvus | Eesti kaldajaamade AIS-võrk |
+
+ArcGIS WebSocketi tellimus piiratakse serveris `AIS_BBOX` ristkülikuga. Kuna
+StreamServer võib ühenduse avamise ja filtri rakendumise vahel juba sõnumeid
+saata, kontrollib provider sama ala ka lokaalselt. Voog taasühendub katkestuse
+järel eksponentsiaalselt kasvava ootega. Vaikimisi ala `53,9,66,31.5` katab
+kogu Läänemere Taani väinadest Botnia lahe põhjaosani.
 
 ### Fintraffic Digitraffic — `ais/digitraffic.ts`
 
@@ -296,7 +314,14 @@ WebSocket, mitte REST. Tellimussõnum tuleb saata 3 s jooksul ühenduse
 loomisest. Beeta ilma SLA-ta — kukkumine on normaalne, mitte erand; klass
 taasühendub eksponentsiaalselt kasvava ootega.
 
-Ilma võtmeta on see lihtsalt välja lülitatud ja AIS töötab Digitraffici najal.
+Tellimus sisaldab nii Class A teateid (`PositionReport`, `ShipStaticData`) kui
+ka väikelaevade jaoks olulisi Class B ja type 24 teateid
+(`StandardClassBPositionReport`, `ExtendedClassBPositionReport`,
+`StaticDataReport`). Ainult Class A filtriga jääks suur osa sadamate
+väikelaevadest nähtamatuks või ilma nimeta.
+
+Ilma võtmeta on see lihtsalt välja lülitatud ja AIS töötab Transpordiameti ning
+Digitraffici najal.
 
 ### AIS-i "teadmata" sentinelid
 
@@ -308,7 +333,7 @@ AIS kodeerib puuduvad väärtused skaala ülemise otsana, mitte tühjana:
 | COG | 3600 (= 360.0°) | kurss teadmata |
 | Heading | 511 | vööri suund teadmata |
 
-Mõlemad providerid tõlgivad need puuduvaks väärtuseks. Ilma selleta näitaks
+Kõik providerid tõlgivad need puuduvaks väärtuseks. Ilma selleta näitaks
 kaart sadamas seisvat laeva 102-sõlmese kiirusega.
 
 ---
