@@ -426,6 +426,8 @@ export interface NavigationAid {
   /** NMA registri täpne eestikeelne liigikirjeldus. */
   registryType?: string;
   registryUrl?: string;
+  /** NMA registrist saadud päevamärgi/ehitise põhivärvid ikooni jaoks. */
+  markColours?: Array<'red' | 'green' | 'white' | 'yellow' | 'orange' | 'black' | 'grey'>;
   atonType?: number;
   status?: number;
   offPosition?: boolean;

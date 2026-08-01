@@ -181,6 +181,8 @@
   "key.aid.safeWater": "Ohutu vee märk",
   "key.aid.special": "Erimärk",
   "key.aid.lighthouse": "Tuletorn või valgusmärk",
+  "key.aid.leading": "Sihitulepaak või sihimärk",
+  "key.aid.beacon": "Tulepaak või päevamärk",
   "key.aid.virtual": "Virtuaalne AIS-märk",
   "key.aid.note": "Kardinaalmärgi kolmnurgad näitavad suunda. Punane rõngas kaardil tähendab, et märk on ettenähtud asukohast väljas.",
   "key.stations": "Mõõtejaamad",

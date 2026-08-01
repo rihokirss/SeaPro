@@ -7,6 +7,7 @@ const REGISTRY_TTL = 24 * 3600;
 export interface NmaAidDetails {
   typeName: string;
   colours?: string;
+  description?: string;
 }
 
 export type NmaAidIndex = Record<string, NmaAidDetails>;
@@ -17,7 +18,7 @@ export type NmaAidIndex = Record<string, NmaAidDetails>;
  * HTML-lehe eraldi küsimine.
  */
 export async function fetchNmaAidIndex(): Promise<NmaAidIndex> {
-  const { value } = await cache.get('nma:aton-registry:v1', REGISTRY_TTL, async () => {
+  const { value } = await cache.get('nma:aton-registry:v2', REGISTRY_TTL, async () => {
     const xml = await fetchText(NMA_XML, {
       timeoutMs: 30_000,
       retries: 1,
@@ -37,9 +38,38 @@ export function parseNmaAidIndex(xml: string): NmaAidIndex {
     const typeName = tag(body, 'TypeName');
     if (!estNo || !typeName) continue;
     const colours = tag(body, 'Colours');
-    index[estNo] = { typeName, ...(colours ? { colours } : {}) };
+    const description = tag(body, 'Description');
+    index[estNo] = {
+      typeName,
+      ...(colours ? { colours } : {}),
+      ...(description ? { description } : {}),
+    };
   }
   return index;
+}
+
+type MarkColour = 'red' | 'green' | 'white' | 'yellow' | 'orange' | 'black' | 'grey';
+
+/**
+ * `Colours` on NMA-s eelistatud väli, kuid enamikul tulepaakidel on see tühi
+ * ja värv leidub ainult ehitise vabatekstilises kirjelduses.
+ */
+export function markColoursFromNma(details: NmaAidDetails | undefined): MarkColour[] | undefined {
+  if (!details) return undefined;
+  const source = details.colours?.trim() || details.description?.trim();
+  if (!source) return undefined;
+  const normalized = source.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const terms: Array<[string, MarkColour]> = [
+    ['puna', 'red'],
+    ['rohel', 'green'],
+    ['valg', 'white'],
+    ['kolla', 'yellow'],
+    ['oran', 'orange'],
+    ['must', 'black'],
+    ['hall', 'grey'],
+  ];
+  const found = terms.flatMap(([term, colour]) => normalized.includes(term) ? [colour] : []);
+  return found.length ? found : undefined;
 }
 
 function tag(xml: string, name: string): string | undefined {

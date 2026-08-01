@@ -181,6 +181,8 @@
   "key.aid.safeWater": "Safe-water mark",
   "key.aid.special": "Special mark",
   "key.aid.lighthouse": "Lighthouse or light",
+  "key.aid.leading": "Leading light or mark",
+  "key.aid.beacon": "Light beacon or daymark",
   "key.aid.virtual": "Virtual AIS aid",
   "key.aid.note": "Cardinal topmarks show the direction. A red ring on the map means the aid is off position.",
   "key.stations": "Stations",

@@ -297,6 +297,30 @@ export const NAVIGATION_AID_CATEGORIES = [
   'lighthouse', 'leading', 'beacon', 'virtual', 'unknown',
 ] as const;
 
+const FIXED_AID_COLOUR_VARIANTS = [
+  'red', 'green', 'white', 'yellow', 'orange', 'black', 'grey',
+  'red-white', 'white-black', 'green-white', 'white-orange', 'yellow-black',
+  'orange-black', 'red-grey', 'white-grey', 'red-white-grey',
+  'green-white-black', 'red-white-black', 'default',
+] as const;
+
+function fixedAidPalette(variant: string): string[] {
+  const colours: Record<string, string> = {
+    red: '#df3f45', green: '#2b9b62', white: '#fff', yellow: '#f0c62d',
+    orange: '#ed8a2c', black: '#111', grey: '#788991',
+  };
+  if (variant === 'default') return ['#788991'];
+  return variant.split('-').map((part) => colours[part] ?? '#788991');
+}
+
+export function fixedAidIconCategory(category: string, markColours: string[] | undefined): string {
+  if (category !== 'beacon' && category !== 'leading') return category;
+  if (!markColours?.length) return `${category}-default`;
+  const variant = markColours.join('-');
+  const known = FIXED_AID_COLOUR_VARIANTS.some((candidate) => candidate === variant);
+  return `${category}-${known ? variant : 'default'}`;
+}
+
 /** Kompaktne IALA-laadne tingmärk klikitava registrikihi jaoks. */
 function navigationAidMarker(category: string): ImageData {
   const size = 32;
@@ -322,6 +346,25 @@ function navigationAidMarker(category: string): ImageData {
     ctx.closePath();
     ctx.fillStyle = '#111';
     ctx.fill();
+  };
+  const fixedVariant = category.split('-').slice(1).join('-') || 'default';
+  const fillFixedBody = (x: number, y: number, width: number, height: number): void => {
+    const palette = fixedAidPalette(fixedVariant);
+    ctx.fillStyle = palette[0]!;
+    ctx.fillRect(x, y, width, height);
+    if (palette.length > 1) {
+      const stripeWidth = width / palette.length;
+      palette.forEach((colour, index) => {
+        ctx.fillStyle = colour;
+        ctx.fillRect(x + stripeWidth * index, y, stripeWidth, height);
+      });
+    }
+  };
+  const lightTop = (): void => {
+    ctx.beginPath(); ctx.arc(0, -6.5, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#f5d44d'; ctx.fill(); stroke();
+    ctx.beginPath(); ctx.moveTo(-7, -6.5); ctx.lineTo(-4, -6.5); ctx.moveTo(4, -6.5); ctx.lineTo(7, -6.5);
+    stroke('#b03b91', 1.4);
   };
 
   if (category === 'lateral-port' || category === 'preferred-port') {
@@ -411,9 +454,14 @@ function navigationAidMarker(category: string): ImageData {
     }
     ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); stroke('#c43a9d', 1.4);
     ctx.beginPath(); ctx.arc(0, 0, 1.5, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill();
-  } else if (category === 'leading') {
-    ctx.fillStyle = '#fff'; ctx.fillRect(-4.5, -6, 9, 13); ctx.strokeRect(-4.5, -6, 9, 13); stroke();
-    ctx.fillStyle = '#df3f45'; ctx.fillRect(-4.5, -1, 9, 3);
+  } else if (category === 'leading' || category.startsWith('leading-')) {
+    fillFixedBody(-5, 0, 10, 12);
+    ctx.strokeRect(-5, 0, 10, 12); stroke();
+    lightTop();
+  } else if (category === 'beacon' || category.startsWith('beacon-')) {
+    fillFixedBody(-3.2, -1, 6.4, 13);
+    ctx.strokeRect(-3.2, -1, 6.4, 13); stroke();
+    lightTop();
   } else if (category === 'virtual') {
     ctx.setLineDash([2, 2]);
     ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); stroke('#238cae', 2);
@@ -421,7 +469,7 @@ function navigationAidMarker(category: string): ImageData {
     ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fillStyle = '#238cae'; ctx.fill();
   } else {
     ctx.beginPath(); ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
-    ctx.fillStyle = category === 'beacon' ? '#607d8b' : '#4b9bb4'; ctx.fill(); stroke();
+    ctx.fillStyle = '#4b9bb4'; ctx.fill(); stroke();
     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(0, 8); stroke('#102b3a', 1.4);
   }
 
@@ -531,6 +579,11 @@ export function registerIcons(map: MapLibreMap): void {
 
   for (const category of NAVIGATION_AID_CATEGORIES) {
     icons[`navigation-${category}`] = navigationAidMarker(category);
+  }
+  for (const category of ['beacon', 'leading']) {
+    for (const variant of FIXED_AID_COLOUR_VARIANTS) {
+      icons[`navigation-${category}-${variant}`] = navigationAidMarker(`${category}-${variant}`);
+    }
   }
 
   for (const [name, data] of Object.entries(icons)) {

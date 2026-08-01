@@ -112,6 +112,8 @@ export function MapKey({
                       ['safe-water', 'key.aid.safeWater'],
                       ['special', 'key.aid.special'],
                       ['lighthouse', 'key.aid.lighthouse'],
+                      ['leading', 'key.aid.leading'],
+                      ['beacon', 'key.aid.beacon'],
                       ['virtual', 'key.aid.virtual'],
                     ] as const).map(([category, label]) => (
                       <li key={category}><NavigationMark category={category} />{t(label)}</li>
@@ -287,6 +289,10 @@ function NavigationMark({ category }: { category: string }) {
           <circle cx="10" cy="12" r="3.3" fill="#fff" />
           <circle cx="10" cy="12" r="1.4" fill="#111" stroke="none" />
         </g>
+      ) : category === 'leading' ? (
+        <g><rect x="5" y="11" width="10" height="12" fill="#fff" {...common} /><circle cx="10" cy="6" r="2.5" fill="#f5d44d" {...common} /><path d="M2 6h4m8 0h4" stroke="#b03b91" strokeWidth="1.4" /></g>
+      ) : category === 'beacon' ? (
+        <g><rect x="7" y="10" width="6" height="13" fill="#788991" {...common} /><circle cx="10" cy="6" r="2.5" fill="#f5d44d" {...common} /><path d="M2 6h4m8 0h4" stroke="#b03b91" strokeWidth="1.4" /></g>
       ) : (
         <g><circle cx="10" cy="12" r="7" fill="none" stroke="#238cae" strokeWidth="2" strokeDasharray="2 2" /><circle cx="10" cy="12" r="2" fill="#238cae" /></g>
       )}

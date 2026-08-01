@@ -2,7 +2,7 @@ import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import type { FilterSpecification, GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { NavigationData } from '@seapro/shared';
 import { insertBefore } from '../layerOrder';
-import { NAVIGATION_WARNING_ICON } from '../icons';
+import { fixedAidIconCategory, NAVIGATION_WARNING_ICON } from '../icons';
 
 const SOURCE_ID = 'navigation-src';
 
@@ -74,14 +74,15 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
   }
 
   for (const aid of data.aids) {
+    const category = aid.category ?? (aid.virtual ? 'virtual' : 'unknown');
     features.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [aid.lon, aid.lat] },
       properties: {
         featureKind: 'aid',
         ...aid,
-        category: aid.category ?? (aid.virtual ? 'virtual' : 'unknown'),
-        icon: `navigation-${aid.category ?? (aid.virtual ? 'virtual' : 'unknown')}`,
+        category,
+        icon: `navigation-${fixedAidIconCategory(category, aid.markColours)}`,
         sources: aid.sources.join(','),
         virtual: aid.virtual ?? false,
         offPosition: aid.offPosition ?? false,

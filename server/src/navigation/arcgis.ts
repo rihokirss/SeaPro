@@ -9,7 +9,7 @@ import type {
 import { cache } from '../cache.js';
 import { fetchJson } from '../http.js';
 import { categoryFromRegistry } from './categories.js';
-import { fetchNmaAidIndex, type NmaAidIndex } from './nmaRegistry.js';
+import { fetchNmaAidIndex, markColoursFromNma, type NmaAidIndex } from './nmaRegistry.js';
 
 const WARNINGS =
   'https://gis.transpordiamet.ee/arcgis/rest/services/' +
@@ -104,7 +104,7 @@ export async function fetchOfficialNavigation(
   bbox: [number, number, number, number],
 ): Promise<{ aids: NavigationAid[]; fairways: Fairway[] }> {
   const snapped = snapBbox(bbox);
-  const key = `nutimeri:navigation:v3:${snapped.join(',')}`;
+  const key = `nutimeri:navigation:v4:${snapped.join(',')}`;
   const { value } = await cache.get(key, STATIC_TTL, async () => {
     const [nmaIndex, fairwayCollection, ...aidCollections] = await Promise.all([
       // Registri koondfail on rikastus, mitte kaardi töötamise eeltingimus.
@@ -154,6 +154,7 @@ export async function fetchOfficialNavigation(
           atonCode,
           registryType: registry?.typeName,
           registryUrl: registryId ? `https://nma.vta.ee/aton/${encodeURIComponent(registryId)}/` : undefined,
+          markColours: markColoursFromNma(registry),
           status: numberValue(p.status),
           lightActive: booleanNumber(p.light_active),
           lightColour,
