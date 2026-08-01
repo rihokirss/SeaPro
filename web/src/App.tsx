@@ -847,7 +847,7 @@ export function App() {
 
   return (
     <I18nContext.Provider value={i18nValue}>
-      <div className="app">
+      <div className={`app${picked ? ' has-point-forecast' : ''}`}>
         <TopBar
           onOpenLayers={() => setPanelOpen(true)}
           geo={geo}

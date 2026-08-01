@@ -868,6 +868,30 @@ textarea {
     visibility 0s;
 }
 
+/* Mobiilis on avatud punktiprognoos ise valitud aja näit: eraldi kellaaja-,
+   kuupäeva- ja "Nüüd"-chipid võtaksid selle kohal asjatult ühe rea ruumi.
+   Jätame alles ajajoone, sest sellelt saab prognoosi aega endiselt muuta.
+
+   Prognoos ei ole enam ekraani alumise serva küljes, seega kujundame ta siin
+   päris hõljuvaks kaardiks: väike küljevahe, alumised ümarnurgad ja piirjoon. */
+@media (max-width: 879px) {
+  .app.has-point-forecast .timebar__row {
+    display: none;
+  }
+
+  .app.has-point-forecast .sheet {
+    left: calc(var(--s4) + var(--safe-left));
+    right: calc(var(--s4) + var(--safe-right));
+    bottom: calc(var(--ruler-h) + var(--s4) + var(--safe-bottom));
+    max-height: min(
+      74vh,
+      calc(100vh - var(--ruler-h) - var(--safe-top) - var(--safe-bottom) - var(--s6))
+    );
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-lg);
+  }
+}
+
 .sheet__grip {
   width: 36px;
   height: 4px;

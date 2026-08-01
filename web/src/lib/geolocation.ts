@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface Position {
   lat: number;
@@ -31,9 +31,13 @@ export function useGeolocation(): GeoState {
   const [status, setStatus] = useState<GeoStatus>('idle');
   const [position, setPosition] = useState<Position | null>(null);
 
-  const request = useCallback((onLocated?: (position: Position) => void) => {
+  const locate = useCallback((opts: {
+    onLocated?: (position: Position) => void;
+    quiet?: boolean;
+    maximumAge?: number;
+  }) => {
     if (!('geolocation' in navigator)) {
-      setStatus('unavailable');
+      if (!opts.quiet) setStatus('unavailable');
       return;
     }
     // Brauserid keelavad geolocation'i ebaturvalisel päritolul. Ilma selle
@@ -42,7 +46,7 @@ export function useGeolocation(): GeoState {
       setStatus('insecure');
       return;
     }
-    setStatus('locating');
+    if (!opts.quiet) setStatus('locating');
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -56,20 +60,48 @@ export function useGeolocation(): GeoState {
         };
         setPosition(next);
         setStatus('ok');
-        onLocated?.(next);
+        opts.onLocated?.(next);
       },
       (err) => {
-        setStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable');
+        if (err.code === err.PERMISSION_DENIED) setStatus('denied');
+        else if (!opts.quiet) setStatus('unavailable');
       },
       {
         enableHighAccuracy: true,
         // Merel liigutakse aeglaselt; 10 s vana asukoht on täiesti kõlblik ja
         // säästab akut.
-        maximumAge: 10_000,
+        maximumAge: opts.maximumAge ?? 10_000,
         timeout: 20_000,
       },
     );
   }, []);
+
+  const request = useCallback((onLocated?: (position: Position) => void) => {
+    locate({ onLocated });
+  }, [locate]);
+
+  /* Kui kasutaja on asukohaloa juba varem andnud, küsime ühe punkti vaikselt
+     ette. See ei ava loaküsimust ega käivita jälgimisrežiimi, aga võimaldab
+     nupul olemasoleva koordinaadi peale kohe liikuda nagu kaardirakendustes
+     tavaks. Kuni minuti vanune brauseri cache sobib selleks esimeseks hüppeks;
+     nupuvajutus värskendab punkti kohe suurema värskusnõudega taustal. */
+  useEffect(() => {
+    if (!('permissions' in navigator) || !window.isSecureContext) return;
+    let cancelled = false;
+    navigator.permissions
+      .query({ name: 'geolocation' as PermissionName })
+      .then((permission) => {
+        if (cancelled) return;
+        if (permission.state === 'granted') locate({ quiet: true, maximumAge: 60_000 });
+        else if (permission.state === 'denied') setStatus('denied');
+      })
+      .catch(() => {
+        // Vanem Safari: asukohta küsime alles nupuvajutusel.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [locate]);
 
   return { status, position, request };
 }
