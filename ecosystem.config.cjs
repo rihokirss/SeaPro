@@ -37,30 +37,5 @@ module.exports = {
       merge_logs: true,
       time: true,
     },
-    {
-      // Aeglane offline-hooldus: kirjutab leitud lingid JSON-i. Server loeb
-      // faili iga /api/navily-ports päringuga, seega pole pärast korjet build'i
-      // ega restarti vaja. Oma --watch tähendab siin "uus pakk kord ööpäevas",
-      // mitte PM2 failijälgimist.
-      name: 'seapro-navily-scan',
-      script: 'node_modules/.bin/tsx',
-      args: [
-        'server/scripts/scan-navily-links.ts',
-        '--watch',
-        '--focus=finland-archipelago',
-        '--max-requests=20',
-        '--delay-ms=20000',
-        '--interval-hours=24',
-      ],
-      cwd: __dirname,
-      node_args: '--env-file-if-exists=.env',
-      watch: false,
-      autorestart: true,
-      restart_delay: 60_000,
-      max_restarts: 10,
-      min_uptime: 30_000,
-      merge_logs: true,
-      time: true,
-    },
   ],
 };

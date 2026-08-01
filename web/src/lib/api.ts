@@ -8,7 +8,6 @@ import type {
   Variable,
   Vessel,
 } from '@seapro/shared';
-import type { NavilyPortMap } from './navily';
 
 export interface AppConfig {
   defaultLat: number;
@@ -59,9 +58,6 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
 
 export const api = {
   config: (signal?: AbortSignal) => get<AppConfig>('/api/config', signal),
-
-  navilyPorts: (signal?: AbortSignal) =>
-    get<{ ports: NavilyPortMap }>('/api/navily-ports', signal),
 
   providers: (signal?: AbortSignal) => get<ProviderCapabilities[]>('/api/providers', signal),
 

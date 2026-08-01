@@ -18,7 +18,6 @@ import { useTheme } from './lib/theme';
 import { loadSpeedUnit, saveSpeedUnit, type SpeedUnit } from './lib/units';
 import { loadMapView, saveMapView } from './lib/mapView';
 import { floorToHour, formatDateTime } from './lib/time';
-import { setNavilyPorts } from './lib/navily';
 import { MapView } from './map/MapView';
 import { hideWindArrows, updateWindArrows } from './map/layers/windArrows';
 import { hideScalarField, updateScalarField } from './map/layers/scalarField';
@@ -343,33 +342,6 @@ function useGridDays(params: {
 }
 
 export function App() {
-  useEffect(() => {
-    let active = true;
-    let controller: AbortController | undefined;
-
-    const refreshNavilyPorts = (): void => {
-      controller?.abort();
-      controller = new AbortController();
-      void api
-        .navilyPorts(controller.signal)
-        .then(({ ports }) => {
-          if (active) setNavilyPorts(ports);
-        })
-        // Bundle'is olev kontrollitud tabel jääb võrgutõrke korral kasutusse.
-        .catch(() => undefined);
-    };
-
-    refreshNavilyPorts();
-    // Skanner töötab aeglaselt taustal. Avatud kaart saab uued vasted samuti
-    // kätte, ilma et kasutaja peaks lehte värskendama.
-    const interval = window.setInterval(refreshNavilyPorts, 15 * 60_000);
-    return () => {
-      active = false;
-      controller?.abort();
-      window.clearInterval(interval);
-    };
-  }, []);
-
   const [lang, setLangState] = useState<Lang>(detectLang);
   const t = useMemo(() => makeTranslate(lang), [lang]);
   const setLang = useCallback((next: Lang) => {

@@ -5,7 +5,7 @@ import type { Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import { STATIONS_LAYER } from './layers/stations';
 import { VESSEL_LAYERS } from './layers/vessels';
-import { navilyIsExactAt, navilyUrl } from '../lib/navily';
+import { navilyUrl } from '../lib/navily';
 import { ANCHORAGES_LAYER, HARBOURS_LAYER } from './layers/harbours';
 
 /**
@@ -405,19 +405,17 @@ function harbourHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     );
   }
 
-  // Link Navilysse — vt `lib/navily.ts`: teadaoleva sadama puhul tema enda leht,
-  // muidu koordinaadivaade, mis töötab iga sadama jaoks.
+  // Koordinaadivaade näitab enne sadama valimist ka ümbrust ning töötab iga
+  // sadama ja ankrukoha jaoks ilma Navily kataloogi kopeerimata.
   const coords = f.geometry.type === 'Point' ? (f.geometry.coordinates as number[]) : null;
   const lon = coords?.[0];
   const lat = coords?.[1];
   if (lat !== undefined && lon !== undefined) {
-    const name = str(p.name);
-    const hint = navilyIsExactAt(name, lat, lon)
-      ? t('harbour.navily.hint')
-      : t('harbour.navily.hintNearby');
     links.push(
-      `<a href="${escapeHtml(navilyUrl(name, lat, lon))}" ` +
-        `target="_blank" rel="noopener noreferrer" title="${escapeHtml(hint)}">` +
+      `<a href="${escapeHtml(navilyUrl(lat, lon))}" ` +
+        `target="_blank" rel="noopener noreferrer" title="${escapeHtml(
+          t('harbour.navily.hint'),
+        )}">` +
         `${escapeHtml(t('harbour.navily'))}</a>`,
     );
   }
