@@ -1,6 +1,5 @@
 import type { ProviderCapabilities, Variable } from '@seapro/shared';
 import { LANGS, useI18n } from '../i18n';
-import { OVERLAY_CONTROLS } from '../map/basemaps';
 import { COLOR_SCALES, SCALAR_FIELDS, rgbaCss, sampleScale } from '../map/colorScales';
 import { THEMES, type Theme } from '../lib/theme';
 import { SPEED_UNITS, type SpeedUnit } from '../lib/units';
@@ -157,7 +156,75 @@ export function LayerPanel({
 
         <div className="panel__body">
           <section className="panel__section">
-            <h3>{t('layer.group.data')}</h3>
+            <h3>{t('layer.group.navigation')}</h3>
+            <Toggle
+              checked={layers.overlays.includes('chart')}
+              onChange={(v) => toggleOverlay('chart', v)}
+              label={t('layer.chart')}
+              hint={t('layer.chart.hint')}
+            />
+            <Toggle
+              checked={layers.navigationWarnings}
+              onChange={(v) => set({ navigationWarnings: v })}
+              label={t('layer.navigationWarnings')}
+            />
+            <Toggle
+              checked={layers.navigationAids}
+              onChange={(v) => set({ navigationAids: v })}
+              label={t('layer.navigationAids')}
+            />
+            <Toggle
+              checked={layers.officialNavigation}
+              onChange={(v) => set({ officialNavigation: v })}
+              label={t('layer.officialNavigation')}
+              hint={t('layer.officialNavigation.hint')}
+            />
+            <Toggle
+              checked={layers.wrecks}
+              onChange={(v) => set({ wrecks: v })}
+              label={t('layer.wrecks')}
+            />
+            <Toggle
+              checked={layers.overlays.includes('seamark')}
+              onChange={(v) => toggleOverlay('seamark', v)}
+              label={t('layer.seamark')}
+              hint={t('layer.seamark.hint')}
+            />
+            <Toggle
+              checked={layers.overlays.includes('bathymetry')}
+              onChange={(v) => toggleOverlay('bathymetry', v)}
+              label={t('layer.bathymetry')}
+              hint={t('layer.bathymetry.hint')}
+            />
+            <Toggle
+              checked={layers.placeLabels}
+              onChange={(v) => set({ placeLabels: v })}
+              label={t('layer.placeLabels')}
+            />
+          </section>
+
+          <section className="panel__section">
+            <h3>{t('layer.group.traffic')}</h3>
+            <Toggle
+              checked={layers.vessels}
+              onChange={(v) => set({ vessels: v })}
+              label={t('layer.vessels')}
+            />
+            <Toggle
+              checked={layers.harbours}
+              onChange={(v) => set({ harbours: v })}
+              label={t('layer.harbours')}
+            />
+            <Toggle
+              checked={layers.anchorages}
+              onChange={(v) => set({ anchorages: v })}
+              label={t('layer.anchorages')}
+              hint={t('layer.anchorages.hint')}
+            />
+          </section>
+
+          <section className="panel__section">
+            <h3>{t('layer.group.weather')}</h3>
 
             <h4 className="panel__subhead">{t('layer.wind')}</h4>
             <div className="chips">
@@ -180,20 +247,9 @@ export function LayerPanel({
               label={t('layer.stations')}
             />
             <Toggle
-              checked={layers.vessels}
-              onChange={(v) => set({ vessels: v })}
-              label={t('layer.vessels')}
-            />
-            <Toggle
-              checked={layers.harbours}
-              onChange={(v) => set({ harbours: v })}
-              label={t('layer.harbours')}
-            />
-            <Toggle
-              checked={layers.anchorages}
-              onChange={(v) => set({ anchorages: v })}
-              label={t('layer.anchorages')}
-              hint={t('layer.anchorages.hint')}
+              checked={layers.overlays.includes('radar')}
+              onChange={(v) => toggleOverlay('radar', v)}
+              label={t('layer.radar')}
             />
           </section>
 
@@ -223,44 +279,6 @@ export function LayerPanel({
               ))}
             </div>
             {layers.scalarField ? <ScaleBar variable={layers.scalarField} /> : null}
-          </section>
-
-          <section className="panel__section">
-            <h3>{t('layer.group.overlay')}</h3>
-            <Toggle
-              checked={layers.placeLabels}
-              onChange={(v) => set({ placeLabels: v })}
-              label={t('layer.placeLabels')}
-            />
-            <Toggle
-              checked={layers.navigationWarnings}
-              onChange={(v) => set({ navigationWarnings: v })}
-              label={t('layer.navigationWarnings')}
-            />
-            <Toggle
-              checked={layers.navigationAids}
-              onChange={(v) => set({ navigationAids: v })}
-              label={t('layer.navigationAids')}
-            />
-            <Toggle
-              checked={layers.wrecks}
-              onChange={(v) => set({ wrecks: v })}
-              label={t('layer.wrecks')}
-            />
-            <Toggle
-              checked={layers.officialNavigation}
-              onChange={(v) => set({ officialNavigation: v })}
-              label={t('layer.officialNavigation')}
-              hint={t('layer.officialNavigation.hint')}
-            />
-            {OVERLAY_CONTROLS.map((def) => (
-              <Toggle
-                key={def.id}
-                checked={layers.overlays.includes(def.id)}
-                onChange={(v) => toggleOverlay(def.id, v)}
-                label={t(def.labelKey)}
-              />
-            ))}
           </section>
 
           <section className="panel__section">

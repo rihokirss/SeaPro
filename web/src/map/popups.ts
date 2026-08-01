@@ -557,6 +557,7 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   let title = String(p.name ?? '').trim();
   let kindLabel = t(`navigation.${kind}`);
   let notice = '';
+  let message = '';
 
   if (kind === 'warning') {
     title = localized(p.titleEt, p.titleEn, ctx) || t('navigation.warning');
@@ -564,7 +565,7 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     const number = nullableNumber(p.number);
     if (number !== null) rows.push(row(t('navigation.warningNumber'), String(number), ''));
     const text = localized(p.textEt, p.textEn, ctx);
-    if (text) rows.push(row(kindLabel, multiline(text), ''));
+    if (text) message = multiline(text);
     const validity = formatDateRange(String(p.validFrom ?? ''), String(p.validTo ?? ''), ctx.lang);
     if (validity) rows.push(row(t('navigation.validity'), escapeHtml(validity), ''));
     const charts = String(p.charts ?? '').trim();
@@ -605,6 +606,7 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
         <span class="popup__kind">${escapeHtml(kindLabel)}</span>
       </div>
       ${notice ? `<div class="popup__age popup__age--stale">${escapeHtml(notice)}</div>` : ''}
+      ${message ? `<div class="popup__message">${message}</div>` : ''}
       ${rows.length ? `<table class="popup__table">${rows.join('')}</table>` : ''}
       <div class="popup__source">Transpordiamet · Nutimeri</div>
     </div>`;
@@ -693,7 +695,7 @@ function row(label: string, value: string, unit: string): string {
   const cell = unit
     ? `<span class="popup__val">${value} <small>${escapeHtml(unit)}</small></span>`
     : value;
-  return `<tr><th>${escapeHtml(label)}</th><td>${cell}</td></tr>`;
+  return `<tr><th>${escapeHtml(label)}</th><td class="popup__cell--${unit ? 'metric' : 'text'}">${cell}</td></tr>`;
 }
 
 function formatAge(ageSeconds: number, t: Translate): string {

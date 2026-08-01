@@ -2,8 +2,8 @@
    SeaPro — merevibe kujundus
 
    Meeleolu: pilditav navigatsiooniinstrument. Sügav ookeanisinine, messingist
-   aktsent (nagu sekstant või kompassiroos), matt klaas paneelidel. Numbrid on
-   tabelnumbritega ja monospace'i-laadsed, sest need on näidud, mitte tekst.
+   aktsent (nagu sekstant või kompassiroos), matt klaas paneelidel. Numbrinäidud
+   kasutavad tabelnumbreid, kuid tekst ja popupid jäävad loetavasse tavafonti.
 
    Piirangud, mis kujundust juhivad:
    - kaatris on käed märjad ja paat liigub  -> puutealad >= 44 px
@@ -1507,6 +1507,7 @@ button.sheet__grip::before {
 
 .maplibregl-popup-content {
   background: var(--surface) !important;
+  font-family: inherit;
   backdrop-filter: var(--blur-panel);
   -webkit-backdrop-filter: var(--blur-panel);
   border: 1px solid var(--line-strong);
@@ -2051,6 +2052,7 @@ button.sheet__grip::before {
 
 .popup {
   min-width: 180px;
+  font-family: inherit;
   /* Sisu ei tohi kunagi kastist välja ulatuda — ka siis, kui mõni sõna on
      pikem kui rida (pikad URL-id, liitsõnad). */
   max-width: 100%;
@@ -2134,7 +2136,34 @@ button.sheet__grip::before {
 .popup__table td {
   padding: 2px 0 2px 12px;
   text-align: right;
-  font-family: var(--num);
+  font-family: inherit;
+  font-weight: var(--w-med);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Nimed, sihtkohad, kuupäevad ja kontaktid loevad nagu tekst. Ainult päris
+   mõõtarvud jäävad paremale joondatuks ja tabelnumbritega. */
+.popup__table td.popup__cell--text {
+  text-align: left;
+  font-variant-numeric: normal;
+}
+
+/* Pikk ohutustekst ei ole tabelinäit. Eraldi vasakjoondatud plokk teeb
+   hoiatuse loetavaks ka siis, kui brauseri monofondi glüüfid on kehvad. */
+.popup__message {
+  margin: 0 0 var(--s3);
+  padding: var(--s4) var(--s5);
+  border-left: 3px solid var(--warn);
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+  background: rgba(224, 168, 63, 0.1);
+  font-family: inherit;
+  font-size: var(--t-md);
+  font-weight: var(--w-reg);
+  line-height: 1.45;
+  text-align: left;
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
