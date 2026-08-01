@@ -4,8 +4,9 @@
 
 `/api/search` vahendab kasutaja käivitatud asukoha- ja sadamaotsingu Photonile.
 Photon toetab prefiksiotsingut ja kirjavigade talumist, mistõttu leiab näiteks
-`Yxsk` nime `Yxskär`. Server piirab välispäringud ühele sekundis ja vahemäldab
-tulemused nädalaks. Teenuse saab `PHOTON_URL` kaudu asendada oma instantsiga.
+`Yxsk` nime `Yxskär`. Klient küsib soovitusi pärast 400 ms trükkimispausi;
+server piirab välispäringud ühele sekundis ja vahemäldab tulemused nädalaks.
+Teenuse saab `PHOTON_URL` kaudu asendada oma instantsiga.
 
 Iga allikas on `server/src/providers/` all eraldi fail, mis implementeerib
 `WeatherProvider` liidese. Frontend ei tea ühestki allikast midagi peale selle,

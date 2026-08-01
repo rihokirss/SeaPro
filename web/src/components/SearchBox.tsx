@@ -15,6 +15,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
+  const skipNextAutoSearch = useRef(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [status, setStatus] = useState<Status>('idle');
@@ -35,8 +36,8 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
 
   useEffect(() => () => request.current?.abort(), []);
 
-  const search = (): void => {
-    const q = query.trim();
+  const search = (value = query): void => {
+    const q = value.trim();
     if (q.length < 2) {
       input.current?.focus();
       return;
@@ -60,7 +61,29 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
       });
   };
 
+  // Photon toetab prefiksiotsingut. Viivitus ootab ära loomuliku trükkimispausi
+  // ja hoiab ära välispäringu iga klahvivajutuse kohta.
+  useEffect(() => {
+    if (skipNextAutoSearch.current) {
+      skipNextAutoSearch.current = false;
+      return;
+    }
+    const q = query.trim();
+    if (q.length < 2) {
+      request.current?.abort();
+      setResults([]);
+      setStatus('idle');
+      setOpen(false);
+      return;
+    }
+    const timer = window.setTimeout(() => search(q), 400);
+    return () => window.clearTimeout(timer);
+  }, [query, lang, bbox?.join(',')]);
+
   const choose = (result: SearchResult): void => {
+    // Kui nimi päriselt muutub, ära käivita valitud tulemuse nime peale uut
+    // soovituspäringut. Sama väärtusega setState uut efekti ei tekita.
+    if (result.name !== query) skipNextAutoSearch.current = true;
     setQuery(result.name);
     setOpen(false);
     setMobileOpen(false);
@@ -111,6 +134,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
             if (status !== 'idle') setOpen(true);
           }}
           onChange={(event) => {
+            request.current?.abort();
             setQuery(event.target.value);
             setOpen(false);
             setActive(-1);
@@ -132,7 +156,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
         <button
           className="search__submit"
           type="button"
-          onClick={search}
+          onClick={() => search()}
           disabled={query.trim().length < 2 || status === 'searching'}
           aria-label={t('search.submit')}
           title={t('search.submit')}

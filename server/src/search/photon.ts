@@ -102,18 +102,22 @@ export function parsePhotonResults(input: unknown, query: string): SearchResult[
       seen.add(result.id);
       return true;
     })
+    .slice(0, 12)
     .map(({ _score: _ignored, ...result }) => result);
 }
 
 export async function searchPlaces(query: string, lang: 'et' | 'en', viewbox?: BBox): Promise<SearchResult[]> {
   const normalizedQuery = query.trim().replace(/\s+/g, ' ');
   const viewKey = viewbox?.map((n) => n.toFixed(2)).join(',') ?? '-';
-  const key = `search:photon:v2:${lang}:${viewKey}:${normalized(normalizedQuery)}`;
+  const key = `search:photon:v3:${lang}:${viewKey}:${normalized(normalizedQuery)}`;
 
-  const { value } = await cache.get(key, config.ttl.search, async () => {
+  const { value } = await cache.get(key, config.ttl.search, () => rateLimited(async () => {
     const url = new URL('/api/', config.photonUrl);
     url.searchParams.set('q', normalizedQuery);
-    url.searchParams.set('limit', '12');
+    // Võtame järjestamiseks laiema hulga: tiheda nimega „Tilgu” puhul oli
+    // sadam Photoni 13. tulemus ja jäi väiksema limiidi korral üldse nägemata.
+    // Kliendile tagastab parser pärast merendusjärjestust endiselt kuni 12.
+    url.searchParams.set('limit', '50');
     if (lang === 'en') url.searchParams.set('lang', 'en');
     if (viewbox) {
       const [south, west, north, east] = viewbox;
@@ -122,21 +126,10 @@ export async function searchPlaces(query: string, lang: 'et' | 'en', viewbox?: B
       url.searchParams.set('zoom', '10');
       url.searchParams.set('location_bias_scale', '0.25');
     }
-    const harbourUrl = new URL(url);
-    harbourUrl.searchParams.set('limit', '8');
-    harbourUrl.searchParams.set('osm_tag', 'leisure:marina');
-
-    // Kaks haru jagavad sama ühe-päringu-sekundis järjekorda. Üldotsing annab
-    // kohad ja osalised nimed, sadamaharu tagab, et tiheda nimega päringus ei
-    // jää marina esimese tulemuste lehe taha peitu.
-    const [general, harbours] = await Promise.all([
-      rateLimited(() => fetchJson<PhotonResponse>(url.toString(), { retries: 0 })),
-      rateLimited(() => fetchJson<PhotonResponse>(harbourUrl.toString(), { retries: 0 })),
-    ]);
-    return parsePhotonResults({
-      type: 'FeatureCollection',
-      features: [...(general.features ?? []), ...(harbours.features ?? [])],
-    }, normalizedQuery);
-  });
+    return parsePhotonResults(
+      await fetchJson<PhotonResponse>(url.toString(), { retries: 0 }),
+      normalizedQuery,
+    );
+  }));
   return value;
 }
