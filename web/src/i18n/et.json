@@ -31,6 +31,7 @@
   "layer.placeLabels": "Kohanimed ja saared",
   "layer.chartEE": "Merekaart (Eesti)",
   "layer.chartFI": "Merekaart (Soome)",
+  "layer.chart": "Navigatsioonikaart (Eesti + Soome)",
   "layer.seamark": "Navigatsioonimärgid",
   "layer.bathymetry": "Sügavused",
   "layer.radar": "Ilmaradar",

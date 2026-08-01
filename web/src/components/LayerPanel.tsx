@@ -1,6 +1,6 @@
 import type { ProviderCapabilities, Variable } from '@seapro/shared';
 import { LANGS, useI18n } from '../i18n';
-import { OVERLAY_LAYERS } from '../map/basemaps';
+import { OVERLAY_CONTROLS } from '../map/basemaps';
 import { COLOR_SCALES, SCALAR_FIELDS, rgbaCss, sampleScale } from '../map/colorScales';
 import { THEMES, type Theme } from '../lib/theme';
 import { SPEED_UNITS, type SpeedUnit } from '../lib/units';
@@ -228,7 +228,7 @@ export function LayerPanel({
               onChange={(v) => set({ placeLabels: v })}
               label={t('layer.placeLabels')}
             />
-            {OVERLAY_LAYERS.map((def) => (
+            {OVERLAY_CONTROLS.map((def) => (
               <Toggle
                 key={def.id}
                 checked={layers.overlays.includes(def.id)}

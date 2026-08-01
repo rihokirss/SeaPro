@@ -31,6 +31,7 @@
   "layer.placeLabels": "Place names and islands",
   "layer.chartEE": "Nautical chart (Estonia)",
   "layer.chartFI": "Nautical chart (Finland)",
+  "layer.chart": "Nautical chart (Estonia + Finland)",
   "layer.seamark": "Seamarks",
   "layer.bathymetry": "Bathymetry",
   "layer.radar": "Weather radar",

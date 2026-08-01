@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { OVERLAY_LAYERS, baseStyle, type RasterLayerDef } from './basemaps';
+import {
+  OVERLAY_LAYERS,
+  baseStyle,
+  overlayIsActive,
+  type RasterLayerDef,
+} from './basemaps';
 import { addColorBase } from './colorBase';
 import { addDarkBase } from './darkBase';
 import { registerIcons } from './icons';
@@ -244,7 +249,7 @@ export function MapView({
     if (!map || !styleReady) return;
 
     for (const def of OVERLAY_LAYERS) {
-      const wanted = activeOverlays.includes(def.id);
+      const wanted = overlayIsActive(def.id, activeOverlays);
       const exists = Boolean(map.getLayer(def.id));
 
       if (wanted && !exists) {

@@ -348,7 +348,7 @@ poleks ühtki kvooti ega võtmesõltuvust.
 | Aluskaart (värviline) | `tiles.openfreemap.org/planet` (vektor) | Oma stiil `web/src/map/colorBase.ts`. OSM-i rasterpaanid asendatud: nende palett on maismaakeskne (kollased teed, roheline mets) ja meri jääb lameda laiguna tagaplaanile |
 | Tume aluskaart | `tiles.openfreemap.org/planet` (vektor, OpenMapTiles skeem) | Valevärvi-välja alla. Oma stiil `web/src/map/darkBase.ts`: vesi tume, maa heledam. **Vektor on siin nõue, mitte eelistus** — vt allpool |
 | Merekaart (EE) | `gis.transpordiamet.ee/primar/wms_ip/TranspordiametNutimeri` | WMS, `layers=cells&styles=style-id-263`, bounds 57.45–60.1 N |
-| Merekaart (FI) | `einavigointiin.fi/map/{z}/{x}/{y}` | **CORS puudub → käib meie proxy kaudu** (`/api/tiles/chart-fi/{z}/{x}/{y}`) |
+| Merekaart (FI) | `julkinen.traficom.fi/s57/wms`, `layers=cells`, `styles=style-id-203` | WMS, läbipaistva maismaaga |
 | Navigatsioonimärgid | `tiles.openseamap.org/seamark/` | globaalne |
 | Sügavused | `ows.emodnet-bathymetry.eu/wms` | |
 | Ilmaradar | `ilmgs.envir.ee/geoserver/ilm/wms`, `layers=ilm:cmp_cap` | Eesti |
@@ -396,7 +396,10 @@ Mõõdetud (localhost:5174, paan `10/582/297`):
 
 Pärast proxyt: 48 paani, kõik 200, `crossOrigin` loeb pikslid, katvus 100%.
 
-Eesti merekaart tuleb WMS-ilt, mis CORS-i saadab, ja töötab seetõttu otse.
+Eesti ja Soome navigatsioonikaart lülituvad kasutajale ühe kihina. Soome ENC
+kasutab sama Traficomi läbipaistva maismaaga WMS-stiili nagu Nutimeri; see
+lubab Eesti WMS-il piirialal alt läbi paista ega kata Eestit valgete XYZ
+paanidega. Mõlemad WMS-id saadavad CORS-i ja töötavad brauserist otse.
 
 ### Tume aluskaart: miks vektor
 

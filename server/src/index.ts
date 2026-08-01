@@ -6,7 +6,6 @@ import fastifyStatic from '@fastify/static';
 import { cache } from './cache.js';
 import { config, warnAboutConfig } from './config.js';
 import { registerApiRoutes } from './routes/api.js';
-import { registerTileRoutes } from './routes/tiles.js';
 import { startBackgroundJobs, stopBackgroundJobs } from './background.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -24,7 +23,6 @@ const app = Fastify({
 });
 
 await registerApiRoutes(app);
-await registerTileRoutes(app);
 
 // Frontend. Arenduses serveerib seda Vite (:5173) ja siit ei tule midagi —
 // toodangus on web/dist olemas ja server annab selle ise välja.

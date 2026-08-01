@@ -22,6 +22,11 @@ export interface RasterLayerDef {
   opacity?: number;
 }
 
+export interface OverlayControlDef {
+  id: string;
+  labelKey: string;
+}
+
 /**
  * Aluskaarte SIIN EI OLE.
  *
@@ -36,6 +41,22 @@ export interface RasterLayerDef {
 
 export const OVERLAY_LAYERS: RasterLayerDef[] = [
   {
+    // Soome ametlik ENC. Nutimeri kasutab sama Traficomi WMS-i ja just
+    // läbipaistva maismaaga stiili: nii ei kata Soome kattealast väljapoole
+    // jääv valge paan Eesti kaarti kinni.
+    id: 'chart-fi',
+    labelKey: 'layer.chartFI',
+    tiles: [
+      'https://julkinen.traficom.fi/s57/wms?' +
+        'SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=cells&STYLES=style-id-203' +
+        '&FORMAT=image/png&TRANSPARENT=true&SRS=EPSG:3857' +
+        '&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256',
+    ],
+    attribution: '<a href="https://www.traficom.fi/">Traficom</a>',
+    bounds: [18.0, 59.0, 32.0, 70.5],
+    minzoom: 6,
+  },
+  {
     // Eesti ametlik merekaart. Kaatrimehele olulisem kui OSM: faarvaatrid,
     // sügavused, kardinaalmärgid.
     id: 'chart-ee',
@@ -49,18 +70,6 @@ export const OVERLAY_LAYERS: RasterLayerDef[] = [
     attribution: '<a href="https://gis.transpordiamet.ee/nutimeri/">Transpordiamet</a>',
     bounds: [20.07, 57.45, 28.41, 60.1],
     minzoom: 7,
-  },
-  {
-    id: 'chart-fi',
-    labelKey: 'layer.chartFI',
-    // Läbi meie proxy, MITTE otse. Allikas ei saada CORS-päiseid ja MapLibre
-    // laeb rasterpaane crossOrigin-iga (WebGL vajab pikslitele ligipääsu),
-    // seega otseühendusel tõmmatakse paan ära ja visatakse kohe minema —
-    // mõõdetult 48 päringut ja null pikslit. Vt server/src/routes/tiles.ts.
-    tiles: ['/api/tiles/chart-fi/{z}/{x}/{y}'],
-    attribution: '<a href="https://einavigointiin.fi/">Väylävirasto</a>',
-    bounds: [19.0, 59.0, 31.6, 70.1],
-    minzoom: 6,
   },
   {
     id: 'seamark',
@@ -95,6 +104,24 @@ export const OVERLAY_LAYERS: RasterLayerDef[] = [
     opacity: 0.6,
   },
 ];
+
+/**
+ * Kasutaja lülitid. Eesti ja Soome ENC on üks navigatsioonikaart: nende
+ * lahutamine laseks ühe poole piirialal kogemata välja lülitada ning jätaks
+ * mulje, et kaardikate on katki.
+ */
+export const OVERLAY_CONTROLS: OverlayControlDef[] = [
+  { id: 'chart', labelKey: 'layer.chart' },
+  { id: 'seamark', labelKey: 'layer.seamark' },
+  { id: 'bathymetry', labelKey: 'layer.bathymetry' },
+  { id: 'radar', labelKey: 'layer.radar' },
+];
+
+export function overlayIsActive(layerId: string, activeControls: string[]): boolean {
+  return layerId === 'chart-ee' || layerId === 'chart-fi'
+    ? activeControls.includes('chart')
+    : activeControls.includes(layerId);
+}
 
 /** Minimaalne stiil — rasterkihid lisatakse dünaamiliselt. */
 export function baseStyle(): StyleSpecification {
