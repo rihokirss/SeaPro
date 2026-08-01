@@ -22,6 +22,9 @@ export function mergeNavigationAids(
     out[matchIndex] = {
       ...base,
       name: incoming.name || base.name,
+      category: incoming.category && incoming.category !== 'unknown'
+        ? incoming.category
+        : base.category,
       atonType: incoming.atonType ?? base.atonType,
       status: incoming.status ?? base.status,
       offPosition: incoming.offPosition ?? base.offPosition,

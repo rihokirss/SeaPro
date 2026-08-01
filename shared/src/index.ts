@@ -404,6 +404,22 @@ export interface NavigationAid {
   name: string;
   nameEn?: string;
   kind: 'fixed' | 'floating' | 'seasonal' | 'ais' | 'virtual';
+  /** Normaliseeritud IALA/AIS märgitüüp kaardi tingmärgi valimiseks. */
+  category?:
+    | 'lateral-port'
+    | 'lateral-starboard'
+    | 'cardinal-north'
+    | 'cardinal-east'
+    | 'cardinal-south'
+    | 'cardinal-west'
+    | 'isolated-danger'
+    | 'safe-water'
+    | 'special'
+    | 'lighthouse'
+    | 'leading'
+    | 'beacon'
+    | 'virtual'
+    | 'unknown';
   atonCode?: string;
   atonType?: number;
   status?: number;

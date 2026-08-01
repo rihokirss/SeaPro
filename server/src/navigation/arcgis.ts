@@ -8,6 +8,7 @@ import type {
 } from '@seapro/shared';
 import { cache } from '../cache.js';
 import { fetchJson } from '../http.js';
+import { categoryFromRegistry } from './categories.js';
 
 const WARNINGS =
   'https://gis.transpordiamet.ee/arcgis/rest/services/' +
@@ -102,7 +103,7 @@ export async function fetchOfficialNavigation(
   bbox: [number, number, number, number],
 ): Promise<{ aids: NavigationAid[]; fairways: Fairway[] }> {
   const snapped = snapBbox(bbox);
-  const key = `nutimeri:navigation:v1:${snapped.join(',')}`;
+  const key = `nutimeri:navigation:v2:${snapped.join(',')}`;
   const { value } = await cache.get(key, STATIC_TTL, async () => {
     const [fairwayCollection, ...aidCollections] = await Promise.all([
       queryLayer(`${MARITIME}/0`, snapped, '1 = 1'),
@@ -133,17 +134,21 @@ export async function fetchOfficialNavigation(
       (collection.features ?? []).flatMap((feature) => {
         if (feature.geometry?.type !== 'Point') return [];
         const p = feature.properties ?? {};
+        const name = clean(p.atonn) ?? clean(p.aton) ?? 'Navigatsioonimärk';
+        const kind = kinds[index]!;
+        const lightColour = clean(p.light_colour_name) ?? clean(p.light_colour);
         return [{
           id: `aton:registry:${stringValue(p.aton_id) ?? p.objectid ?? feature.id ?? 'unknown'}`,
           lat: feature.geometry.coordinates[1],
           lon: feature.geometry.coordinates[0],
-          name: clean(p.atonn) ?? clean(p.aton) ?? 'Navigatsioonimärk',
+          name,
           nameEn: clean(p.atonn_enl),
-          kind: kinds[index]!,
+          kind,
+          category: categoryFromRegistry(name, kind, lightColour),
           atonCode: clean(p.aton),
           status: numberValue(p.status),
           lightActive: booleanNumber(p.light_active),
-          lightColour: clean(p.light_colour_name) ?? clean(p.light_colour),
+          lightColour,
           owner: clean(p.owner),
           activeFrom: clean(p.active_from),
           activeTill: clean(p.active_till),

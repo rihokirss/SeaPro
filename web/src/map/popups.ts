@@ -584,6 +584,10 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     title ||= t('navigation.aid');
     if (Boolean(p.virtual)) notice = t('navigation.virtual');
     if (Boolean(p.offPosition)) notice = t('navigation.offPosition');
+    const category = String(p.category ?? '').trim();
+    if (category && category !== 'unknown') {
+      rows.push(row(t('navigation.aidType'), escapeHtml(t(`navigation.aidType.${category}`)), ''));
+    }
     addText(rows, 'MMSI', p.mmsi);
     const light = String(p.lightColour ?? '').trim();
     if (light || p.lightActive === true) {

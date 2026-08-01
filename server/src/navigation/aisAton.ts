@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import type { NavigationAid } from '@seapro/shared';
 import { config } from '../config.js';
+import { categoryFromAtonType } from './categories.js';
 
 const URL =
   'wss://gis.transpordiamet.ee/gisevent/ws/services/' +
@@ -121,6 +122,7 @@ export class AisAtonStream {
     if (lat < south || lat > north || lon < west || lon > east) return;
 
     const virtual = boolValue(attributes.virtual_aton) ?? false;
+    const atonType = finiteNumber(attributes.aton_type);
     const timestamp = dateValue(attributes.timestamp);
     const existing = this.#items.get(mmsi);
     if (existing && timestamp && existing.aid.updatedAt) {
@@ -134,7 +136,8 @@ export class AisAtonStream {
         lon,
         name: attributes.name?.trim() || `AIS AToN ${mmsi}`,
         kind: virtual ? 'virtual' : 'ais',
-        atonType: finiteNumber(attributes.aton_type),
+        atonType,
+        category: categoryFromAtonType(atonType) ?? (virtual ? 'virtual' : 'unknown'),
         status: finiteNumber(attributes.aton_status),
         offPosition: boolValue(attributes.off_pos),
         virtual,

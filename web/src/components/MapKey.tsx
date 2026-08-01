@@ -20,12 +20,38 @@ interface Props {
   showVessels: boolean;
   showStations: boolean;
   showHarbours: boolean;
+  showNavigationAids: boolean;
+  showNavigationWarnings: boolean;
+  showWrecks: boolean;
+  showWind: boolean;
 }
 
-export function MapKey({ showVessels, showStations, showHarbours }: Props) {
+type KeyTab = 'navigation' | 'vessels' | 'weather' | 'places';
+
+export function MapKey({
+  showVessels,
+  showStations,
+  showHarbours,
+  showNavigationAids,
+  showNavigationWarnings,
+  showWrecks,
+  showWind,
+}: Props) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<KeyTab>('navigation');
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  const tabs: KeyTab[] = [
+    ...(showNavigationAids || showNavigationWarnings || showWrecks ? ['navigation' as const] : []),
+    ...(showVessels ? ['vessels' as const] : []),
+    ...(showStations || showWind ? ['weather' as const] : []),
+    ...(showHarbours ? ['places' as const] : []),
+  ];
+
+  useEffect(() => {
+    if (!tabs.includes(activeTab) && tabs[0]) setActiveTab(tabs[0]);
+  }, [activeTab, tabs.join(',')]);
 
   // Sulge, kui klõpsatakse mujale või vajutatakse Esc — kaardirakenduses on
   // hõljuv paneel muidu kergesti unustatud ette jääma.
@@ -52,67 +78,57 @@ export function MapKey({ showVessels, showStations, showHarbours }: Props) {
       {open ? (
         <div className="mapkey__panel" role="dialog" aria-label={t('key.title')}>
           <h3>{t('key.title')}</h3>
+          <div className="mapkey__tabs" role="tablist" aria-label={t('key.title')}>
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                className={activeTab === tab ? 'is-active' : ''}
+                onClick={() => setActiveTab(tab)}
+              >
+                {t(`key.tab.${tab}`)}
+              </button>
+            ))}
+          </div>
 
-          {showStations ? (
-            <section className="mapkey__section">
-              <h4>{t('key.stations')}</h4>
-              <ul>
-                <li>
-                  <StationMark shape="circle" color={FRESHNESS_COLORS.fresh!} />
-                  {t('station.kind.coastal')}
-                </li>
-                <li>
-                  <StationMark shape="square" color={FRESHNESS_COLORS.fresh!} />
-                  {t('station.kind.offshore')}
-                </li>
-                <li>
-                  <StationMark shape="diamond" color={FRESHNESS_COLORS.fresh!} />
-                  {t('station.kind.buoy')}
-                </li>
-              </ul>
-
-              <h4>{t('key.freshness')}</h4>
-              <ul>
-                <li>
-                  <StationMark shape="circle" color={FRESHNESS_COLORS.fresh!} />
-                  {t('key.freshness.fresh')}
-                </li>
-                <li>
-                  <StationMark shape="circle" color={FRESHNESS_COLORS.stale!} />
-                  {t('key.freshness.stale')}
-                </li>
-                <li>
-                  <StationMark shape="circle" color={FRESHNESS_COLORS.old!} />
-                  {t('key.freshness.old')}
-                </li>
-                <li>
-                  <StationMark shape="circle" color={FRESHNESS_COLORS.none!} />
-                  {t('station.noData')}
-                </li>
-              </ul>
+          {activeTab === 'navigation' ? (
+            <section className="mapkey__section" role="tabpanel">
+              {showNavigationAids ? (
+                <>
+                  <h4>{t('key.navigationAids')}</h4>
+                  <ul>
+                    {([
+                      ['lateral-port', 'key.aid.lateralPort'],
+                      ['lateral-starboard', 'key.aid.lateralStarboard'],
+                      ['cardinal-north', 'key.aid.cardinalNorth'],
+                      ['cardinal-east', 'key.aid.cardinalEast'],
+                      ['cardinal-south', 'key.aid.cardinalSouth'],
+                      ['cardinal-west', 'key.aid.cardinalWest'],
+                      ['isolated-danger', 'key.aid.isolatedDanger'],
+                      ['safe-water', 'key.aid.safeWater'],
+                      ['special', 'key.aid.special'],
+                      ['lighthouse', 'key.aid.lighthouse'],
+                      ['virtual', 'key.aid.virtual'],
+                    ] as const).map(([category, label]) => (
+                      <li key={category}><NavigationMark category={category} />{t(label)}</li>
+                    ))}
+                  </ul>
+                  <p className="mapkey__note">{t('key.aid.note')}</p>
+                </>
+              ) : null}
+              {showNavigationWarnings ? (
+                <p className="mapkey__legend-row"><WarningMark />{t('layer.navigationWarnings')}</p>
+              ) : null}
+              {showWrecks ? (
+                <p className="mapkey__legend-row"><WreckMark />{t('layer.wrecks')}</p>
+              ) : null}
             </section>
           ) : null}
 
-          {showHarbours ? (
+          {activeTab === 'vessels' && showVessels ? (
             <section className="mapkey__section">
-              <h4>{t('key.harbours')}</h4>
-              <ul>
-                <li>
-                  <HarbourMark color={HARBOUR_COLORS.full} />
-                  {t('key.harbour.full')}
-                </li>
-                <li>
-                  <HarbourMark color={HARBOUR_COLORS.basic} />
-                  {t('key.harbour.basic')}
-                </li>
-              </ul>
-              <p className="mapkey__note">{t('key.harbours.note')}</p>
-            </section>
-          ) : null}
-
-          {showVessels ? (
-            <section className="mapkey__section">
-              <h4>{t('key.vessels')}</h4>
               <ul>
                 {(
                   [
@@ -121,6 +137,7 @@ export function MapKey({ showVessels, showStations, showHarbours }: Props) {
                     ['passenger', 'key.vessel.passenger'],
                     ['fishing', 'key.vessel.fishing'],
                     ['sailing', 'key.vessel.sailing'],
+                    ['pleasure', 'key.vessel.pleasure'],
                     ['fast', 'key.vessel.fast'],
                     ['default', 'key.vessel.other'],
                   ] as const
@@ -135,16 +152,44 @@ export function MapKey({ showVessels, showStations, showHarbours }: Props) {
             </section>
           ) : null}
 
-          <section className="mapkey__section">
-            <h4>{t('layer.wind')}</h4>
-            <ul>
-              <li>
-                <WindMark />
-                {t('key.windArrow')}
-              </li>
-            </ul>
-            <p className="mapkey__note">{t('key.wind.note')}</p>
-          </section>
+          {activeTab === 'weather' ? (
+            <section className="mapkey__section" role="tabpanel">
+              {showStations ? (
+                <>
+                  <h4>{t('key.stations')}</h4>
+                  <ul>
+                    <li><StationMark shape="circle" color={FRESHNESS_COLORS.fresh!} />{t('station.kind.coastal')}</li>
+                    <li><StationMark shape="square" color={FRESHNESS_COLORS.fresh!} />{t('station.kind.offshore')}</li>
+                    <li><StationMark shape="diamond" color={FRESHNESS_COLORS.fresh!} />{t('station.kind.buoy')}</li>
+                  </ul>
+                  <h4>{t('key.freshness')}</h4>
+                  <ul>
+                    <li><StationMark shape="circle" color={FRESHNESS_COLORS.fresh!} />{t('key.freshness.fresh')}</li>
+                    <li><StationMark shape="circle" color={FRESHNESS_COLORS.stale!} />{t('key.freshness.stale')}</li>
+                    <li><StationMark shape="circle" color={FRESHNESS_COLORS.old!} />{t('key.freshness.old')}</li>
+                    <li><StationMark shape="circle" color={FRESHNESS_COLORS.none!} />{t('station.noData')}</li>
+                  </ul>
+                </>
+              ) : null}
+              {showWind ? (
+                <>
+                  <h4>{t('layer.wind')}</h4>
+                  <ul><li><WindMark />{t('key.windArrow')}</li></ul>
+                  <p className="mapkey__note">{t('key.wind.note')}</p>
+                </>
+              ) : null}
+            </section>
+          ) : null}
+
+          {activeTab === 'places' && showHarbours ? (
+            <section className="mapkey__section" role="tabpanel">
+              <ul>
+                <li><HarbourMark color={HARBOUR_COLORS.full} />{t('key.harbour.full')}</li>
+                <li><HarbourMark color={HARBOUR_COLORS.basic} />{t('key.harbour.basic')}</li>
+              </ul>
+              <p className="mapkey__note">{t('key.harbours.note')}</p>
+            </section>
+          ) : null}
         </div>
       ) : null}
 
@@ -197,6 +242,58 @@ function HarbourMark({ color }: { color: string }) {
       </g>
     </svg>
   );
+}
+
+function NavigationMark({ category }: { category: string }) {
+  const common = { stroke: '#173342', strokeWidth: 1.1 };
+  const cardinalDirection = category.startsWith('cardinal-')
+    ? category.slice('cardinal-'.length)
+    : '';
+  const upperUp = cardinalDirection === 'north' || cardinalDirection === 'east';
+  const lowerUp = cardinalDirection === 'north' || cardinalDirection === 'west';
+  return (
+    <svg className="mapkey__mark mapkey__mark--aton" viewBox="0 0 20 24" aria-hidden="true">
+      {category === 'lateral-port' ? (
+        <rect x="6" y="6" width="8" height="16" fill="#df3f45" {...common} />
+      ) : category === 'lateral-starboard' ? (
+        <path d="M10 3 16 22H4Z" fill="#2b9b62" {...common} />
+      ) : category.startsWith('cardinal-') ? (
+        <g>
+          <rect x="7" y="12" width="6" height="11" fill={cardinalDirection === 'east' ? '#111' : '#f1cc35'} {...common} />
+          <path d={upperUp ? 'M10 1 7 5h6Z' : 'M7 1h6l-3 4Z'} fill="#111" />
+          <path d={lowerUp ? 'M10 6 7 10h6Z' : 'M7 6h6l-3 4Z'} fill="#111" />
+          {cardinalDirection === 'north' ? <rect x="7" y="12" width="6" height="4" fill="#111" /> : null}
+          {cardinalDirection === 'south' ? <rect x="7" y="19" width="6" height="4" fill="#111" /> : null}
+          {cardinalDirection === 'east' ? <rect x="7" y="15.5" width="6" height="4" fill="#f1cc35" /> : null}
+          {cardinalDirection === 'west' ? <rect x="7" y="15.5" width="6" height="4" fill="#111" /> : null}
+        </g>
+      ) : category === 'isolated-danger' ? (
+        <g><rect x="7" y="13" width="6" height="10" fill="#111" /><rect x="7" y="16.5" width="6" height="3" fill="#df3f45" /><circle cx="10" cy="3" r="2" /><circle cx="10" cy="8" r="2" /></g>
+      ) : category === 'safe-water' ? (
+        <g><circle cx="10" cy="16" r="6" fill="#fff" {...common} /><path d="M5.8 11.8h2.6v8.4H5.8ZM11.2 10.5h2.6v10.8h-2.6Z" fill="#df3f45" /><circle cx="10" cy="5" r="2.2" fill="#df3f45" /></g>
+      ) : category === 'special' ? (
+        <g><path d="m10 10 6 6-6 7-6-7Z" fill="#f0c62d" {...common} /><path d="m6.5 2.5 7 5M13.5 2.5l-7 5" stroke="#9a6d00" strokeWidth="1.5" /></g>
+      ) : category === 'lighthouse' ? (
+        <g><path d="M5.5 23 8 10h4l2.5 13Z" fill="#344b59" {...common} /><circle cx="10" cy="7" r="2.7" fill="#f0c62d" {...common} /></g>
+      ) : (
+        <g><circle cx="10" cy="12" r="7" fill="none" stroke="#238cae" strokeWidth="2" strokeDasharray="2 2" /><circle cx="10" cy="12" r="2" fill="#238cae" /></g>
+      )}
+    </svg>
+  );
+}
+
+function WarningMark() {
+  return (
+    <svg className="mapkey__mark" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M10 1.8 18.5 18H1.5Z" fill="#f1b51c" stroke="#6d4700" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M10 7v5.2" stroke="#31240b" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="10" cy="14.6" r="1.1" fill="#31240b" />
+    </svg>
+  );
+}
+
+function WreckMark() {
+  return <span className="mapkey__dot mapkey__dot--wreck" aria-hidden="true">×</span>;
 }
 
 function VesselMark({ color }: { color: string }) {

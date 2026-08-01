@@ -46,8 +46,9 @@ const MOVING_SOG = 0.5;
 /** AIS ship type -> värvivariant. Ainult tüübid, mis merel midagi tähendavad. */
 function vesselCategory(shipType: number | undefined): string {
   if (shipType === undefined) return 'default';
-  if (shipType >= 30 && shipType <= 32) return 'fishing';
-  if (shipType >= 36 && shipType <= 37) return 'sailing';
+  if (shipType === 30) return 'fishing';
+  if (shipType === 36) return 'sailing';
+  if (shipType === 37) return 'pleasure';
   if (shipType >= 40 && shipType <= 49) return 'fast';
   if (shipType >= 60 && shipType <= 69) return 'passenger';
   if (shipType >= 70 && shipType <= 79) return 'cargo';
@@ -63,6 +64,7 @@ const HULL_COLORS: Record<string, string> = {
   passenger: '#7fd0a8',
   fishing: '#d8a0d0',
   sailing: '#a8d8d0',
+  pleasure: '#65b9d2',
   fast: '#e08f7f',
 };
 

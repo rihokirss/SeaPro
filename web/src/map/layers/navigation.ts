@@ -1,7 +1,8 @@
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
-import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import type { FilterSpecification, GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { NavigationData } from '@seapro/shared';
 import { insertBefore } from '../layerOrder';
+import { NAVIGATION_WARNING_ICON } from '../icons';
 
 const SOURCE_ID = 'navigation-src';
 
@@ -12,6 +13,7 @@ export const WARNING_POINTS_LAYER = 'navigation-warning-points';
 export const WRECKS_LAYER = 'wrecks';
 export const WRECK_LABELS_LAYER = 'wreck-labels';
 export const NAVIGATION_AIDS_LAYER = 'navigation-aids';
+export const NAVIGATION_AID_ALERTS_LAYER = 'navigation-aid-alerts';
 export const NAVIGATION_AID_LABELS_LAYER = 'navigation-aid-labels';
 
 export const NAVIGATION_CLICK_LAYERS = [
@@ -78,6 +80,8 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
       properties: {
         featureKind: 'aid',
         ...aid,
+        category: aid.category ?? (aid.virtual ? 'virtual' : 'unknown'),
+        icon: `navigation-${aid.category ?? (aid.virtual ? 'virtual' : 'unknown')}`,
         sources: aid.sources.join(','),
         virtual: aid.virtual ?? false,
         offPosition: aid.offPosition ?? false,
@@ -162,14 +166,19 @@ function ensureLayers(map: MapLibreMap): void {
   if (!map.getLayer(WARNING_POINTS_LAYER)) {
     map.addLayer({
       id: WARNING_POINTS_LAYER,
-      type: 'circle',
+      type: 'symbol',
       source: SOURCE_ID,
       filter: ['all', ['==', ['get', 'featureKind'], 'warning'], ['==', ['geometry-type'], 'Point']],
-      paint: {
-        'circle-radius': 8,
-        'circle-color': '#f1b51c',
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 2,
+      layout: {
+        'icon-image': NAVIGATION_WARNING_ICON,
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          7, 0.72,
+          11, 0.92,
+          15, 1.08,
+        ],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
       },
     }, insertBefore(map, WARNING_POINTS_LAYER));
   }
@@ -213,24 +222,39 @@ function ensureLayers(map: MapLibreMap): void {
     }, insertBefore(map, WRECK_LABELS_LAYER));
   }
 
+  if (!map.getLayer(NAVIGATION_AID_ALERTS_LAYER)) {
+    map.addLayer({
+      id: NAVIGATION_AID_ALERTS_LAYER,
+      type: 'circle',
+      source: SOURCE_ID,
+      filter: ['all', ['==', ['get', 'featureKind'], 'aid'], ['==', ['get', 'offPosition'], true]],
+      minzoom: 10,
+      paint: {
+        'circle-radius': 12,
+        'circle-color': 'rgba(0,0,0,0)',
+        'circle-stroke-color': '#e5483f',
+        'circle-stroke-width': 2.5,
+      },
+    }, insertBefore(map, NAVIGATION_AID_ALERTS_LAYER));
+  }
+
   if (!map.getLayer(NAVIGATION_AIDS_LAYER)) {
     map.addLayer({
       id: NAVIGATION_AIDS_LAYER,
-      type: 'circle',
+      type: 'symbol',
       source: SOURCE_ID,
       filter: ['==', ['get', 'featureKind'], 'aid'],
       minzoom: 10,
-      paint: {
-        'circle-radius': ['case', ['get', 'virtual'], 7, 5],
-        'circle-color': [
-          'case',
-          ['get', 'offPosition'], '#e5483f',
-          ['get', 'virtual'], '#2b9bb8',
-          '#e6c229',
+      layout: {
+        'icon-image': ['get', 'icon'],
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          10, 0.9,
+          13, 1.1,
+          16, 1.3,
         ],
-        'circle-opacity': ['case', ['get', 'virtual'], 0.55, 0.9],
-        'circle-stroke-color': '#172d3a',
-        'circle-stroke-width': ['case', ['get', 'virtual'], 2, 1],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
       },
     }, insertBefore(map, NAVIGATION_AIDS_LAYER));
   }
@@ -246,7 +270,7 @@ function ensureLayers(map: MapLibreMap): void {
         'text-field': ['get', 'name'],
         'text-font': ['Open Sans Regular'],
         'text-size': 10,
-        'text-offset': [0, 1],
+        'text-offset': [0, 1.45],
         'text-anchor': 'top',
         'text-optional': true,
       },
@@ -267,21 +291,32 @@ export function setNavigationVisibility(map: MapLibreMap, visibility: Navigation
   // võib märgid sisse tuua ka siis, kui reaalaja AIS-märgid on väljas.
   setVisible(
     map,
-    [NAVIGATION_AIDS_LAYER, NAVIGATION_AID_LABELS_LAYER],
+    [NAVIGATION_AID_ALERTS_LAYER, NAVIGATION_AIDS_LAYER, NAVIGATION_AID_LABELS_LAYER],
     visibility.aids || visibility.official,
   );
+  const kindFilter: FilterSpecification = ['==', ['get', 'featureKind'], 'aid'];
+  const sourceFilter: FilterSpecification | null = visibility.aids && visibility.official
+    ? null
+    : visibility.aids
+      ? ['in', 'ais', ['get', 'sources']]
+      : ['in', 'registry', ['get', 'sources']];
+  const visibleAidFilter: FilterSpecification = sourceFilter
+    ? ['all', kindFilter, sourceFilter]
+    : kindFilter;
   if (map.getLayer(NAVIGATION_AIDS_LAYER)) {
-    map.setFilter(
-      NAVIGATION_AIDS_LAYER,
-      visibility.aids && visibility.official
-        ? ['==', ['get', 'featureKind'], 'aid']
-        : visibility.aids
-          ? ['all', ['==', ['get', 'featureKind'], 'aid'], ['in', 'ais', ['get', 'sources']]]
-          : ['all', ['==', ['get', 'featureKind'], 'aid'], ['in', 'registry', ['get', 'sources']]],
-    );
+    map.setFilter(NAVIGATION_AIDS_LAYER, visibleAidFilter);
   }
   if (map.getLayer(NAVIGATION_AID_LABELS_LAYER)) {
-    map.setFilter(NAVIGATION_AID_LABELS_LAYER, map.getFilter(NAVIGATION_AIDS_LAYER)!);
+    map.setFilter(NAVIGATION_AID_LABELS_LAYER, visibleAidFilter);
+  }
+  if (map.getLayer(NAVIGATION_AID_ALERTS_LAYER)) {
+    const offPositionFilter: FilterSpecification = ['==', ['get', 'offPosition'], true];
+    map.setFilter(
+      NAVIGATION_AID_ALERTS_LAYER,
+      sourceFilter
+        ? ['all', kindFilter, sourceFilter, offPositionFilter]
+        : ['all', kindFilter, offPositionFilter],
+    );
   }
   setVisible(map, [FAIRWAYS_LAYER], visibility.official);
 }

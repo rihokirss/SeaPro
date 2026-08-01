@@ -952,6 +952,10 @@ export function App() {
             showVessels={layers.vessels}
             showStations={layers.stations}
             showHarbours={layers.harbours}
+            showNavigationAids={layers.navigationAids || layers.officialNavigation}
+            showNavigationWarnings={layers.navigationWarnings}
+            showWrecks={layers.wrecks}
+            showWind={layers.windDisplay !== 'off'}
           />
           <LocateButton geo={geo} onGoTo={goTo} />
         </div>
