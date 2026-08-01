@@ -9,6 +9,7 @@ import type {
 import { cache } from '../cache.js';
 import { fetchJson } from '../http.js';
 import { categoryFromRegistry } from './categories.js';
+import { fetchNmaAidIndex, type NmaAidIndex } from './nmaRegistry.js';
 
 const WARNINGS =
   'https://gis.transpordiamet.ee/arcgis/rest/services/' +
@@ -103,9 +104,11 @@ export async function fetchOfficialNavigation(
   bbox: [number, number, number, number],
 ): Promise<{ aids: NavigationAid[]; fairways: Fairway[] }> {
   const snapped = snapBbox(bbox);
-  const key = `nutimeri:navigation:v2:${snapped.join(',')}`;
+  const key = `nutimeri:navigation:v3:${snapped.join(',')}`;
   const { value } = await cache.get(key, STATIC_TTL, async () => {
-    const [fairwayCollection, ...aidCollections] = await Promise.all([
+    const [nmaIndex, fairwayCollection, ...aidCollections] = await Promise.all([
+      // Registri koondfail on rikastus, mitte kaardi töötamise eeltingimus.
+      fetchNmaAidIndex().catch((): NmaAidIndex => ({})),
       queryLayer(`${MARITIME}/0`, snapped, '1 = 1'),
       queryLayer(`${MARITIME}/1`, snapped, '1 = 1'),
       queryLayer(`${MARITIME}/2`, snapped, '1 = 1'),
@@ -136,16 +139,21 @@ export async function fetchOfficialNavigation(
         const p = feature.properties ?? {};
         const name = clean(p.atonn) ?? clean(p.aton) ?? 'Navigatsioonimärk';
         const kind = kinds[index]!;
+        const atonCode = clean(p.aton);
+        const registryId = stringValue(p.aton_id);
+        const registry = atonCode ? nmaIndex[atonCode] : undefined;
         const lightColour = clean(p.light_colour_name) ?? clean(p.light_colour);
         return [{
-          id: `aton:registry:${stringValue(p.aton_id) ?? p.objectid ?? feature.id ?? 'unknown'}`,
+          id: `aton:registry:${registryId ?? p.objectid ?? feature.id ?? 'unknown'}`,
           lat: feature.geometry.coordinates[1],
           lon: feature.geometry.coordinates[0],
           name,
           nameEn: clean(p.atonn_enl),
           kind,
-          category: categoryFromRegistry(name, kind, lightColour),
-          atonCode: clean(p.aton),
+          category: categoryFromRegistry(name, kind, lightColour, registry?.typeName),
+          atonCode,
+          registryType: registry?.typeName,
+          registryUrl: registryId ? `https://nma.vta.ee/aton/${encodeURIComponent(registryId)}/` : undefined,
           status: numberValue(p.status),
           lightActive: booleanNumber(p.light_active),
           lightColour,

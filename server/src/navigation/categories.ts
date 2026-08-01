@@ -6,20 +6,18 @@ type AidCategory = NonNullable<NavigationAid['category']>;
 export function categoryFromAtonType(type: number | undefined): AidCategory | undefined {
   if (type === undefined) return undefined;
   const direct: Partial<Record<number, AidCategory>> = {
-    4: 'isolated-danger',
     5: 'lighthouse', 6: 'lighthouse',
     7: 'leading', 8: 'leading',
     9: 'cardinal-north', 10: 'cardinal-east', 11: 'cardinal-south', 12: 'cardinal-west',
     13: 'lateral-port', 14: 'lateral-starboard',
-    15: 'lateral-port', 16: 'lateral-starboard',
+    15: 'preferred-port', 16: 'preferred-starboard',
     17: 'isolated-danger', 18: 'safe-water', 19: 'special',
     20: 'cardinal-north', 21: 'cardinal-east', 22: 'cardinal-south', 23: 'cardinal-west',
     24: 'lateral-port', 25: 'lateral-starboard',
-    26: 'lateral-port', 27: 'lateral-starboard',
+    26: 'preferred-port', 27: 'preferred-starboard',
     28: 'isolated-danger', 29: 'safe-water', 30: 'special',
-    31: 'lighthouse',
   };
-  return direct[type] ?? (type === 2 ? 'beacon' : undefined);
+  return direct[type];
 }
 
 /**
@@ -31,12 +29,13 @@ export function categoryFromRegistry(
   name: string,
   kind: NavigationAid['kind'],
   lightColour?: string,
+  registryType?: string,
 ): AidCategory {
-  const value = normalize(name);
+  const value = normalize(`${registryType ?? ''} ${name}`);
   const colour = normalize(lightColour ?? '');
 
   if (value.includes('tuletorn')) return 'lighthouse';
-  if (value.includes('sihi ')) return 'leading';
+  if (value.includes('sihi')) return 'leading';
   if (/pohja(?:poi|tooder)/.test(value)) return 'cardinal-north';
   if (/ida(?:poi|tooder)/.test(value)) return 'cardinal-east';
   if (/louna(?:poi|tooder)/.test(value)) return 'cardinal-south';
@@ -45,7 +44,7 @@ export function categoryFromRegistry(
   if (value.includes('parema kulje')) return 'lateral-starboard';
   if (value.includes('teljepoi') || value.includes('teljetooder')) return 'safe-water';
   if (value.includes('ohupoi') || value.includes('uksikohu')) return 'isolated-danger';
-  if (value.includes('erimark') || value.includes('piirireziimi')) return 'special';
+  if (value.includes('erimark') || value.includes('eriotstarbeline') || value.includes('piirireziimi')) return 'special';
 
   // Nimetud sadama ujuvmärgil on värv sageli ainus külge määrav väli.
   if (kind !== 'fixed') {

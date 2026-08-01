@@ -102,6 +102,8 @@ export function MapKey({
                     {([
                       ['lateral-port', 'key.aid.lateralPort'],
                       ['lateral-starboard', 'key.aid.lateralStarboard'],
+                      ['preferred-port', 'key.aid.preferredPort'],
+                      ['preferred-starboard', 'key.aid.preferredStarboard'],
                       ['cardinal-north', 'key.aid.cardinalNorth'],
                       ['cardinal-east', 'key.aid.cardinalEast'],
                       ['cardinal-south', 'key.aid.cardinalSouth'],
@@ -253,10 +255,16 @@ function NavigationMark({ category }: { category: string }) {
   const lowerUp = cardinalDirection === 'north' || cardinalDirection === 'west';
   return (
     <svg className="mapkey__mark mapkey__mark--aton" viewBox="0 0 20 24" aria-hidden="true">
-      {category === 'lateral-port' ? (
-        <rect x="6" y="6" width="8" height="16" fill="#df3f45" {...common} />
-      ) : category === 'lateral-starboard' ? (
-        <path d="M10 3 16 22H4Z" fill="#2b9b62" {...common} />
+      {category === 'lateral-port' || category === 'preferred-port' ? (
+        <g>
+          <rect x="6" y="6" width="8" height="16" fill="#df3f45" {...common} />
+          {category === 'preferred-port' ? <rect x="6" y="11.5" width="8" height="5" fill="#2b9b62" /> : null}
+        </g>
+      ) : category === 'lateral-starboard' || category === 'preferred-starboard' ? (
+        <g>
+          <path d="M10 3 16 22H4Z" fill="#2b9b62" {...common} />
+          {category === 'preferred-starboard' ? <path d="M7.4 11h5.2l1.6 5H5.8Z" fill="#df3f45" /> : null}
+        </g>
       ) : category.startsWith('cardinal-') ? (
         <g>
           <rect x="7" y="12" width="6" height="11" fill={cardinalDirection === 'east' ? '#111' : '#f1cc35'} {...common} />
@@ -270,11 +278,15 @@ function NavigationMark({ category }: { category: string }) {
       ) : category === 'isolated-danger' ? (
         <g><rect x="7" y="13" width="6" height="10" fill="#111" /><rect x="7" y="16.5" width="6" height="3" fill="#df3f45" /><circle cx="10" cy="3" r="2" /><circle cx="10" cy="8" r="2" /></g>
       ) : category === 'safe-water' ? (
-        <g><circle cx="10" cy="16" r="6" fill="#fff" {...common} /><path d="M5.8 11.8h2.6v8.4H5.8ZM11.2 10.5h2.6v10.8h-2.6Z" fill="#df3f45" /><circle cx="10" cy="5" r="2.2" fill="#df3f45" /></g>
+        <g><rect x="6" y="11" width="8" height="12" fill="#fff" {...common} /><path d="M6 11h2.7v12H6Zm5.3 0H14v12h-2.7Z" fill="#df3f45" /><circle cx="10" cy="5" r="2.2" fill="#df3f45" /></g>
       ) : category === 'special' ? (
-        <g><path d="m10 10 6 6-6 7-6-7Z" fill="#f0c62d" {...common} /><path d="m6.5 2.5 7 5M13.5 2.5l-7 5" stroke="#9a6d00" strokeWidth="1.5" /></g>
+        <g><rect x="7" y="11" width="6" height="12" fill="#f0c62d" {...common} /><path d="m6.5 2.5 7 5M13.5 2.5l-7 5" stroke="#9a6d00" strokeWidth="1.5" /></g>
       ) : category === 'lighthouse' ? (
-        <g><path d="M5.5 23 8 10h4l2.5 13Z" fill="#344b59" {...common} /><circle cx="10" cy="7" r="2.7" fill="#f0c62d" {...common} /></g>
+        <g stroke="#c43a9d" strokeWidth="1.7">
+          <path d="M10 1v6m0 10v6M1 12h6m6 0h6M3.6 5.6l4.2 4.2m4.4 4.4 4.2 4.2M16.4 5.6l-4.2 4.2m-4.4 4.4-4.2 4.2" />
+          <circle cx="10" cy="12" r="3.3" fill="#fff" />
+          <circle cx="10" cy="12" r="1.4" fill="#111" stroke="none" />
+        </g>
       ) : (
         <g><circle cx="10" cy="12" r="7" fill="none" stroke="#238cae" strokeWidth="2" strokeDasharray="2 2" /><circle cx="10" cy="12" r="2" fill="#238cae" /></g>
       )}

@@ -18,6 +18,7 @@ import { useFavorites } from './lib/favorites';
 import { useTheme } from './lib/theme';
 import { loadSpeedUnit, saveSpeedUnit, type SpeedUnit } from './lib/units';
 import { loadMapView, saveMapView } from './lib/mapView';
+import { loadLayerState, saveLayerState } from './lib/layerState';
 import { floorToHour, formatDateTime } from './lib/time';
 import { MapView } from './map/MapView';
 import { hideWindArrows, updateWindArrows } from './map/layers/windArrows';
@@ -381,12 +382,16 @@ export function App() {
   // tähendaks, et me kirjutaksime selle valiku üle.
   const [activeWaveModel, setActiveWaveModel] = useState<string | undefined>(undefined);
 
-  const [layers, setLayers] = useState<LayerState>(DEFAULT_LAYERS);
+  const [layers, setLayers] = useState<LayerState>(() => loadLayerState(DEFAULT_LAYERS));
   const [panelOpen, setPanelOpen] = useState(false);
   const [speedUnit, setSpeedUnit] = useState<SpeedUnit>(loadSpeedUnit);
   const { theme, setTheme } = useTheme();
 
   const [selectedTime, setSelectedTime] = useState<Date>(() => floorToHour());
+
+  useEffect(() => {
+    saveLayerState(layers);
+  }, [layers]);
 
   /**
    * Andmepäringute jaoks viivitatud aeg.

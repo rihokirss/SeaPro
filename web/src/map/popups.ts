@@ -587,6 +587,8 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     const category = String(p.category ?? '').trim();
     if (category && category !== 'unknown') {
       rows.push(row(t('navigation.aidType'), escapeHtml(t(`navigation.aidType.${category}`)), ''));
+    } else {
+      addText(rows, t('navigation.aidType'), p.registryType);
     }
     addText(rows, 'MMSI', p.mmsi);
     const light = String(p.lightColour ?? '').trim();
@@ -594,6 +596,14 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       rows.push(row(t('navigation.light'), escapeHtml(light || 'AIS'), ''));
     }
     addText(rows, t('navigation.owner'), p.owner);
+    const registryUrl = String(p.registryUrl ?? '').trim();
+    if (registryUrl) {
+      rows.push(row(
+        t('navigation.registry'),
+        `<a href="${escapeHtml(registryUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('navigation.openRegistry'))}</a>`,
+        '',
+      ));
+    }
   } else if (kind === 'fairway') {
     title ||= t('navigation.fairway');
     kindLabel = t('navigation.fairway');

@@ -408,6 +408,8 @@ export interface NavigationAid {
   category?:
     | 'lateral-port'
     | 'lateral-starboard'
+    | 'preferred-port'
+    | 'preferred-starboard'
     | 'cardinal-north'
     | 'cardinal-east'
     | 'cardinal-south'
@@ -421,6 +423,9 @@ export interface NavigationAid {
     | 'virtual'
     | 'unknown';
   atonCode?: string;
+  /** NMA registri täpne eestikeelne liigikirjeldus. */
+  registryType?: string;
+  registryUrl?: string;
   atonType?: number;
   status?: number;
   offPosition?: boolean;

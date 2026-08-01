@@ -291,6 +291,7 @@ export const HARBOUR_COLORS = {
 
 export const NAVIGATION_AID_CATEGORIES = [
   'lateral-port', 'lateral-starboard',
+  'preferred-port', 'preferred-starboard',
   'cardinal-north', 'cardinal-east', 'cardinal-south', 'cardinal-west',
   'isolated-danger', 'safe-water', 'special',
   'lighthouse', 'leading', 'beacon', 'virtual', 'unknown',
@@ -323,12 +324,16 @@ function navigationAidMarker(category: string): ImageData {
     ctx.fill();
   };
 
-  if (category === 'lateral-port') {
+  if (category === 'lateral-port' || category === 'preferred-port') {
     ctx.fillStyle = '#df3f45';
     ctx.fillRect(-4.5, -5, 9, 15);
+    if (category === 'preferred-port') {
+      ctx.fillStyle = '#2b9b62';
+      ctx.fillRect(-4.5, 0, 9, 5);
+    }
     ctx.strokeRect(-4.5, -5, 9, 15);
     stroke();
-  } else if (category === 'lateral-starboard') {
+  } else if (category === 'lateral-starboard' || category === 'preferred-starboard') {
     ctx.beginPath();
     ctx.moveTo(0, -8);
     ctx.lineTo(6, 10);
@@ -336,6 +341,13 @@ function navigationAidMarker(category: string): ImageData {
     ctx.closePath();
     ctx.fillStyle = '#2b9b62';
     ctx.fill();
+    if (category === 'preferred-starboard') {
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = '#df3f45';
+      ctx.fillRect(-6, -1, 12, 5);
+      ctx.restore();
+    }
     stroke();
   } else if (category.startsWith('cardinal-')) {
     const direction = category.slice('cardinal-'.length);
@@ -370,27 +382,35 @@ function navigationAidMarker(category: string): ImageData {
     ctx.fillRect(-3.5, 2, 7, 10);
     ctx.fillStyle = '#df3f45';
     ctx.fillRect(-3.5, 5.5, 7, 3);
+    ctx.strokeRect(-3.5, 2, 7, 10); stroke();
     ctx.beginPath(); ctx.arc(0, -10, 2.1, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill();
     ctx.beginPath(); ctx.arc(0, -5, 2.1, 0, Math.PI * 2); ctx.fill();
   } else if (category === 'safe-water') {
-    ctx.save();
-    ctx.beginPath(); ctx.arc(0, 1, 6, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = '#fff'; ctx.fillRect(-6, -5, 12, 12);
+    // IALA ohutu vee märk: punase-valged PÜSTtriibud ja üks punane kuul.
+    ctx.fillStyle = '#fff'; ctx.fillRect(-4.5, 0, 9, 12);
     ctx.fillStyle = '#df3f45';
-    ctx.fillRect(-6, -5, 3, 12); ctx.fillRect(0, -5, 3, 12);
-    ctx.restore();
-    ctx.beginPath(); ctx.arc(0, 1, 6, 0, Math.PI * 2); stroke();
-    ctx.beginPath(); ctx.arc(0, -7, 2.3, 0, Math.PI * 2); ctx.fillStyle = '#df3f45'; ctx.fill();
+    ctx.fillRect(-4.5, 0, 3, 12); ctx.fillRect(1.5, 0, 3, 12);
+    ctx.strokeRect(-4.5, 0, 9, 12); stroke();
+    ctx.beginPath(); ctx.arc(0, -7, 2.4, 0, Math.PI * 2); ctx.fillStyle = '#df3f45'; ctx.fill(); stroke();
   } else if (category === 'special') {
-    ctx.beginPath();
-    ctx.moveTo(0, -2); ctx.lineTo(5.5, 4); ctx.lineTo(0, 11); ctx.lineTo(-5.5, 4); ctx.closePath();
-    ctx.fillStyle = '#f0c62d'; ctx.fill(); stroke();
+    // Erimärgi keha kuju võib varieeruda; sambakuju ja kollane X on selge
+    // standardne esitus ega vihja ekslikult eraldi rombikujulisele märgile.
+    ctx.fillStyle = '#f0c62d'; ctx.fillRect(-4, 0, 8, 12); ctx.strokeRect(-4, 0, 8, 12); stroke();
     ctx.beginPath(); ctx.moveTo(-4, -11); ctx.lineTo(4, -6); ctx.moveTo(4, -11); ctx.lineTo(-4, -6); stroke('#9a6d00', 1.8);
   } else if (category === 'lighthouse') {
-    ctx.beginPath(); ctx.moveTo(-4.5, 7); ctx.lineTo(-2.5, -3); ctx.lineTo(2.5, -3); ctx.lineTo(4.5, 7); ctx.closePath();
-    ctx.fillStyle = '#344b59'; ctx.fill(); stroke();
-    ctx.beginPath(); ctx.arc(0, -5.5, 3, 0, Math.PI * 2); ctx.fillStyle = '#f0c62d'; ctx.fill(); stroke();
-    ctx.beginPath(); ctx.moveTo(-8, -5.5); ctx.lineTo(-5, -5.5); ctx.moveTo(5, -5.5); ctx.lineTo(8, -5.5); stroke('#c78d00', 1.5);
+    // Tuletorni täpne asukoht on must keskpunkt; magenta kiired tähistavad
+    // merekaardi valgusmärki ega teeskle, et teame torni välisilmet.
+    ctx.strokeStyle = '#c43a9d';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i += 1) {
+      const angle = (i * Math.PI) / 4;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * 4, Math.sin(angle) * 4);
+      ctx.lineTo(Math.cos(angle) * 10, Math.sin(angle) * 10);
+      ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); stroke('#c43a9d', 1.4);
+    ctx.beginPath(); ctx.arc(0, 0, 1.5, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill();
   } else if (category === 'leading') {
     ctx.fillStyle = '#fff'; ctx.fillRect(-4.5, -6, 9, 13); ctx.strokeRect(-4.5, -6, 9, 13); stroke();
     ctx.fillStyle = '#df3f45'; ctx.fillRect(-4.5, -1, 9, 3);
