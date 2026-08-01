@@ -54,8 +54,8 @@ export const config = {
 
   aisstreamKey: str('AISSTREAM_KEY', ''),
 
-  /** Konfigureeritav, et avaliku Nominatimi saaks asendada oma või tasulise instantsiga. */
-  nominatimUrl: str('NOMINATIM_URL', 'https://nominatim.openstreetmap.org'),
+  /** Konfigureeritav, et Photoni avaliku demo saaks asendada oma instantsiga. */
+  photonUrl: str('PHOTON_URL', 'https://photon.komoot.io'),
 
   ttl: {
     /**
@@ -89,10 +89,6 @@ export function warnAboutConfig(log: (msg: string) => void): void {
     log(
       'CONTACT_EMAIL on täitmata — MET Norway blokeerib anonüümsed päringud (403). ' +
         'Täida see .env failis.',
-    );
-    log(
-      'CONTACT_EMAIL on täitmata — avalik Nominatim nõuab tuvastatavat rakendust. ' +
-        'Asukohaotsing võib olla blokeeritud.',
     );
   }
   if (!config.aisstreamKey) {

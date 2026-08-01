@@ -1,13 +1,11 @@
 # Andmeallikad
 
-## Kohanimeotsing — OpenStreetMap Nominatim
+## Kohanimeotsing — Photon / OpenStreetMap
 
-`/api/search` vahendab kasutaja käivitatud asukoha- ja sadamaotsingu
-Nominatimile. Avalik teenus ei luba automaattäidet, seega päring tehakse ainult
-Enteri või otsingunupu järel. Server piirab välispäringud ühele sekundis,
-vahemäldab tulemused nädalaks ja saadab tuvastatava User-Agent'i. Teenuse saab
-`NOMINATIM_URL` kaudu asendada oma instantsiga; avaliku teenuse jaoks peab
-`CONTACT_EMAIL` olema seadistatud.
+`/api/search` vahendab kasutaja käivitatud asukoha- ja sadamaotsingu Photonile.
+Photon toetab prefiksiotsingut ja kirjavigade talumist, mistõttu leiab näiteks
+`Yxsk` nime `Yxskär`. Server piirab välispäringud ühele sekundis ja vahemäldab
+tulemused nädalaks. Teenuse saab `PHOTON_URL` kaudu asendada oma instantsiga.
 
 Iga allikas on `server/src/providers/` all eraldi fail, mis implementeerib
 `WeatherProvider` liidese. Frontend ei tea ühestki allikast midagi peale selle,

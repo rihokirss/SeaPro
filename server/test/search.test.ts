@@ -1,24 +1,22 @@
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { parseNominatimResults } from '../src/search/nominatim.js';
+import { parsePhotonResults } from '../src/search/photon.js';
 import { registerApiRoutes } from '../src/routes/api.js';
 
-describe('Nominatimi otsing', () => {
+describe('Photoni otsing', () => {
   it('normaliseerib sadama, alapealkirja ja piirdekasti', () => {
-    const results = parseNominatimResults([
-      {
-        place_id: 12,
-        osm_type: 'way',
-        osm_id: 345,
-        lat: '59.4672',
-        lon: '24.8214',
-        name: 'Pirita sadam',
-        display_name: 'Pirita sadam, Pirita, Tallinn, Eesti',
-        category: 'leisure',
-        type: 'marina',
-        boundingbox: ['59.4600', '59.4700', '24.8100', '24.8300'],
-      },
-    ]);
+    const results = parsePhotonResults({
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        properties: {
+          osm_type: 'W', osm_id: 345, osm_key: 'leisure', osm_value: 'marina',
+          name: 'Pirita sadam', district: 'Pirita', city: 'Tallinn', country: 'Eesti',
+          extent: [24.81, 59.47, 24.83, 59.46],
+        },
+        geometry: { type: 'Point', coordinates: [24.8214, 59.4672] },
+      }],
+    }, 'Pirita');
 
     expect(results).toEqual([
       expect.objectContaining({
@@ -35,11 +33,25 @@ describe('Nominatimi otsing', () => {
   });
 
   it('jätab vigaste koordinaatidega kirjed välja', () => {
-    expect(parseNominatimResults([{ display_name: 'Katki', lat: 'NaN', lon: '24' }])).toEqual([]);
+    expect(parsePhotonResults({ type: 'FeatureCollection', features: [
+      { properties: { name: 'Katki' }, geometry: { coordinates: ['x', 24] } },
+    ] }, 'Katki')).toEqual([]);
   });
 
   it('viskab arusaadava vea tundmatu vastusekuju korral', () => {
-    expect(() => parseNominatimResults({ results: [] })).toThrow(/kuju muutus/i);
+    expect(() => parsePhotonResults({ results: [] }, 'test')).toThrow(/kuju muutus/i);
+  });
+
+  it('tõstab sadama sama prefiksiga muude kohtade ette', () => {
+    const feature = (name: string, value: string, id: number) => ({
+      properties: { name, osm_type: 'W', osm_id: id, osm_key: 'place', osm_value: value },
+      geometry: { coordinates: [24.48, 59.45] },
+    });
+    const results = parsePhotonResults({ type: 'FeatureCollection', features: [
+      feature('Tilgu supelrand', 'beach', 1),
+      feature('Tilgu sadam', 'marina', 2),
+    ] }, 'Tilgu');
+    expect(results.map((result) => result.name)).toEqual(['Tilgu sadam', 'Tilgu supelrand']);
   });
 });
 

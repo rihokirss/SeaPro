@@ -15,7 +15,7 @@ import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { vessels } from '../ais/registry.js';
 import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
-import { searchPlaces } from '../search/nominatim.js';
+import { searchPlaces } from '../search/photon.js';
 import {
   coversPoint,
   enabledProviders,
