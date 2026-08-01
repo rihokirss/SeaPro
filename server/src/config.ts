@@ -54,6 +54,9 @@ export const config = {
 
   aisstreamKey: str('AISSTREAM_KEY', ''),
 
+  /** Konfigureeritav, et avaliku Nominatimi saaks asendada oma või tasulise instantsiga. */
+  nominatimUrl: str('NOMINATIM_URL', 'https://nominatim.openstreetmap.org'),
+
   ttl: {
     /**
      * Open-Meteo mudelijooksud uuenevad PARIMAL juhul kord tunnis (MET Nordic;
@@ -70,6 +73,7 @@ export const config = {
     fmi: num('CACHE_TTL_FMI', 300),
     windfinder: num('CACHE_TTL_WINDFINDER', 1800),
     ais: num('CACHE_TTL_AIS', 30),
+    search: num('CACHE_TTL_SEARCH', 7 * 24 * 3600),
   },
 
   backgroundPoll: bool('BACKGROUND_POLL', true),
@@ -85,6 +89,10 @@ export function warnAboutConfig(log: (msg: string) => void): void {
     log(
       'CONTACT_EMAIL on täitmata — MET Norway blokeerib anonüümsed päringud (403). ' +
         'Täida see .env failis.',
+    );
+    log(
+      'CONTACT_EMAIL on täitmata — avalik Nominatim nõuab tuvastatavat rakendust. ' +
+        'Asukohaotsing võib olla blokeeritud.',
     );
   }
   if (!config.aisstreamKey) {

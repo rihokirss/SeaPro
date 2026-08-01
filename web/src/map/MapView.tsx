@@ -6,6 +6,7 @@ import { addColorBase } from './colorBase';
 import { addDarkBase } from './darkBase';
 import { registerIcons } from './icons';
 import { LAYER_ORDER } from './layerOrder';
+import { addPlaceLabels } from './layers/placeLabels';
 import type { Position } from '../lib/geolocation';
 
 export interface MapViewProps {
@@ -139,6 +140,7 @@ export function MapView({
       // Peidetud kihtide paane MapLibre ei tõmba, seega teine ei maksa midagi.
       addColorBase(map);
       addDarkBase(map);
+      addPlaceLabels(map);
       // Oma asukoha allikas luuakse kohe, et kiht oleks õiges järjekorras
       // olemas ka enne esimest GPS-fixi.
       map.addSource('own-position', {

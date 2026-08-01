@@ -24,6 +24,7 @@ export interface LayerState {
   vessels: boolean;
   harbours: boolean;
   anchorages: boolean;
+  placeLabels: boolean;
 }
 
 interface Props {
@@ -222,6 +223,11 @@ export function LayerPanel({
 
           <section className="panel__section">
             <h3>{t('layer.group.overlay')}</h3>
+            <Toggle
+              checked={layers.placeLabels}
+              onChange={(v) => set({ placeLabels: v })}
+              label={t('layer.placeLabels')}
+            />
             {OVERLAY_LAYERS.map((def) => (
               <Toggle
                 key={def.id}

@@ -337,6 +337,26 @@ export interface Harbour {
 }
 
 // ---------------------------------------------------------------------------
+// Kohanimede otsing
+// ---------------------------------------------------------------------------
+
+/** Serveri normaliseeritud otsingutulemus, sõltumata geokodeerimisteenusest. */
+export interface SearchResult {
+  /** Stabiilne OSM objekti viide (nt `N123`) või teenuse kohapõhine ID. */
+  id: string;
+  name: string;
+  /** Nime täiendav aadress/asukohakirjeldus tulemuste eristamiseks. */
+  subtitle?: string;
+  kind: 'location' | 'harbour';
+  lat: number;
+  lon: number;
+  /** Kaardi sihtsuum, tuletatud objekti tüübist ja piirdekastist. */
+  zoom: number;
+  /** Nominatimi piirdekast kujul [lõuna, lääs, põhi, ida]. */
+  bbox?: BBox;
+}
+
+// ---------------------------------------------------------------------------
 // Trackid (kaatri rajad) — liides valmis, implementatsioon tuleb hiljem
 // ---------------------------------------------------------------------------
 

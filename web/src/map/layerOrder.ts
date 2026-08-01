@@ -19,6 +19,9 @@ export const LAYER_ORDER = [
   // Rasteraluskaardid ja overlay'd lisab MapView ise, need jäävad allapoole.
   'scalar-field',
   'wind-arrows',
+  'place-labels',
+  'place-labels-minor',
+  'place-labels-islands',
   'tracks-line',
   'vessel-hulls',
   'vessel-hulls-line',

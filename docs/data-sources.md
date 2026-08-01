@@ -1,5 +1,14 @@
 # Andmeallikad
 
+## Kohanimeotsing — OpenStreetMap Nominatim
+
+`/api/search` vahendab kasutaja käivitatud asukoha- ja sadamaotsingu
+Nominatimile. Avalik teenus ei luba automaattäidet, seega päring tehakse ainult
+Enteri või otsingunupu järel. Server piirab välispäringud ühele sekundis,
+vahemäldab tulemused nädalaks ja saadab tuvastatava User-Agent'i. Teenuse saab
+`NOMINATIM_URL` kaudu asendada oma instantsiga; avaliku teenuse jaoks peab
+`CONTACT_EMAIL` olema seadistatud.
+
 Iga allikas on `server/src/providers/` all eraldi fail, mis implementeerib
 `WeatherProvider` liidese. Frontend ei tea ühestki allikast midagi peale selle,
 mida `capabilities` ütleb.

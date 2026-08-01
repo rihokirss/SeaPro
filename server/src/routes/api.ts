@@ -3,6 +3,7 @@ import type {
   PointResult,
   ProviderError,
   StationReading,
+  SearchResult,
   TimeSeries,
   Variable,
 } from '@seapro/shared';
@@ -14,6 +15,7 @@ import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { vessels } from '../ais/registry.js';
 import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
+import { searchPlaces } from '../search/nominatim.js';
 import {
   coversPoint,
   enabledProviders,
@@ -152,6 +154,28 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   }));
 
   app.get('/api/providers', async () => listCapabilities());
+
+  /** Kasutaja algatatud kohanime- ja sadamaotsing OpenStreetMapist. */
+  app.get('/api/search', async (req, reply) => {
+    const q = req.query as Record<string, unknown>;
+    const query = typeof q.q === 'string' ? q.q.trim() : '';
+    if (query.length < 2 || query.length > 120) {
+      return reply.code(400).send({ error: 'q pikkus peab olema 2–120 märki' });
+    }
+    const lang = q.lang === 'en' ? 'en' : 'et';
+    let viewbox: [number, number, number, number] | undefined;
+    if (typeof q.bbox === 'string' && q.bbox) {
+      const parts = q.bbox.split(',').map(Number);
+      if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n)) || parts[0]! >= parts[2]! || parts[1]! >= parts[3]!) {
+        return reply.code(400).send({ error: 'bbox peab olema "lõuna,lääs,põhi,ida"' });
+      }
+      viewbox = parts as [number, number, number, number];
+    }
+
+    const results: SearchResult[] = await searchPlaces(query, lang, viewbox);
+    reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=604800');
+    return { results };
+  });
 
   /** Ajarida ühe punkti kohta, mitmelt allikalt korraga. */
   app.get('/api/point', async (req, reply) => {

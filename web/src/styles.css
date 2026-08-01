@@ -336,6 +336,108 @@ textarea {
   gap: var(--s3);
 }
 
+/* Kohanimeotsing on ülariba keskel, kuid jääb ise üheks kompaktseks plokiks. */
+.search {
+  position: relative;
+  flex: 0 1 440px;
+  min-width: 220px;
+  margin-left: auto;
+}
+
+.search__form {
+  display: flex;
+  min-height: var(--touch);
+  overflow: hidden;
+  color: var(--text);
+  background: var(--float);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--float-line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.search__toggle { display: none; }
+.search__toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+
+.search__form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow), var(--shadow-sm);
+}
+
+.search__input {
+  min-width: 0;
+  flex: 1;
+  padding: 0 var(--s4);
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+}
+
+.search__input::placeholder { color: var(--text-faint); }
+.search__input::-webkit-search-cancel-button { opacity: 0.65; }
+
+.search__submit {
+  width: var(--touch);
+  min-height: var(--touch);
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.search__submit:hover:not(:disabled) { background: var(--surface-2); }
+.search__submit:disabled { opacity: 0.35; cursor: default; }
+.search__submit svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+
+.search__results {
+  position: absolute;
+  top: calc(100% + var(--s3));
+  left: 0;
+  right: 0;
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
+  padding: var(--s2);
+  background: var(--surface);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  animation: drop-in 0.16s var(--ease);
+}
+
+.search__results ul { margin: 0; padding: 0; list-style: none; }
+.search__results li { margin: 0; }
+.search__results li > button {
+  width: 100%;
+  min-height: var(--touch);
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.search__results li > button:hover,
+.search__results li > button.is-active { background: var(--surface-2); }
+.search__kind { width: 22px; flex: none; color: var(--brass); text-align: center; }
+.search__label { min-width: 0; }
+.search__label strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-base); }
+.search__label small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); font-size: var(--t-cap); }
+.search__state { margin: var(--s4); color: var(--text-faint); font-size: var(--t-md); }
+.search__state--error { color: var(--danger); }
+.search__attribution { margin: var(--s2) var(--s4); color: var(--text-faint); font-size: var(--t-micro); }
+.search__attribution a { color: inherit; }
+
 .topbar__notice {
   flex-basis: 100%;
   margin: var(--s1) 0 0;
@@ -1896,6 +1998,23 @@ button.sheet__grip::before {
    ========================================================================== */
 
 @media (max-width: 560px) {
+  .topbar { gap: var(--s3); }
+  .search {
+    flex: 0 0 var(--touch);
+    min-width: 0;
+    margin-left: auto;
+  }
+  .search__toggle { display: inline-flex; }
+  .search__form { display: none; }
+  .search.is-mobile-open {
+    order: 3;
+    flex-basis: 100%;
+    width: 100%;
+    margin-left: 0;
+  }
+  .search.is-mobile-open .search__toggle { display: none; }
+  .search.is-mobile-open .search__form { display: flex; }
+
   /* Kitsal ekraanil on kellaaeg tähtsam kui mudeli nimi. */
   .timebar__meta {
     display: none;

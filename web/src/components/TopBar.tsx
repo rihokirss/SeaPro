@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useI18n } from '../i18n';
 import type { GeoState } from '../lib/geolocation';
 import type { useFavorites } from '../lib/favorites';
+import { SearchBox } from './SearchBox';
 
 interface Props {
   onOpenLayers(): void;
   geo: GeoState;
   favorites: ReturnType<typeof useFavorites>;
   onGoTo(lat: number, lon: number, zoom?: number): void;
+  bbox?: [number, number, number, number];
 }
 
 /** Kompassiroos — logo asemel. Puhas SVG, ei vaja fonti ega pildifaili. */
@@ -25,7 +27,7 @@ function CompassRose() {
   );
 }
 
-export function TopBar({ onOpenLayers, geo, favorites, onGoTo }: Props) {
+export function TopBar({ onOpenLayers, geo, favorites, onGoTo, bbox }: Props) {
   const { t } = useI18n();
   const [favOpen, setFavOpen] = useState(false);
 
@@ -56,6 +58,8 @@ export function TopBar({ onOpenLayers, geo, favorites, onGoTo }: Props) {
           <span>{t('app.subtitle')}</span>
         </div>
       </div>
+
+      <SearchBox bbox={bbox} onGoTo={onGoTo} />
 
       {/* "Minu asukoht" oli varem siin. Kolis alla paremasse nurka
           (`LocateButton` `.mapctl` virnas) — pöidla ulatusse. */}

@@ -5,6 +5,7 @@ import type {
   ProviderCapabilities,
   ProviderError,
   StationReading,
+  SearchResult,
   Variable,
   Vessel,
 } from '@seapro/shared';
@@ -60,6 +61,15 @@ export const api = {
   config: (signal?: AbortSignal) => get<AppConfig>('/api/config', signal),
 
   providers: (signal?: AbortSignal) => get<ProviderCapabilities[]>('/api/providers', signal),
+
+  search(
+    opts: { q: string; lang: 'et' | 'en'; bbox?: [number, number, number, number] },
+    signal?: AbortSignal,
+  ) {
+    const p = new URLSearchParams({ q: opts.q, lang: opts.lang });
+    if (opts.bbox) p.set('bbox', opts.bbox.map((n) => n.toFixed(4)).join(','));
+    return get<{ results: SearchResult[] }>(`/api/search?${p}`, signal);
+  },
 
   point(
     opts: {

@@ -35,6 +35,7 @@ import { TopBar } from './components/TopBar';
 import { MapLegend } from './components/MapLegend';
 import { MapKey } from './components/MapKey';
 import { LocateButton } from './components/LocateButton';
+import { setPlaceLabelsVisible } from './map/layers/placeLabels';
 
 const DEFAULT_LAYERS: LayerState = {
   overlays: ['seamark'],
@@ -46,6 +47,7 @@ const DEFAULT_LAYERS: LayerState = {
   vessels: true,
   harbours: true,
   anchorages: false,
+  placeLabels: true,
 };
 
 /**
@@ -558,6 +560,12 @@ export function App() {
     setBasemapMuted(map, fieldVar !== null);
   }, [fieldFrame, gridFrame, fieldVar, mapReady]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    setPlaceLabelsVisible(map, layers.placeLabels);
+  }, [layers.placeLabels, mapReady]);
+
   // --- Animeeritud tuulevoog ----------------------------------------------
   const particlesRef = useRef<WindParticleLayer | null>(null);
 
@@ -825,6 +833,7 @@ export function App() {
           geo={geo}
           favorites={favorites}
           onGoTo={goTo}
+          bbox={view?.bbox}
         />
 
         <MapView

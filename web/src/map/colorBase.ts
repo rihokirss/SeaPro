@@ -19,11 +19,11 @@ import type { LayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
  * värvi kandvad. Aluskaart peab andma orientiiri (kus on maa, kus vesi, kus
  * linn, kus tee) ja siis vait olema.
  *
- * Silte on ainult kohanimedel. Ülejäänud sildid tulevad rakenduse enda
- * kihtidest ja OSM-i tänavanimed ei ütle merel midagi.
+ * Kohanimed on eraldi kihis (`layers/placeLabels.ts`), et kasutaja saaks need
+ * välja lülitada ja et need jääksid nähtavaks ka tumeda ilma-aluskaardi peal.
  */
 
-const SOURCE_ID = 'ofm-color';
+export const COLOR_BASE_SOURCE_ID = 'ofm-color';
 
 const LAND = '#eaeade';
 const WATER = '#a8cfe0';
@@ -34,8 +34,6 @@ const ROAD_MAJOR = '#ffffff';
 const ROAD_MINOR = '#f4f2ec';
 const ROAD_CASING = '#d8d4c8';
 const PIER = '#cfcabc';
-const LABEL = '#4a5560';
-const LABEL_HALO = '#ffffffcc';
 
 export const COLOR_BASE_LAYER_IDS = [
   'color-land',
@@ -46,7 +44,6 @@ export const COLOR_BASE_LAYER_IDS = [
   'color-road-casing',
   'color-road',
   'color-pier',
-  'color-place-label',
 ] as const;
 
 function layers(): LayerSpecification[] {
@@ -56,7 +53,7 @@ function layers(): LayerSpecification[] {
     {
       id: 'color-landcover',
       type: 'fill',
-      source: SOURCE_ID,
+      source: COLOR_BASE_SOURCE_ID,
       'source-layer': 'landcover',
       paint: {
         'fill-color': [
@@ -73,14 +70,14 @@ function layers(): LayerSpecification[] {
     {
       id: 'color-water',
       type: 'fill',
-      source: SOURCE_ID,
+      source: COLOR_BASE_SOURCE_ID,
       'source-layer': 'water',
       paint: { 'fill-color': WATER },
     },
     {
       id: 'color-waterway',
       type: 'line',
-      source: SOURCE_ID,
+      source: COLOR_BASE_SOURCE_ID,
       'source-layer': 'waterway',
       paint: {
         'line-color': WATER,
@@ -90,7 +87,7 @@ function layers(): LayerSpecification[] {
     {
       id: 'color-building',
       type: 'fill',
-      source: SOURCE_ID,
+      source: COLOR_BASE_SOURCE_ID,
       'source-layer': 'building',
       minzoom: 14,
       paint: { 'fill-color': BUILDING, 'fill-opacity': 0.8 },
@@ -100,7 +97,7 @@ function layers(): LayerSpecification[] {
     {
       id: 'color-road-casing',
       type: 'line',
-      source: SOURCE_ID,
+      source: COLOR_BASE_SOURCE_ID,
       'source-layer': 'transportation',
       minzoom: 7,
       filter: ['match', ['get', 'class'], ['motorway', 'trunk', 'primary', 'secondary'], true, false],
@@ -112,7 +109,7 @@ function layers(): LayerSpecification[] {
     {
       id: 'color-road',
       type: 'line',
-      source: SOURCE_ID,
+      source: COLOR_BASE_SOURCE_ID,
       'source-layer': 'transportation',
       minzoom: 7,
       filter: [
@@ -135,40 +132,12 @@ function layers(): LayerSpecification[] {
     {
       id: 'color-pier',
       type: 'line',
-      source: SOURCE_ID,
+      source: COLOR_BASE_SOURCE_ID,
       'source-layer': 'transportation',
       filter: ['==', ['get', 'class'], 'pier'],
       paint: {
         'line-color': PIER,
         'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.6, 17, 4],
-      },
-    },
-    // Ainus sildikiht: kohanimed. Ilma nendeta on kaardil raske aru saada,
-    // kus ollakse, ja rakenduse enda sildid ei kata seda.
-    {
-      id: 'color-place-label',
-      type: 'symbol',
-      source: SOURCE_ID,
-      'source-layer': 'place',
-      filter: ['match', ['get', 'class'], ['city', 'town', 'village'], true, false],
-      layout: {
-        'text-field': ['coalesce', ['get', 'name:et'], ['get', 'name']],
-        // Sama font mis mujal rakenduses — vt basemaps.ts kommentaari selle
-        // kohta, mis juhtub, kui küsida fonti, mida server ei paku.
-        'text-font': ['Open Sans Regular'],
-        'text-size': [
-          'interpolate', ['linear'], ['zoom'],
-          6, 10,
-          12, 14,
-        ],
-        'text-anchor': 'top',
-        'text-offset': [0, 0.4],
-        'text-optional': true,
-      },
-      paint: {
-        'text-color': LABEL,
-        'text-halo-color': LABEL_HALO,
-        'text-halo-width': 1.4,
       },
     },
   ];
@@ -179,8 +148,8 @@ function layers(): LayerSpecification[] {
  * tume tuleb ette alles siis, kui valevärvi-väli sisse lülitatakse.
  */
 export function addColorBase(map: MapLibreMap, beforeId?: string): void {
-  if (!map.getSource(SOURCE_ID)) {
-    map.addSource(SOURCE_ID, {
+  if (!map.getSource(COLOR_BASE_SOURCE_ID)) {
+    map.addSource(COLOR_BASE_SOURCE_ID, {
       type: 'vector',
       url: 'https://tiles.openfreemap.org/planet',
       attribution:
