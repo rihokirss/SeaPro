@@ -15,7 +15,9 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
-  const skipNextAutoSearch = useRef(false);
+  // Pärast tulemuse valimist ei tohi kaardi liikumisest muutuv bbox sama nime
+  // soovitusi uuesti avada. Lukk vabaneb alles kasutaja järgmise sisestusega.
+  const suppressAutoSearch = useRef(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [status, setStatus] = useState<Status>('idle');
@@ -64,10 +66,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
   // Photon toetab prefiksiotsingut. Viivitus ootab ära loomuliku trükkimispausi
   // ja hoiab ära välispäringu iga klahvivajutuse kohta.
   useEffect(() => {
-    if (skipNextAutoSearch.current) {
-      skipNextAutoSearch.current = false;
-      return;
-    }
+    if (suppressAutoSearch.current) return;
     const q = query.trim();
     if (q.length < 2) {
       request.current?.abort();
@@ -81,9 +80,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
   }, [query, lang, bbox?.join(',')]);
 
   const choose = (result: SearchResult): void => {
-    // Kui nimi päriselt muutub, ära käivita valitud tulemuse nime peale uut
-    // soovituspäringut. Sama väärtusega setState uut efekti ei tekita.
-    if (result.name !== query) skipNextAutoSearch.current = true;
+    suppressAutoSearch.current = true;
     setQuery(result.name);
     setOpen(false);
     setMobileOpen(false);
@@ -134,6 +131,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
             if (status !== 'idle') setOpen(true);
           }}
           onChange={(event) => {
+            suppressAutoSearch.current = false;
             request.current?.abort();
             setQuery(event.target.value);
             setOpen(false);
