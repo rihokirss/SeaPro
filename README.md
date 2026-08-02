@@ -56,6 +56,12 @@ päevapiiriga. Turvavaru jätmiseks peatab rakenduse enda piiraja uued
 Open-Meteo päringud juba 3000 ühiku juures tunnis ja 8000 juures päevas.
 Atmosfääri- ja mere-API eelarveid jälgitakse eraldi.
 
+Tasulise Open-Meteo paketi kasutamiseks lisa serveri `.env` faili
+`OPEN_METEO_API_KEY`. Võtme olemasolul kasutab SeaPro automaatselt reserveeritud
+`customer-` endpointe ega rakenda tasuta paketi tunni- ja päevapiirajat. Ilma
+võtmeta jääb kõik vaikimisi tasuta režiimi. Paketi kuueelarvet haldab
+Open-Meteo; serveripoolne vahemälu jääb mõlemas režiimis tööle.
+
 Päringumahu hoidmiseks:
 
 - kaardivõre on kõige rohkem 8 × 8 punkti ehk 64 asukohta ühe päringu kohta;

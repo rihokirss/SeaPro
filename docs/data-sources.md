@@ -26,8 +26,8 @@ vajas.
 
 | | |
 |---|---|
-| Otspunktid | `api.open-meteo.com/v1/forecast`, `marine-api.open-meteo.com/v1/marine` |
-| Võti | ei vaja |
+| Otspunktid | tasuta: `api.open-meteo.com/v1/forecast`, `marine-api.open-meteo.com/v1/marine`; tasuline: samad `customer-` prefiksiga |
+| Võti | tasuta režiimis ei vaja; tasulises `OPEN_METEO_API_KEY` |
 | Litsents | CC BY 4.0 (mittekaubanduslik tasuta) |
 | Katvus | globaalne |
 | Ulatus | 7–8 päeva |
@@ -79,6 +79,12 @@ Kaitsed:
 7. prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved
    (`open-meteo`, `open-meteo-marine`) — tuulekihi limiit ei tohi lainekihti
    välja lülitada
+
+Kui `OPEN_METEO_API_KEY` on täidetud, lisab server võtme ainult väljaminevale
+Open-Meteo päringule ja kasutab automaatselt kommerts-endpointe. Võti ei kuulu
+vahemäluvõtmesse, `cache.json` faili, logidesse ega brauserile antavasse
+konfiguratsiooni. Tasulises režiimis tasuta paketi 3000/8000 kaitsepiire ei
+rakendata; päringumahtu piirab ostetud paketi kuueelarve.
 
 Kaardil nähtava tiheduse annab **kliendipoolne interpoleerimine**
 (`web/src/map/interpolate.ts`), mitte tihedam päring.

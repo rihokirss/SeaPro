@@ -1,3 +1,5 @@
+import { config } from './config.js';
+
 /**
  * Väljaminevate päringute eelarve allika kohta.
  *
@@ -219,12 +221,14 @@ class RateLimiter {
 
 export const rateLimiter = new RateLimiter();
 
-// Open-Meteo tasuta limiidid: 5000 kutset tunnis JA 10 000 kutset ööpäevas.
-// Võtame 3000 ja 8000 — varu jätab ruumi vahemälu möödalaskudele ja hoiab meid
-// allika blokeeringust eemal.
-//
-// Päevane piir on praktikas see, mis maksma jääb: 3000 kutset tunnis lubaks
-// päevase kvoodi ära kulutada nelja tunniga ja ülejäänud 20 tundi oleks 429.
-// Prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved.
-rateLimiter.register('open-meteo', 3000, 8000);
-rateLimiter.register('open-meteo-marine', 3000, 8000);
+if (!config.openMeteoApiKey) {
+  // Open-Meteo tasuta limiidid: 5000 kutset tunnis JA 10 000 kutset ööpäevas.
+  // Võtame 3000 ja 8000 — varu jätab ruumi vahemälu möödalaskudele ja hoiab
+  // meid allika blokeeringust eemal.
+  //
+  // Päevane piir on praktikas see, mis maksma jääb: 3000 kutset tunnis lubaks
+  // päevase kvoodi ära kulutada nelja tunniga ja ülejäänud 20 tundi oleks 429.
+  // Prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved.
+  rateLimiter.register('open-meteo', 3000, 8000);
+  rateLimiter.register('open-meteo-marine', 3000, 8000);
+}

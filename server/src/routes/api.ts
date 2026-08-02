@@ -146,6 +146,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     ok: true,
     version: config.appVersion,
     time: new Date().toISOString(),
+    openMeteo: { mode: config.openMeteoApiKey ? 'commercial' : 'free' },
     // Päringueelarve seis — ilma selleta on "miks tuulekiht kadus?" pime koht.
     budgets: rateLimiter.stats(),
     // Vahemälu maht: kirjed kasvavad kaardi kerimisega ja piiri lähedus on

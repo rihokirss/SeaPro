@@ -30,6 +30,17 @@ interface FetchOptions {
 
 const DEFAULT_TIMEOUT = 15_000;
 
+/** Eemaldab saladused URL-ist enne, kui URL veasse või logisse jõuab. */
+export function redactUrlSecrets(raw: string): string {
+  try {
+    const url = new URL(raw);
+    if (url.searchParams.has('apikey')) url.searchParams.set('apikey', '[redacted]');
+    return url.toString();
+  } catch {
+    return raw.replace(/([?&]apikey=)[^&\s]*/gi, '$1[redacted]');
+  }
+}
+
 /**
  * Ühine väljaminev HTTP-klient.
  *
@@ -41,6 +52,7 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT;
 
   let lastError: unknown;
+  const safeUrl = redactUrlSecrets(url);
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
@@ -78,17 +90,17 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
           `Päringulimiit ületatud (429)${retryAfter ? `, proovi ${retryAfter} s pärast` : ''}` +
             (body ? `: ${body.slice(0, 200)}` : ''),
           429,
-          url,
+          safeUrl,
           body,
         );
       }
 
       // 4xx on püsiv viga — kordamine ei aita ja koormab allikat asjatult.
       if (!res.ok && res.status < 500) {
-        throw new HttpError(`HTTP ${res.status} ${res.statusText}`, res.status, url);
+        throw new HttpError(`HTTP ${res.status} ${res.statusText}`, res.status, safeUrl);
       }
       if (!res.ok) {
-        throw new HttpError(`HTTP ${res.status} ${res.statusText}`, res.status, url);
+        throw new HttpError(`HTTP ${res.status} ${res.statusText}`, res.status, safeUrl);
       }
 
       return res;
@@ -106,7 +118,7 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
   }
 
   const reason = lastError instanceof Error ? lastError.message : String(lastError);
-  throw new HttpError(`Päring ebaõnnestus (${retries + 1} katset): ${reason}`, 0, url);
+  throw new HttpError(`Päring ebaõnnestus (${retries + 1} katset): ${reason}`, 0, safeUrl);
 }
 
 export async function fetchJson<T>(url: string, opts: FetchOptions = {}): Promise<T> {

@@ -13,8 +13,25 @@ import { HttpError, fetchJson } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { round, type GridQuery, type PointQuery, type WeatherProvider } from './types.js';
 
-const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
-const MARINE_URL = 'https://marine-api.open-meteo.com/v1/marine';
+const FREE_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
+const FREE_MARINE_URL = 'https://marine-api.open-meteo.com/v1/marine';
+const FORECAST_URL = config.openMeteoApiKey
+  ? 'https://customer-api.open-meteo.com/v1/forecast'
+  : FREE_FORECAST_URL;
+const MARINE_URL = config.openMeteoApiKey
+  ? 'https://customer-marine-api.open-meteo.com/v1/marine'
+  : FREE_MARINE_URL;
+
+/**
+ * Koostab päris võrguaadressi. API-võti lisatakse alles siin, mitte provideris
+ * kasutatavasse `params` objekti: nii ei satu saladus cache-võtmesse ega
+ * kettal olevasse cache.json faili.
+ */
+function requestUrl(url: string, params: URLSearchParams): string {
+  const authenticated = new URLSearchParams(params);
+  if (config.openMeteoApiKey) authenticated.set('apikey', config.openMeteoApiKey);
+  return `${url}?${authenticated}`;
+}
 
 /**
  * Open-Meteo muutuja -> meie muutuja.
@@ -263,16 +280,16 @@ async function fetchMarineWithFallback(
   const retryWithBestMatch = (): Promise<OmResponse | OmResponse[]> => {
     const fallback = new URLSearchParams(params);
     fallback.delete('models');
-    return fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${fallback}`, cost);
+    return fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, fallback), cost);
   };
 
   if (!params.has('models')) {
-    return fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost);
+    return fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost);
   }
 
   let first: OmResponse | OmResponse[];
   try {
-    first = await fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost);
+    first = await fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost);
   } catch (err) {
     // AINULT 400. 429 tähendab "liiga palju päringuid" — kordamine oleks siis
     // täpselt vale ravim ja sööks eelarvet, mis on juba otsas. Kõik muu
@@ -700,7 +717,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     const cached = await cache.get(key, config.ttl.openMeteo, () =>
       isMarine
         ? fetchMarineWithFallback(url, params, apiVars, cost)
-        : fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
+        : fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost),
     );
     return {
       lats,
@@ -737,7 +754,10 @@ export class OpenMeteoProvider implements WeatherProvider {
     const realModels = models.filter((m) => m !== 'best_match');
     if (realModels.length) params.set('models', realModels.join(','));
 
-    const key = `om:point:${url}:${params.toString()}`;
+    // Kasuta mõlemas režiimis sama loogilist võtit, et kommertsrežiimile
+    // lülitumine ei viskaks tasuta endpointist saadud viimast vastust ära.
+    const sourceKey = url === MARINE_URL ? FREE_MARINE_URL : FREE_FORECAST_URL;
+    const key = `om:point:${sourceKey}:${params.toString()}`;
     const cost = queryWeight({
       locations: 1,
       variables: apiVars.length,
@@ -747,7 +767,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     const { value } = await cache.get(key, config.ttl.openMeteo, () =>
       url === MARINE_URL
         ? fetchMarineWithFallback(url, params, apiVars, cost)
-        : fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
+        : fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost),
     );
 
     const res = Array.isArray(value) ? value[0] : value;

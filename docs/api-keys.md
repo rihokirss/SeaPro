@@ -80,7 +80,7 @@ ametlikke WMS-teenuseid, mis on avatud.
 
 ---
 
-## Päringueelarve, mitte võti
+## Open-Meteo: tasuta või tasuline režiim
 
 Open-Meteo ei vaja võtit, aga tal on **tunnilimiit 5000 ja ööpäevane limiit
 10 000 kutset** — ja ta loeb mitmepunktilise võrgustikupäringu iga punkti
@@ -102,6 +102,27 @@ curl -s localhost:8080/api/health | jq .budgets
 Kui `spent` läheneb `limit`-ile, degradeerub rakendus sujuvalt vahemälust
 serveeritud andmetele, mitte tühjale ekraanile.
 
+Tasulise paketi võtme saab lisada `.env` faili:
+
+```bash
+OPEN_METEO_API_KEY=siia-ostetud-võti
+```
+
+Server valib selle olemasolul automaatselt Open-Meteo `customer-` endpointid
+ja tasuta paketi tunni-/päevapiirajat ei rakendata. Kui see koodiversioon on
+juba serveris, piisab pärast võtme lisamist käsust
+`pm2 restart seapro --update-env`; uut buildi pole vaja. Režiimi saab
+kontrollida ilma võtit avaldamata:
+
+```bash
+curl -s localhost:8080/api/health | jq .openMeteo
+# {"mode":"commercial"}
+```
+
+Võti lisatakse ainult väljaminevale päringule. See ei lähe cache-võtmesse,
+`cache.json` faili, logidesse ega frontendile. Ilma võtmeta jääb rakendus
+automaatselt tasuta režiimi.
+
 ---
 
 ## Turvalisus
@@ -110,4 +131,4 @@ serveeritud andmetele, mitte tühjale ekraanile.
 - `.env` ei tohi kunagi git-i sattuda — kontrollitud `.gitignore`-iga
 - Võtmed jäävad AINULT serverisse; frontend ei näe neid kunagi, sest kõik
   välispäringud käivad proxy kaudu
-- Kui võti lekib, tühista see aisstream.io lehel ja loo uus
+- Kui võti lekib, tühista see vastava teenuse haldusportaalis ja loo uus

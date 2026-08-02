@@ -54,6 +54,15 @@ export const config = {
 
   aisstreamKey: str('AISSTREAM_KEY', ''),
 
+  /**
+   * Valikuline Open-Meteo kommerts-API võti.
+   *
+   * Võtme olemasolul kasutab provider automaatselt reserveeritud `customer-`
+   * endpointe. Võti jääb ainult serverisse ega lähe API vastustesse, logidesse
+   * ega vahemäluvõtmetesse.
+   */
+  openMeteoApiKey: str('OPEN_METEO_API_KEY', ''),
+
   /** Konfigureeritav, et Photoni avaliku demo saaks asendada oma instantsiga. */
   photonUrl: str('PHOTON_URL', 'https://photon.komoot.io'),
 
