@@ -24,6 +24,7 @@ export const LAYER_ORDER = [
   'place-labels-islands',
   'official-fairways',
   'navigation-warning-areas',
+  'navigation-warning-line-hit',
   'navigation-warning-lines',
   'navigation-warning-points',
   'wrecks',

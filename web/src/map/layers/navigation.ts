@@ -8,6 +8,7 @@ const SOURCE_ID = 'navigation-src';
 
 export const FAIRWAYS_LAYER = 'official-fairways';
 export const WARNING_AREAS_LAYER = 'navigation-warning-areas';
+export const WARNING_LINE_HIT_LAYER = 'navigation-warning-line-hit';
 export const WARNING_LINES_LAYER = 'navigation-warning-lines';
 export const WARNING_POINTS_LAYER = 'navigation-warning-points';
 export const WRECKS_LAYER = 'wrecks';
@@ -18,7 +19,7 @@ export const NAVIGATION_AID_LABELS_LAYER = 'navigation-aid-labels';
 
 export const NAVIGATION_CLICK_LAYERS = [
   WARNING_POINTS_LAYER,
-  WARNING_LINES_LAYER,
+  WARNING_LINE_HIT_LAYER,
   WARNING_AREAS_LAYER,
   WRECKS_LAYER,
   NAVIGATION_AIDS_LAYER,
@@ -151,6 +152,20 @@ function ensureLayers(map: MapLibreMap): void {
   }
 
   if (!map.getLayer(WARNING_LINES_LAYER)) {
+    // Joone nähtav osa võib olla peen, kuid puuteseadmel peab selle ümber
+    // olema piisavalt lai tabamisala. Peaaegu läbipaistev kiht jääb
+    // queryRenderedFeatures/event-käsitlejale leitavaks ega muuda kaardipilti.
+    map.addLayer({
+      id: WARNING_LINE_HIT_LAYER,
+      type: 'line',
+      source: SOURCE_ID,
+      filter: ['all', ['==', ['get', 'featureKind'], 'warning'], ['==', ['geometry-type'], 'LineString']],
+      paint: {
+        'line-color': 'rgba(216,138,0,0.01)',
+        'line-width': 28,
+      },
+    }, insertBefore(map, WARNING_LINE_HIT_LAYER));
+
     map.addLayer({
       id: WARNING_LINES_LAYER,
       type: 'line',
@@ -285,7 +300,11 @@ function ensureLayers(map: MapLibreMap): void {
 }
 
 export function setNavigationVisibility(map: MapLibreMap, visibility: NavigationVisibility): void {
-  setVisible(map, [WARNING_AREAS_LAYER, WARNING_LINES_LAYER, WARNING_POINTS_LAYER], visibility.warnings);
+  setVisible(
+    map,
+    [WARNING_AREAS_LAYER, WARNING_LINE_HIT_LAYER, WARNING_LINES_LAYER, WARNING_POINTS_LAYER],
+    visibility.warnings,
+  );
   setVisible(map, [WRECKS_LAYER, WRECK_LABELS_LAYER], visibility.wrecks);
 
   // AIS AToN ja registrimärgid jagavad allikat. Registriobjektide lüliti
