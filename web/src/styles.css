@@ -357,7 +357,7 @@ textarea {
   box-shadow: var(--shadow-sm);
 }
 
-.search__toggle { display: none; }
+.search__toggle.icon-btn { display: none; }
 .search__toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 
 .search__form:focus-within {
@@ -2005,7 +2005,7 @@ button.sheet__grip::before {
     min-width: 0;
     margin-left: auto;
   }
-  .search__toggle { display: inline-flex; }
+  .search__toggle.icon-btn { display: inline-flex; }
   .search__form { display: none; }
   .search.is-mobile-open {
     order: 3;
