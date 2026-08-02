@@ -263,6 +263,9 @@ function ensureLayers(map: MapLibreMap): void {
       minzoom: 10,
       layout: {
         'icon-image': ['get', 'icon'],
+        // Navigatsioonimärgi koordinaat tähistab märgi jalga/asukohta vees,
+        // mitte ikooni visuaalset keskpunkti.
+        'icon-anchor': 'bottom',
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
           10, 0.9,

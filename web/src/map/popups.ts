@@ -480,6 +480,7 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const destination = String(p.destination ?? '').trim();
   const callSign = String(p.callSign ?? '').trim();
   const imo = p.imo === null || p.imo === undefined ? null : Number(p.imo);
+  const shipType = p.shipType === null || p.shipType === undefined ? null : Number(p.shipType);
   const flag = String(p.flag ?? '').trim();
   const eta = String(p.eta ?? '').trim();
   const draughtM = p.draughtM === null || p.draughtM === undefined ? null : Number(p.draughtM);
@@ -490,6 +491,9 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
 
   const rows: string[] = [];
 
+  if (shipType !== null && Number.isFinite(shipType)) {
+    rows.push(row(t('vessel.type'), escapeHtml(vesselTypeName(shipType, t)), ''));
+  }
   if (lengthM !== null) {
     rows.push(
       row(t('vessel.size'), `${lengthM} × ${beamM ?? '?'}`, 'm'),
@@ -538,6 +542,32 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       <table class="popup__table">${rows.join('')}</table>
       <div class="popup__source">AIS · ${escapeHtml(String(p.source ?? ''))}</div>
     </div>`;
+}
+
+/** AIS sõnumi 0–99 laevatüüp kasutajale arusaadavaks nimetuseks. */
+function vesselTypeName(code: number, t: Translate): string {
+  if (code === 30) return t('key.vessel.fishing');
+  if (code === 31) return t('vessel.type.towing');
+  if (code === 32) return t('vessel.type.towingLarge');
+  if (code === 33) return t('vessel.type.dredging');
+  if (code === 34) return t('vessel.type.diving');
+  if (code === 35) return t('vessel.type.military');
+  if (code === 36) return t('key.vessel.sailing');
+  if (code === 37) return t('key.vessel.pleasure');
+  if (code === 50) return t('vessel.type.pilot');
+  if (code === 51) return t('vessel.type.sar');
+  if (code === 52) return t('vessel.type.tug');
+  if (code === 53) return t('vessel.type.portTender');
+  if (code === 54) return t('vessel.type.antiPollution');
+  if (code === 55) return t('vessel.type.lawEnforcement');
+  if (code === 58) return t('vessel.type.medical');
+  if (code >= 20 && code <= 29) return t('vessel.type.wig');
+  if (code >= 40 && code <= 49) return t('key.vessel.fast');
+  if (code >= 60 && code <= 69) return t('key.vessel.passenger');
+  if (code >= 70 && code <= 79) return t('key.vessel.cargo');
+  if (code >= 80 && code <= 89) return t('key.vessel.tanker');
+  if (code >= 90 && code <= 99) return t('key.vessel.other');
+  return t('vessel.type.unknown');
 }
 
 function navigationTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
