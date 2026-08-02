@@ -50,6 +50,22 @@ let openFeatureId: string | null = null;
  */
 let hoverTip: maplibregl.Popup | null = null;
 
+const POPUP_CLICK_LAYERS = [
+  STATIONS_LAYER,
+  HARBOURS_LAYER,
+  ANCHORAGES_LAYER,
+  ...VESSEL_LAYERS,
+  ...NAVIGATION_CLICK_LAYERS,
+];
+
+interface ClickTarget {
+  id: string;
+  title: string;
+  kind: string;
+  lngLat: maplibregl.LngLatLike;
+  html: string;
+}
+
 export function registerPopups(map: MapLibreMap, getContext: () => PopupContext): void {
   const show = (featureId: string, lngLat: maplibregl.LngLatLike, html: string): boolean => {
     // Sama objekt teist korda = sulge.
@@ -91,62 +107,61 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     return true;
   };
 
-  map.on('click', STATIONS_LAYER, (e) => {
-    const f = e.features?.[0];
-    if (!f) return;
-    // Ära lase klikil ka punktipaneeli avada — jaam ON juba vastus.
-    e.originalEvent.stopPropagation();
-    const id = `station:${String(f.properties?.id ?? '')}`;
-    if (show(id, coordsOf(f, e.lngLat), stationHtml(f, getContext()))) {
-      hoverTip?.remove();
+  // Üks käsitleja kõigile klikitavatele objektidele. MapLibre tagastab
+  // renderdatud objektid visuaalses järjekorras (pealmine esimesena), seega
+  // ei saa alumise kihi hiljem registreeritud handler pealmist popupi enam
+  // kogemata üle kirjutada.
+  map.on('click', (e) => {
+    const layers = POPUP_CLICK_LAYERS.filter((layer) => map.getLayer(layer));
+    if (!layers.length) return;
+
+    const seen = new Set<string>();
+    const targets = map
+      .queryRenderedFeatures(e.point, { layers })
+      .map((feature) => clickTarget(feature, e.lngLat, getContext()))
+      .filter((target): target is ClickTarget => {
+        if (!target || seen.has(target.id)) return false;
+        seen.add(target.id);
+        return true;
+      });
+
+    if (!targets.length) return;
+    hoverTip?.remove();
+
+    if (targets.length === 1) {
+      const target = targets[0]!;
+      show(target.id, target.lngLat, target.html);
+      return;
     }
+
+    const ctx = getContext();
+    const chooserId = `selection:${targets.map((target) => target.id).join('|')}`;
+    const choices = targets.map((target, index) => `
+      <button type="button" class="popup__choice" data-choice-index="${index}">
+        <strong>${escapeHtml(target.title)}</strong>
+        <span>${escapeHtml(target.kind)}</span>
+      </button>`).join('');
+    const chooserHtml = `
+      <div class="popup popup--chooser">
+        <div class="popup__head">
+          <strong>${escapeHtml(ctx.t('popup.chooseObject'))}</strong>
+          <span class="popup__kind">${escapeHtml(ctx.t('popup.objectCount', { n: targets.length }))}</span>
+        </div>
+        <div class="popup__choices">${choices}</div>
+      </div>`;
+
+    if (!show(chooserId, e.lngLat, chooserHtml)) return;
+    popup?.getElement().querySelectorAll<HTMLButtonElement>('[data-choice-index]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const target = targets[Number(button.dataset.choiceIndex)];
+        if (target) show(target.id, target.lngLat, target.html);
+      });
+    });
   });
 
-  for (const layer of VESSEL_LAYERS) {
-    map.on('click', layer, (e) => {
-      const f = e.features?.[0];
-      if (!f) return;
-      e.originalEvent.stopPropagation();
-      const id = `vessel:${String(f.properties?.mmsi ?? '')}`;
-      if (show(id, e.lngLat, vesselHtml(f, getContext()))) {
-        hoverTip?.remove();
-      }
-    });
-  }
-
-  for (const layer of NAVIGATION_CLICK_LAYERS) {
-    map.on('click', layer, (e) => {
-      const f = e.features?.[0];
-      if (!f) return;
-      e.originalEvent.stopPropagation();
-      const id = `navigation:${String(f.properties?.id ?? '')}`;
-      if (show(id, coordsOf(f, e.lngLat), navigationHtml(f, getContext()))) {
-        hoverTip?.remove();
-      }
-    });
-  }
-
-  // Sama käsitleja mõlemale: popup ise otsustab sisu `kind` järgi.
-  for (const layer of [HARBOURS_LAYER, ANCHORAGES_LAYER]) {
-    map.on('click', layer, (e) => {
-      const f = e.features?.[0];
-      if (!f) return;
-      e.originalEvent.stopPropagation();
-      const id = `harbour:${String(f.properties?.id ?? '')}`;
-      if (show(id, coordsOf(f, e.lngLat), harbourHtml(f, getContext()))) {
-        hoverTip?.remove();
-      }
-    });
-  }
-
   // Kursor ja hover-vihje.
-  for (const layer of [
-    STATIONS_LAYER,
-    HARBOURS_LAYER,
-    ANCHORAGES_LAYER,
-    ...VESSEL_LAYERS,
-    ...NAVIGATION_CLICK_LAYERS,
-  ]) {
+  for (const layer of POPUP_CLICK_LAYERS) {
     map.on('mousemove', layer, (e) => {
       map.getCanvas().style.cursor = 'pointer';
 
@@ -308,6 +323,70 @@ function coordsOf(f: MapGeoJSONFeature, fallback: maplibregl.LngLat): maplibregl
     return [lon, lat];
   }
   return fallback;
+}
+
+function clickTarget(
+  f: MapGeoJSONFeature,
+  fallback: maplibregl.LngLat,
+  ctx: PopupContext,
+): ClickTarget | null {
+  const p = f.properties as Record<string, unknown>;
+  const layer = f.layer.id;
+  const lngLat = coordsOf(f, fallback);
+
+  if (layer === STATIONS_LAYER) {
+    const kind = String(p.kind ?? 'coastal');
+    return {
+      id: `station:${String(p.id ?? '')}`,
+      title: String(p.name ?? '').trim() || ctx.t(`station.kind.${kind}`),
+      kind: ctx.t(`station.kind.${kind}`),
+      lngLat,
+      html: stationHtml(f, ctx),
+    };
+  }
+
+  if (VESSEL_LAYERS.includes(layer)) {
+    const shipType = nullableNumber(p.shipType);
+    const category = String(p.category ?? 'default');
+    return {
+      id: `vessel:${String(p.mmsi ?? '')}`,
+      title: String(p.name ?? '').trim() || ctx.t('vessel.unknown'),
+      kind: shipType === null
+        ? ctx.t(`key.vessel.${category === 'default' ? 'other' : category}`)
+        : vesselTypeName(shipType, ctx.t),
+      lngLat,
+      html: vesselHtml(f, ctx),
+    };
+  }
+
+  if (NAVIGATION_CLICK_LAYERS.includes(layer)) {
+    const featureKind = String(p.featureKind ?? '');
+    const kind = ctx.t(`navigation.${featureKind}`);
+    const title = featureKind === 'warning'
+      ? localized(p.titleEt, p.titleEn, ctx) || kind
+      : String(p.name ?? '').trim() || kind;
+    return {
+      id: `navigation:${String(p.id ?? '')}`,
+      title,
+      kind,
+      lngLat,
+      html: navigationHtml(f, ctx),
+    };
+  }
+
+  if (layer === HARBOURS_LAYER || layer === ANCHORAGES_LAYER) {
+    const anchorage = p.kind === 'anchorage';
+    const kind = ctx.t(anchorage ? 'anchorage.title' : 'harbour.title');
+    return {
+      id: `harbour:${String(p.id ?? '')}`,
+      title: String(p.name ?? '').trim() || kind,
+      kind,
+      lngLat,
+      html: harbourHtml(f, ctx),
+    };
+  }
+
+  return null;
 }
 
 /** Jaama popup: nimi, tüüp, vanus ja kõik mõõdetud väärtused. */

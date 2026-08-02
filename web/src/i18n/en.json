@@ -80,6 +80,8 @@
   "navigation.depth": "Depth",
   "navigation.shipDraught": "Permitted draught",
   "navigation.width": "Width",
+  "popup.chooseObject": "Choose an object",
+  "popup.objectCount": "{n} objects at this location",
   "layer.seamark": "OpenSeaMap navigation marks",
   "layer.seamark.hint": "Global community layer; may duplicate marks on the official chart",
   "layer.bathymetry": "Seabed depth shading",

@@ -2192,6 +2192,44 @@ button.sheet__grip::before {
   color: var(--text-faint);
 }
 
+.popup__choices {
+  max-height: min(44vh, 320px);
+  overflow-y: auto;
+  margin: var(--s2) calc(-1 * var(--s2)) calc(-1 * var(--s2));
+}
+
+.popup__choice {
+  width: 100%;
+  min-height: var(--touch);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--s3) var(--s4);
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.popup__choice:hover,
+.popup__choice:focus-visible {
+  background: var(--surface-2);
+  outline: 0;
+}
+
+.popup__choice strong {
+  font: inherit;
+  font-weight: var(--w-bold);
+}
+
+.popup__choice span {
+  color: var(--text-faint);
+  font-size: var(--t-cap);
+}
+
 /* Sulgemisnupp peab olema puutetav, MapLibre'i vaikimisi oma on 18 px. */
 .maplibregl-popup-close-button {
   width: 32px;

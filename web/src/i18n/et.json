@@ -80,6 +80,8 @@
   "navigation.depth": "Sügavus",
   "navigation.shipDraught": "Lubatud süvis",
   "navigation.width": "Laius",
+  "popup.chooseObject": "Vali objekt",
+  "popup.objectCount": "{n} objekti selles kohas",
   "layer.seamark": "OpenSeaMapi navigatsioonimärgid",
   "layer.seamark.hint": "Üleilmne kogukonnakiht; võib ametliku kaardi märke dubleerida",
   "layer.bathymetry": "Merepõhja sügavusvarjutus",
