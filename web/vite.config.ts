@@ -79,6 +79,11 @@ export default defineConfig({
       '/api': { target: 'http://localhost:8080', changeOrigin: true },
     },
   },
+  // MapLibre'i tööprotsess on ES-moodul (`import ./maplibre-gl-shared.mjs`),
+  // seega peab ka Vite selle ES-formaadis pakendama.
+  worker: {
+    format: 'es',
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,

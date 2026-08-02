@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// MapLibre 6 otsib tööprotsessi faili oma mooduli URL-i kõrvalt
+// (`./maplibre-gl-worker.mjs`). Vite ei näe seda staatiliselt ega emiteeri
+// faili, seega jääks build'is 404 ja kaart ei renderdaks midagi. Laseme Vitel
+// tööprotsessi ise pakendada ja anname valmis URL-i MapLibre'ile.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import {
   OVERLAY_LAYERS,
   baseStyle,
@@ -91,6 +96,8 @@ export function MapView({
 
   useEffect(() => {
     if (!container.current || mapRef.current) return;
+
+    maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
     const map = new maplibregl.Map({
       container: container.current,
