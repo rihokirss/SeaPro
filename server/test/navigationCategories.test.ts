@@ -10,6 +10,8 @@ describe('navigatsioonimärkide liigitus', () => {
     expect(categoryFromAtonType(26)).toBe('preferred-port');
     expect(categoryFromAtonType(27)).toBe('preferred-starboard');
     expect(categoryFromAtonType(29)).toBe('safe-water');
+    expect(categoryFromAtonType(7)).toBe('leading-front');
+    expect(categoryFromAtonType(8)).toBe('leading-rear');
     expect(categoryFromAtonType(4)).toBeUndefined();
     expect(categoryFromAtonType(31)).toBeUndefined();
   });
@@ -25,5 +27,9 @@ describe('navigatsioonimärkide liigitus', () => {
       .toBe('lighthouse');
     expect(categoryFromRegistry('Tilgu sadama 1', 'seasonal', undefined, 'Parema külje tooder'))
       .toBe('lateral-starboard');
+    expect(categoryFromRegistry('Suurupi sihi alumine tuletorn', 'fixed', 'valge', 'Tuletorn, sihi alumine'))
+      .toBe('leading-front');
+    expect(categoryFromRegistry('Suurupi tuletorn', 'fixed', 'valge', 'Tuletorn, sihi ülemine'))
+      .toBe('leading-rear');
   });
 });

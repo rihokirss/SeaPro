@@ -2,7 +2,7 @@ import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import type { FilterSpecification, GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { NavigationData } from '@seapro/shared';
 import { insertBefore } from '../layerOrder';
-import { fixedAidIconCategory, NAVIGATION_WARNING_ICON } from '../icons';
+import { fixedAidIconCategory, NAVIGATION_WARNING_ICON, WRECK_ICON } from '../icons';
 
 const SOURCE_ID = 'navigation-src';
 
@@ -187,15 +187,15 @@ function ensureLayers(map: MapLibreMap): void {
   if (!map.getLayer(WRECKS_LAYER)) {
     map.addLayer({
       id: WRECKS_LAYER,
-      type: 'circle',
+      type: 'symbol',
       source: SOURCE_ID,
       filter: ['==', ['get', 'featureKind'], 'wreck'],
       minzoom: 10,
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 7],
-        'circle-color': '#473662',
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 1.5,
+      layout: {
+        'icon-image': WRECK_ICON,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.72, 14, 0.95, 17, 1.1],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
       },
     }, insertBefore(map, WRECKS_LAYER));
   }
@@ -211,7 +211,7 @@ function ensureLayers(map: MapLibreMap): void {
         'text-field': ['get', 'name'],
         'text-font': ['Open Sans Regular'],
         'text-size': 10,
-        'text-offset': [0, 1],
+        'text-offset': [0, 1.55],
         'text-anchor': 'top',
         'text-optional': true,
       },

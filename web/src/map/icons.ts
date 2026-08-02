@@ -294,7 +294,7 @@ export const NAVIGATION_AID_CATEGORIES = [
   'preferred-port', 'preferred-starboard',
   'cardinal-north', 'cardinal-east', 'cardinal-south', 'cardinal-west',
   'isolated-danger', 'safe-water', 'special',
-  'lighthouse', 'leading', 'beacon', 'virtual', 'unknown',
+  'lighthouse', 'leading', 'leading-front', 'leading-rear', 'beacon', 'virtual', 'unknown',
 ] as const;
 
 const FIXED_AID_COLOUR_VARIANTS = [
@@ -314,7 +314,8 @@ function fixedAidPalette(variant: string): string[] {
 }
 
 export function fixedAidIconCategory(category: string, markColours: string[] | undefined): string {
-  if (category !== 'beacon' && category !== 'leading') return category;
+  const fixedCategories = ['beacon', 'leading', 'leading-front', 'leading-rear'];
+  if (!fixedCategories.includes(category)) return category;
   if (!markColours?.length) return `${category}-default`;
   const variant = markColours.join('-');
   const known = FIXED_AID_COLOUR_VARIANTS.some((candidate) => candidate === variant);
@@ -347,7 +348,12 @@ function navigationAidMarker(category: string): ImageData {
     ctx.fillStyle = '#111';
     ctx.fill();
   };
-  const fixedVariant = category.split('-').slice(1).join('-') || 'default';
+  const fixedBase = ['leading-front', 'leading-rear', 'leading', 'beacon'].find(
+    (base) => category === base || category.startsWith(`${base}-`),
+  );
+  const fixedVariant = fixedBase && category.length > fixedBase.length
+    ? category.slice(fixedBase.length + 1)
+    : 'default';
   const fillFixedBody = (x: number, y: number, width: number, height: number): void => {
     const palette = fixedAidPalette(fixedVariant);
     ctx.fillStyle = palette[0]!;
@@ -360,11 +366,20 @@ function navigationAidMarker(category: string): ImageData {
       });
     }
   };
-  const lightTop = (): void => {
-    ctx.beginPath(); ctx.arc(0, -6.5, 2.5, 0, Math.PI * 2);
+  const lightTop = (y = -6.5): void => {
+    ctx.beginPath(); ctx.arc(0, y, 2.5, 0, Math.PI * 2);
     ctx.fillStyle = '#f5d44d'; ctx.fill(); stroke();
-    ctx.beginPath(); ctx.moveTo(-7, -6.5); ctx.lineTo(-4, -6.5); ctx.moveTo(4, -6.5); ctx.lineTo(7, -6.5);
+    ctx.beginPath(); ctx.moveTo(-7, y); ctx.lineTo(-4, y); ctx.moveTo(4, y); ctx.lineTo(7, y);
     stroke('#b03b91', 1.4);
+  };
+  const lightFlare = (): void => {
+    // IHO/ENC-laadne magenta valgusleek: must punkt on täpne asukoht ja
+    // kitsenev leek näitab, et objektil on navigatsioonituli.
+    ctx.beginPath();
+    ctx.moveTo(1.5, 1); ctx.quadraticCurveTo(6, 2, 10, 7);
+    ctx.quadraticCurveTo(5, 5, 0.5, 2.5); ctx.closePath();
+    ctx.fillStyle = '#d43aa6'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill();
   };
 
   if (category === 'lateral-port' || category === 'preferred-port') {
@@ -429,11 +444,14 @@ function navigationAidMarker(category: string): ImageData {
     ctx.beginPath(); ctx.arc(0, -10, 2.1, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill();
     ctx.beginPath(); ctx.arc(0, -5, 2.1, 0, Math.PI * 2); ctx.fill();
   } else if (category === 'safe-water') {
-    // IALA ohutu vee märk: punase-valged PÜSTtriibud ja üks punane kuul.
-    ctx.fillStyle = '#fff'; ctx.fillRect(-4.5, 0, 9, 12);
-    ctx.fillStyle = '#df3f45';
-    ctx.fillRect(-4.5, 0, 3, 12); ctx.fillRect(1.5, 0, 3, 12);
-    ctx.strokeRect(-4.5, 0, 9, 12); stroke();
+    // NMA ametlik päevavaade: eestvaates alt laienev kere, punased
+    // külgpaneelid ja kerega sama nurga all laienev valge keskosa.
+    ctx.beginPath();
+    ctx.moveTo(-3.2, 0); ctx.lineTo(3.2, 0); ctx.lineTo(6, 12); ctx.lineTo(-6, 12); ctx.closePath();
+    ctx.fillStyle = '#df3f45'; ctx.fill(); stroke();
+    ctx.beginPath();
+    ctx.moveTo(-1.7, 0); ctx.lineTo(1.7, 0); ctx.lineTo(3.1, 12); ctx.lineTo(-3.1, 12); ctx.closePath();
+    ctx.fillStyle = '#fff'; ctx.fill(); stroke('#102b3a', 0.8);
     ctx.beginPath(); ctx.arc(0, -7, 2.4, 0, Math.PI * 2); ctx.fillStyle = '#df3f45'; ctx.fill(); stroke();
   } else if (category === 'special') {
     // Erimärgi keha kuju võib varieeruda; sambakuju ja kollane X on selge
@@ -441,23 +459,14 @@ function navigationAidMarker(category: string): ImageData {
     ctx.fillStyle = '#f0c62d'; ctx.fillRect(-4, 0, 8, 12); ctx.strokeRect(-4, 0, 8, 12); stroke();
     ctx.beginPath(); ctx.moveTo(-4, -11); ctx.lineTo(4, -6); ctx.moveTo(4, -11); ctx.lineTo(-4, -6); stroke('#9a6d00', 1.8);
   } else if (category === 'lighthouse') {
-    // Tuletorni täpne asukoht on must keskpunkt; magenta kiired tähistavad
-    // merekaardi valgusmärki ega teeskle, et teame torni välisilmet.
-    ctx.strokeStyle = '#c43a9d';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 8; i += 1) {
-      const angle = (i * Math.PI) / 4;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(angle) * 4, Math.sin(angle) * 4);
-      ctx.lineTo(Math.cos(angle) * 10, Math.sin(angle) * 10);
-      ctx.stroke();
-    }
-    ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); stroke('#c43a9d', 1.4);
-    ctx.beginPath(); ctx.arc(0, 0, 1.5, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill();
-  } else if (category === 'leading' || category.startsWith('leading-')) {
-    fillFixedBody(-5, 0, 10, 12);
-    ctx.strokeRect(-5, 0, 10, 12); stroke();
-    lightTop();
+    lightFlare();
+  } else if (fixedBase?.startsWith('leading')) {
+    const rear = fixedBase === 'leading-rear';
+    const front = fixedBase === 'leading-front';
+    const top = rear ? -1 : front ? 2 : 0;
+    fillFixedBody(-5, top, 10, 12 - top);
+    ctx.strokeRect(-5, top, 10, 12 - top); stroke();
+    lightTop(rear ? -7.5 : front ? -5 : -6.5);
   } else if (category === 'beacon' || category.startsWith('beacon-')) {
     fillFixedBody(-3.2, -1, 6.4, 13);
     ctx.strokeRect(-3.2, -1, 6.4, 13); stroke();
@@ -478,6 +487,36 @@ function navigationAidMarker(category: string): ImageData {
 }
 
 export const NAVIGATION_WARNING_ICON = 'navigation-warning';
+export const WRECK_ICON = 'navigation-wreck';
+
+/** Selge vrakisiluett: murdunud mast, viltune kere ja kaks veelainet. */
+function wreckMarker(): ImageData {
+  const size = 36;
+  const c = makeCanvas(size);
+  const { ctx } = c;
+  ctx.save();
+  ctx.translate(size / 2, size / 2 - 1);
+  ctx.strokeStyle = '#332542';
+  ctx.fillStyle = '#5b4270';
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  ctx.moveTo(-11, 2); ctx.lineTo(10, 2); ctx.lineTo(6, 8); ctx.lineTo(-7, 8); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-1, 2); ctx.lineTo(-1, -9); ctx.lineTo(2, -6);
+  ctx.moveTo(-6, -4); ctx.lineTo(5, -4);
+  ctx.stroke();
+  ctx.strokeStyle = '#6f5285';
+  ctx.beginPath();
+  ctx.moveTo(-12, 11); ctx.quadraticCurveTo(-8, 8, -4, 11); ctx.quadraticCurveTo(0, 14, 4, 11); ctx.quadraticCurveTo(8, 8, 12, 11);
+  ctx.moveTo(-9, 15); ctx.quadraticCurveTo(-5, 12, -1, 15); ctx.quadraticCurveTo(3, 18, 7, 15);
+  ctx.stroke();
+  ctx.restore();
+  return toImageData(c);
+}
 
 /** Hoiatus on ohukolmnurk, mitte järjekordne värviline kaardipunkt. */
 function navigationWarningMarker(): ImageData {
@@ -564,6 +603,7 @@ export function registerIcons(map: MapLibreMap): void {
     // marker upuks nendega kokku ning varjaks kaardi ära.
     [ANCHORAGE_ICON]: harbourMarker(HARBOUR_COLORS.anchorage, 7.5),
     [NAVIGATION_WARNING_ICON]: navigationWarningMarker(),
+    [WRECK_ICON]: wreckMarker(),
   };
 
   for (const kind of ['coastal', 'offshore', 'buoy'] as const) {
@@ -580,7 +620,7 @@ export function registerIcons(map: MapLibreMap): void {
   for (const category of NAVIGATION_AID_CATEGORIES) {
     icons[`navigation-${category}`] = navigationAidMarker(category);
   }
-  for (const category of ['beacon', 'leading']) {
+  for (const category of ['beacon', 'leading', 'leading-front', 'leading-rear']) {
     for (const variant of FIXED_AID_COLOUR_VARIANTS) {
       icons[`navigation-${category}-${variant}`] = navigationAidMarker(`${category}-${variant}`);
     }

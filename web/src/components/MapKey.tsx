@@ -112,7 +112,8 @@ export function MapKey({
                       ['safe-water', 'key.aid.safeWater'],
                       ['special', 'key.aid.special'],
                       ['lighthouse', 'key.aid.lighthouse'],
-                      ['leading', 'key.aid.leading'],
+                      ['leading-front', 'key.aid.leadingFront'],
+                      ['leading-rear', 'key.aid.leadingRear'],
                       ['beacon', 'key.aid.beacon'],
                       ['virtual', 'key.aid.virtual'],
                     ] as const).map(([category, label]) => (
@@ -280,17 +281,21 @@ function NavigationMark({ category }: { category: string }) {
       ) : category === 'isolated-danger' ? (
         <g><rect x="7" y="13" width="6" height="10" fill="#111" /><rect x="7" y="16.5" width="6" height="3" fill="#df3f45" /><circle cx="10" cy="3" r="2" /><circle cx="10" cy="8" r="2" /></g>
       ) : category === 'safe-water' ? (
-        <g><rect x="6" y="11" width="8" height="12" fill="#fff" {...common} /><path d="M6 11h2.7v12H6Zm5.3 0H14v12h-2.7Z" fill="#df3f45" /><circle cx="10" cy="5" r="2.2" fill="#df3f45" /></g>
+        <g>
+          <path d="M7 11h6l3 12H4Z" fill="#df3f45" {...common} />
+          <path d="M8.6 11h2.8l1.5 12H7.1Z" fill="#fff" stroke="#173342" strokeWidth="0.7" />
+          <circle cx="10" cy="5" r="2.2" fill="#df3f45" />
+        </g>
       ) : category === 'special' ? (
         <g><rect x="7" y="11" width="6" height="12" fill="#f0c62d" {...common} /><path d="m6.5 2.5 7 5M13.5 2.5l-7 5" stroke="#9a6d00" strokeWidth="1.5" /></g>
       ) : category === 'lighthouse' ? (
-        <g stroke="#c43a9d" strokeWidth="1.7">
-          <path d="M10 1v6m0 10v6M1 12h6m6 0h6M3.6 5.6l4.2 4.2m4.4 4.4 4.2 4.2M16.4 5.6l-4.2 4.2m-4.4 4.4-4.2 4.2" />
-          <circle cx="10" cy="12" r="3.3" fill="#fff" />
-          <circle cx="10" cy="12" r="1.4" fill="#111" stroke="none" />
+        <g><path d="M11.5 12.5q4.5 1 8 6-5-2-9-4Z" fill="#d43aa6" /><circle cx="10" cy="12" r="2" fill="#111" /></g>
+      ) : category === 'leading-front' || category === 'leading-rear' ? (
+        <g>
+          <rect x="5" y={category === 'leading-rear' ? 9 : 12} width="10" height={category === 'leading-rear' ? 14 : 11} fill="#fff" {...common} />
+          <circle cx="10" cy={category === 'leading-rear' ? 5 : 7} r="2.5" fill="#f5d44d" {...common} />
+          <path d={category === 'leading-rear' ? 'M2 5h4m8 0h4' : 'M2 7h4m8 0h4'} stroke="#b03b91" strokeWidth="1.4" />
         </g>
-      ) : category === 'leading' ? (
-        <g><rect x="5" y="11" width="10" height="12" fill="#fff" {...common} /><circle cx="10" cy="6" r="2.5" fill="#f5d44d" {...common} /><path d="M2 6h4m8 0h4" stroke="#b03b91" strokeWidth="1.4" /></g>
       ) : category === 'beacon' ? (
         <g><rect x="7" y="10" width="6" height="13" fill="#788991" {...common} /><circle cx="10" cy="6" r="2.5" fill="#f5d44d" {...common} /><path d="M2 6h4m8 0h4" stroke="#b03b91" strokeWidth="1.4" /></g>
       ) : (
@@ -311,7 +316,15 @@ function WarningMark() {
 }
 
 function WreckMark() {
-  return <span className="mapkey__dot mapkey__dot--wreck" aria-hidden="true">×</span>;
+  return (
+    <svg className="mapkey__mark mapkey__mark--aton" viewBox="0 0 24 24" aria-hidden="true">
+      <g stroke="#332542" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 10h18l-3.5 5H6.5Z" fill="#5b4270" />
+        <path d="M11 10V2l2.5 2.5M7 6h9" fill="none" />
+      </g>
+      <path d="M2 18q3-3 6 0t6 0 6 0M5 22q3-3 6 0t6 0" fill="none" stroke="#6f5285" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function VesselMark({ color }: { color: string }) {

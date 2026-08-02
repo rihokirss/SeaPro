@@ -2377,8 +2377,6 @@ button.sheet__grip::before {
   line-height: 1;
 }
 
-.mapkey__dot--wreck { background: #473662; color: #fff; }
-
 /* --- Hover-vihje --------------------------------------------------------- */
 
 /* Vihje ei tohi hiirt püüda: muidu jääks ta kursori alla ette ja vilguks. */

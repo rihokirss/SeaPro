@@ -419,6 +419,8 @@ export interface NavigationAid {
     | 'special'
     | 'lighthouse'
     | 'leading'
+    | 'leading-front'
+    | 'leading-rear'
     | 'beacon'
     | 'virtual'
     | 'unknown';

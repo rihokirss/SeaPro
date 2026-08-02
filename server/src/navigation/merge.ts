@@ -1,6 +1,13 @@
 import type { Harbour, NavigationAid } from '@seapro/shared';
 
-/** Ühendab AIS AToN-i ametliku märgiga, kui koordinaadid langevad praktiliselt kokku. */
+/**
+ * Ühendab AIS AToN-i ametliku märgiga.
+ *
+ * Registri nimi ja liigendus on täpsemad kui AIS-sõnumi sageli üldine nimi
+ * (nt `BUOY-370`) ning AIS lisab neile reaalaja oleku ja asukoha. Registrikood
+ * seob sama märgi ka siis, kui ujuvmärk on oma registrikoordinaadist üle 40 m
+ * kõrvale triivinud.
+ */
 export function mergeNavigationAids(
   official: NavigationAid[],
   live: NavigationAid[],
@@ -12,7 +19,9 @@ export function mergeNavigationAids(
     // poi külge liita isegi juhul, kui koordinaadid on samad.
     const matchIndex = incoming.virtual
       ? -1
-      : out.findIndex((aid) => distanceMetres(aid, incoming) <= 40);
+      : out.findIndex((aid) =>
+        matchesAtonCode(aid.atonCode, incoming.name)
+        || distanceMetres(aid, incoming) <= 40);
     if (matchIndex < 0) {
       out.push(incoming);
       continue;
@@ -21,10 +30,14 @@ export function mergeNavigationAids(
     const base = out[matchIndex]!;
     out[matchIndex] = {
       ...base,
-      name: incoming.name || base.name,
-      category: incoming.category && incoming.category !== 'unknown'
-        ? incoming.category
-        : base.category,
+      lat: incoming.lat,
+      lon: incoming.lon,
+      // Registri kirjeldus määrab tingmärgi ja kasutajale näidatava nime.
+      // AIS-i väärtusi kasutame ainult registrivälja puudumisel.
+      name: base.name || incoming.name,
+      category: base.category && base.category !== 'unknown'
+        ? base.category
+        : incoming.category,
       atonType: incoming.atonType ?? base.atonType,
       status: incoming.status ?? base.status,
       offPosition: incoming.offPosition ?? base.offPosition,
@@ -34,6 +47,28 @@ export function mergeNavigationAids(
     };
   }
   return out;
+}
+
+function matchesAtonCode(code: string | undefined, aisName: string): boolean {
+  if (!code) return false;
+  const compactCode = normalizeAtonIdentity(code);
+  if (!compactCode) return false;
+
+  const tokens = aisName
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean);
+  if (tokens.includes(compactCode)) return true;
+
+  // Kümnendpunktiga registrikood (nt 1055.1) jaguneb tokeniteks, kuid AIS-i
+  // tavanimed on kujul BUOY-1055.1 või ATON-1055.1.
+  const compactName = normalizeAtonIdentity(aisName);
+  return compactName.endsWith(`BUOY${compactCode}`)
+    || compactName.endsWith(`ATON${compactCode}`);
+}
+
+function normalizeAtonIdentity(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
 /**

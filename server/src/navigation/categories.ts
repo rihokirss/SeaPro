@@ -7,7 +7,7 @@ export function categoryFromAtonType(type: number | undefined): AidCategory | un
   if (type === undefined) return undefined;
   const direct: Partial<Record<number, AidCategory>> = {
     5: 'lighthouse', 6: 'lighthouse',
-    7: 'leading', 8: 'leading',
+    7: 'leading-front', 8: 'leading-rear',
     9: 'cardinal-north', 10: 'cardinal-east', 11: 'cardinal-south', 12: 'cardinal-west',
     13: 'lateral-port', 14: 'lateral-starboard',
     15: 'preferred-port', 16: 'preferred-starboard',
@@ -34,6 +34,10 @@ export function categoryFromRegistry(
   const value = normalize(`${registryType ?? ''} ${name}`);
   const colour = normalize(lightColour ?? '');
 
+  // Funktsioon on siin ehitise liigist tähtsam: tuletorn võib olla ühtlasi
+  // sihi alumine või ülemine märk, nagu Suurupi 374/375.
+  if (value.includes('sihi alumine')) return 'leading-front';
+  if (value.includes('sihi ulemine')) return 'leading-rear';
   if (value.includes('tuletorn')) return 'lighthouse';
   if (value.includes('sihi')) return 'leading';
   if (/pohja(?:poi|tooder)/.test(value)) return 'cardinal-north';

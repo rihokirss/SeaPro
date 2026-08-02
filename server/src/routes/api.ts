@@ -394,24 +394,33 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const wantWarnings = requested.has('warnings');
     const wantWrecks = requested.has('wrecks');
     const wantOfficial = requested.has('official');
+    const wantAisAids = requested.has('aids');
     const [warningResult, wreckResult, officialResult] = await Promise.allSettled([
       wantWarnings ? fetchNavigationWarnings(bbox) : Promise.resolve([]),
       wantWrecks ? fetchWrecks(bbox) : Promise.resolve([]),
-      wantOfficial ? fetchOfficialNavigation(bbox) : Promise.resolve({ aids: [], fairways: [] }),
+      // AIS-märk vajab registri vastet ka siis, kui ametlik kiht pole nähtav:
+      // sealt tuleb täpne märgitüüp ja tingmärk. ArcGIS vastus on vahemälus.
+      wantOfficial || wantAisAids
+        ? fetchOfficialNavigation(bbox)
+        : Promise.resolve({ aids: [], fairways: [] }),
     ]);
     const official = officialResult.status === 'fulfilled'
       ? officialResult.value
       : { aids: [], fairways: [] };
 
     reply.header('Cache-Control', 'no-store');
+    const mergedAids = mergeNavigationAids(
+      official.aids,
+      wantAisAids ? aisAtons.query(bbox) : [],
+    );
+
     return {
       warnings: warningResult.status === 'fulfilled' ? warningResult.value : [],
       wrecks: wreckResult.status === 'fulfilled' ? wreckResult.value : [],
-      fairways: official.fairways,
-      aids: mergeNavigationAids(
-        official.aids,
-        requested.has('aids') ? aisAtons.query(bbox) : [],
-      ),
+      fairways: wantOfficial ? official.fairways : [],
+      aids: wantOfficial
+        ? mergedAids
+        : mergedAids.filter((aid) => aid.sources.includes('ais')),
       errors: [warningResult, wreckResult, officialResult]
         .map((result, index) => result.status === 'rejected'
           ? ['warnings', 'wrecks', 'official'][index]

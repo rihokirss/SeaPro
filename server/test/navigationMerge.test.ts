@@ -77,17 +77,21 @@ describe('Nutimeri andmete ühendamine', () => {
       id: 'aton:registry:1',
       lat: 59.45,
       lon: 24.6,
-      name: 'Kakumäe poi',
+      name: 'Suurupi teljepoi Nr.3',
       kind: 'floating',
+      category: 'safe-water',
+      atonCode: '370',
       sources: ['registry'],
     }];
     const live: NavigationAid[] = [
       {
         id: 'aton:ais:276001',
-        lat: 59.4501,
+        // Üle 40 m registriasukohast: registrikood peab märgid ikka siduma.
+        lat: 59.451,
         lon: 24.6001,
-        name: 'KAKUMAE',
+        name: 'BUOY-370',
         kind: 'ais',
+        category: 'special',
         mmsi: 276001,
         offPosition: false,
         sources: ['ais'],
@@ -106,7 +110,14 @@ describe('Nutimeri andmete ühendamine', () => {
 
     const merged = mergeNavigationAids(official, live);
     expect(merged).toHaveLength(2);
-    expect(merged[0]).toMatchObject({ mmsi: 276001, sources: ['registry', 'ais'] });
+    expect(merged[0]).toMatchObject({
+      name: 'Suurupi teljepoi Nr.3',
+      category: 'safe-water',
+      mmsi: 276001,
+      lat: 59.451,
+      lon: 24.6001,
+      sources: ['registry', 'ais'],
+    });
     expect(merged[1]).toMatchObject({ kind: 'virtual', mmsi: 276002 });
   });
 });
