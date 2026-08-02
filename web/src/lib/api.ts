@@ -11,6 +11,7 @@ import type {
   Variable,
   Vessel,
 } from '@seapro/shared';
+import { getSessionId } from './session';
 
 export interface AppConfig {
   defaultLat: number;
@@ -36,7 +37,10 @@ export class RateLimitedError extends Error {
 }
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(path, { signal, headers: { Accept: 'application/json' } });
+  const res = await fetch(path, {
+    signal,
+    headers: { Accept: 'application/json', 'X-SeaPro-Session': getSessionId() },
+  });
   if (!res.ok) {
     let detail = `${res.status}`;
     try {

@@ -7,10 +7,11 @@ import type {
   TimeStep,
   Variable,
 } from '@seapro/shared';
-import { cache } from '../cache.js';
+import { cache, type CachedResult } from '../cache.js';
 import { config } from '../config.js';
 import { HttpError, fetchJson } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
+import { usageMeter, type OpenMeteoApi, type OpenMeteoUse } from '../usage.js';
 import { round, type GridQuery, type PointQuery, type WeatherProvider } from './types.js';
 
 const FREE_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -196,20 +197,26 @@ function secondsToUtcMidnight(): number {
  * ajal, kui marine andis 200. Ühine eelarve tähendaks, et tuulekihi limiit
  * lülitaks välja ka lainekihi, ilma et selleks põhjust oleks.
  */
-function budgetFor(url: string): string {
-  return url.startsWith(MARINE_URL) ? 'open-meteo-marine' : 'open-meteo';
+function apiFor(url: string): OpenMeteoApi {
+  return url.startsWith(MARINE_URL) ? 'marine' : 'forecast';
 }
 
-async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
-  const source = budgetFor(url);
+async function fetchBudgeted<T>(url: string, cost: number, use: OpenMeteoUse): Promise<T> {
+  const api = apiFor(url);
+  const source = api === 'marine' ? 'open-meteo-marine' : 'open-meteo';
   rateLimiter.spend(source, cost);
+  // Mõõdame alles PÄRAST tasuta režiimi kaitsepiirajat: piiraja poolt peatatud
+  // päring ei läinud Open-Meteole ega tohi tasulise kasutusena kirja minna.
+  usageMeter.recordUpstreamRequest(api, use, cost);
   try {
     const result = await fetchJson<T>(url);
+    usageMeter.recordUpstreamResult(api, use, true);
     // Õnnestunud vastus tähendab, et allikas on taas saadaval — kui me olime
     // jahtumises, pole selle hoidmine enam põhjendatud.
     rateLimiter.recovered(source);
     return result;
   } catch (err) {
+    usageMeter.recordUpstreamResult(api, use, false);
     rateLimiter.refund(source, cost);
     if (err instanceof HttpError && err.status === 429) {
       // Open-Meteol on KAKS limiiti ja need lähtestuvad eri ajal. Vastuse keha
@@ -276,20 +283,21 @@ async function fetchMarineWithFallback(
   params: URLSearchParams,
   apiVars: string[],
   cost: number,
+  use: OpenMeteoUse,
 ): Promise<OmResponse | OmResponse[]> {
   const retryWithBestMatch = (): Promise<OmResponse | OmResponse[]> => {
     const fallback = new URLSearchParams(params);
     fallback.delete('models');
-    return fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, fallback), cost);
+    return fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, fallback), cost, use);
   };
 
   if (!params.has('models')) {
-    return fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost);
+    return fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost, use);
   }
 
   let first: OmResponse | OmResponse[];
   try {
-    first = await fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost);
+    first = await fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost, use);
   } catch (err) {
     // AINULT 400. 429 tähendab "liiga palju päringuid" — kordamine oleks siis
     // täpselt vale ravim ja sööks eelarvet, mis on juba otsas. Kõik muu
@@ -714,11 +722,18 @@ export class OpenMeteoProvider implements WeatherProvider {
       variables: apiVars.length,
       days: BLOCK_DAYS,
     });
-    const cached = await cache.get(key, config.ttl.openMeteo, () =>
-      isMarine
-        ? fetchMarineWithFallback(url, params, apiVars, cost)
-        : fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost),
-    );
+    let cached: CachedResult<OmResponse | OmResponse[]>;
+    try {
+      cached = await cache.get(key, config.ttl.openMeteo, () =>
+        isMarine
+          ? fetchMarineWithFallback(url, params, apiVars, cost, 'grid')
+          : fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost, 'grid'),
+      );
+      usageMeter.recordCache('grid', cached.cacheOutcome);
+    } catch (err) {
+      usageMeter.recordCache('grid', 'error');
+      throw err;
+    }
     return {
       lats,
       lons,
@@ -764,11 +779,20 @@ export class OpenMeteoProvider implements WeatherProvider {
       models: Math.max(1, realModels.length),
       days: POINT_FORECAST_DAYS + 1,
     });
-    const { value } = await cache.get(key, config.ttl.openMeteo, () =>
-      url === MARINE_URL
-        ? fetchMarineWithFallback(url, params, apiVars, cost)
-        : fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost),
-    );
+    let cached: CachedResult<OmResponse | OmResponse[]>;
+    try {
+      cached = await cache.get(key, config.ttl.openMeteo, () =>
+        url === MARINE_URL
+          ? fetchMarineWithFallback(url, params, apiVars, cost, 'point')
+          : fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost, 'point'),
+      );
+      usageMeter.recordCache('point', cached.cacheOutcome);
+    } catch (err) {
+      usageMeter.recordCache('point', 'error');
+      throw err;
+    }
+
+    const { value } = cached;
 
     const res = Array.isArray(value) ? value[0] : value;
     if (!res?.hourly) return [];

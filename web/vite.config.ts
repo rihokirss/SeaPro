@@ -27,6 +27,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // API URL-i otse brauseris avades peab serveri JSON nähtavaks jääma.
+        // Muidu käsitleb Workbox seda SPA navigatsioonina ja näitab index.html-i.
+        navigateFallbackDenylist: [/^\/api\//],
         // Kaardipaanid on suured ja muutumatud — hoia neid kaua, aga piira mahtu.
         runtimeCaching: [
           {

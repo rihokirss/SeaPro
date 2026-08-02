@@ -39,6 +39,8 @@ interface Pending<T> {
 
 export interface CachedResult<T> {
   value: T;
+  /** Kuidas vastus saadi; kasutusmõõdik eristab cache'i ja päris laadimist. */
+  cacheOutcome: 'fresh' | 'stale' | 'shared' | 'loaded';
   /** Kas väärtus tuli aegunud varukoopiast (allikas oli kättesaamatu). */
   stale: boolean;
   /** Väärtuse vanus sekundites. */
@@ -188,7 +190,12 @@ export class Cache {
       // vaadatavat ala mälupiiri täitumisel välja.
       this.#stale.delete(key);
       this.#stale.set(key, fresh);
-      return { value: fresh.value, stale: false, ageSeconds: (now - fresh.storedAt) / 1000 };
+      return {
+        value: fresh.value,
+        cacheOutcome: 'fresh',
+        stale: false,
+        ageSeconds: (now - fresh.storedAt) / 1000,
+      };
     }
 
     const inFlight = this.#pending.get(key) as Pending<T> | undefined;
@@ -198,6 +205,7 @@ export class Cache {
         const entry = this.#fresh.get(key) as Entry<T> | undefined;
         return {
           value,
+          cacheOutcome: 'shared',
           stale: false,
           ageSeconds: entry ? (Date.now() - entry.storedAt) / 1000 : 0,
         };
@@ -213,6 +221,7 @@ export class Cache {
           this.#stale.set(key, backup);
           return {
             value: backup.value,
+            cacheOutcome: 'stale',
             stale: true,
             ageSeconds: (Date.now() - backup.storedAt) / 1000,
             fallbackError: err,
@@ -242,7 +251,7 @@ export class Cache {
 
     try {
       const value = await promise;
-      return { value, stale: false, ageSeconds: 0 };
+      return { value, cacheOutcome: 'loaded', stale: false, ageSeconds: 0 };
     } catch (err) {
       // Allikas kukkus. Kui meil on vana edukas vastus, anname selle.
       const backup = this.#stale.get(key) as Entry<T> | undefined;
@@ -253,6 +262,7 @@ export class Cache {
         this.#stale.set(key, backup);
         return {
           value: backup.value,
+          cacheOutcome: 'stale',
           stale: true,
           ageSeconds: (Date.now() - backup.storedAt) / 1000,
           fallbackError: err,
@@ -425,11 +435,21 @@ export class Cache {
     const now = Date.now();
     const fresh = this.#fresh.get(key) as Entry<T> | undefined;
     if (fresh && fresh.expiresAt > now) {
-      return { value: fresh.value, stale: false, ageSeconds: (now - fresh.storedAt) / 1000 };
+      return {
+        value: fresh.value,
+        cacheOutcome: 'fresh',
+        stale: false,
+        ageSeconds: (now - fresh.storedAt) / 1000,
+      };
     }
     const backup = this.#stale.get(key) as Entry<T> | undefined;
     if (backup) {
-      return { value: backup.value, stale: true, ageSeconds: (now - backup.storedAt) / 1000 };
+      return {
+        value: backup.value,
+        cacheOutcome: 'stale',
+        stale: true,
+        ageSeconds: (now - backup.storedAt) / 1000,
+      };
     }
     return null;
   }

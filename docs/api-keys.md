@@ -106,6 +106,8 @@ Tasulise paketi võtme saab lisada `.env` faili:
 
 ```bash
 OPEN_METEO_API_KEY=siia-ostetud-võti
+# Standard = 1000000, Professional = 5000000
+OPEN_METEO_MONTHLY_LIMIT=1000000
 ```
 
 Server valib selle olemasolul automaatselt Open-Meteo `customer-` endpointid
@@ -122,6 +124,31 @@ curl -s localhost:8080/api/health | jq .openMeteo
 Võti lisatakse ainult väljaminevale päringule. See ei lähe cache-võtmesse,
 `cache.json` faili, logidesse ega frontendile. Ilma võtmeta jääb rakendus
 automaatselt tasuta režiimi.
+
+### Kohalik kasutusmõõdik
+
+Customer-API ei anna vastuses kasutus- ega kvoodipäiseid, seega loendab
+SeaPro iga päriselt välja läinud Open-Meteo päringu ise. Mõõdik eristab
+forecast/marine ja grid/punkt päringuid, salvestab hinnangulise arvestuskaalu
+ning loeb cache'i tulemused (`fresh`, `stale`, paralleelselt jagatud ja
+Open-Meteost laaditud).
+
+```bash
+curl -s localhost:8080/api/health | jq .openMeteo.usage
+```
+
+Vastuses on tänase ja jooksva kuu:
+
+- anonüümsete unikaalsete seansside arv ning SeaPro API-päringute arv;
+- Open-Meteo HTTP-päringud, hinnangulised ühikud, õnnestumised ja vead;
+- cache'i tabamuste arv ja `hitRatePercent`;
+- mõõdetud tempo põhjal arvutatud kuu ühikuprognoos ning selle suhe
+  `OPEN_METEO_MONTHLY_LIMIT` väärtusse.
+
+Mõõdik kirjutatakse kord minutis faili `data/openmeteo-usage.json` ja hoiab
+45 päeva tunnikaupa ajalugu. Brauseri algset seansi-ID-d ei salvestata:
+server hoiab ainult kuupõhiselt soolatud SHA-256 räsi, mistõttu eri kuude
+seansse ei saa omavahel siduda. Üksikuid räsisid API kaudu ei väljastata.
 
 ---
 

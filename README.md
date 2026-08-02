@@ -62,6 +62,13 @@ Tasulise Open-Meteo paketi kasutamiseks lisa serveri `.env` faili
 võtmeta jääb kõik vaikimisi tasuta režiimi. Paketi kuueelarvet haldab
 Open-Meteo; serveripoolne vahemälu jääb mõlemas režiimis tööle.
 
+Server mõõdab eraldi ainult päriselt Open-Meteole läinud HTTP-päringuid,
+nende hinnangulist arvestuskaalu ja cache'i tabamuse protsenti. Veebiklient
+saadab anonüümse juhusliku seansi-ID; server salvestab sellest ainult
+kuupõhiselt soolatud räsi. Päeva- ja kuunumbreid ning jooksva tempo põhjal
+arvutatud kuuprognoosi näeb `/api/health` vastuse väljal
+`openMeteo.usage`. Mõõdik püsib failis `data/openmeteo-usage.json`.
+
 Päringumahu hoidmiseks:
 
 - kaardivõre on kõige rohkem 8 × 8 punkti ehk 64 asukohta ühe päringu kohta;

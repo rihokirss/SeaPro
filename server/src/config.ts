@@ -62,6 +62,8 @@ export const config = {
    * ega vahemäluvõtmetesse.
    */
   openMeteoApiKey: str('OPEN_METEO_API_KEY', ''),
+  /** Standardpakett vaikimisi; Professionali puhul määra .env-is 5000000. */
+  openMeteoMonthlyLimit: num('OPEN_METEO_MONTHLY_LIMIT', 1_000_000),
 
   /** Konfigureeritav, et Photoni avaliku demo saaks asendada oma instantsiga. */
   photonUrl: str('PHOTON_URL', 'https://photon.komoot.io'),

@@ -7,6 +7,7 @@ import { cache } from './cache.js';
 import { config, warnAboutConfig } from './config.js';
 import { registerApiRoutes } from './routes/api.js';
 import { startBackgroundJobs, stopBackgroundJobs } from './background.js';
+import { usageMeter } from './usage.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -20,6 +21,18 @@ const app = Fastify({
   },
   // Kaatris on ühendus aeglane; ära katkesta päringut liiga vara.
   requestTimeout: 60_000,
+});
+
+usageMeter.loadFromDisk((msg) => app.log.info(msg));
+usageMeter.startPersisting(60, (msg) => app.log.debug(msg));
+
+// Brauser saadab juhusliku anonüümse seansi-ID. Loeme ainult API-päringuid;
+// staatilised failid ja aluskaardi rasterpaanid ei paisuta kasutajanumbrit.
+app.addHook('onRequest', async (req) => {
+  if (!req.url.startsWith('/api/')) return;
+  const raw = req.headers['x-seapro-session'];
+  const sessionId = Array.isArray(raw) ? raw[0] : raw;
+  usageMeter.recordApiRequest(sessionId);
 });
 
 await registerApiRoutes(app);
@@ -58,6 +71,8 @@ async function shutdown(signal: string): Promise<void> {
   // Kirjuta vahemälu kettale enne väljumist, et taaskäivitus algaks soojalt.
   cache.stopPersisting();
   cache.flush((msg) => app.log.info(msg));
+  usageMeter.stopPersisting();
+  usageMeter.flush((msg) => app.log.info(msg));
   await app.close();
   process.exit(0);
 }

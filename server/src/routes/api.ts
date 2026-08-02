@@ -12,6 +12,7 @@ import { cache } from '../cache.js';
 import { config } from '../config.js';
 import { HttpError } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
+import { usageMeter } from '../usage.js';
 import { vessels } from '../ais/registry.js';
 import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
@@ -146,7 +147,10 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     ok: true,
     version: config.appVersion,
     time: new Date().toISOString(),
-    openMeteo: { mode: config.openMeteoApiKey ? 'commercial' : 'free' },
+    openMeteo: {
+      mode: config.openMeteoApiKey ? 'commercial' : 'free',
+      usage: usageMeter.snapshot(config.openMeteoMonthlyLimit),
+    },
     // Päringueelarve seis — ilma selleta on "miks tuulekiht kadus?" pime koht.
     budgets: rateLimiter.stats(),
     // Vahemälu maht: kirjed kasvavad kaardi kerimisega ja piiri lähedus on
