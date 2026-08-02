@@ -279,7 +279,12 @@ function NavigationMark({ category }: { category: string }) {
           {cardinalDirection === 'west' ? <rect x="7" y="15.5" width="6" height="4" fill="#111" /> : null}
         </g>
       ) : category === 'isolated-danger' ? (
-        <g><rect x="7" y="13" width="6" height="10" fill="#111" /><rect x="7" y="16.5" width="6" height="3" fill="#df3f45" /><circle cx="10" cy="3" r="2" /><circle cx="10" cy="8" r="2" /></g>
+        <g>
+          <path d="M7 11h6l3 12H4Z" fill="#111" {...common} />
+          <path d="M6 15h8l.9 3.5H5.1Z" fill="#df3f45" />
+          <circle cx="10" cy="3" r="2" fill="#111" />
+          <circle cx="10" cy="8" r="2" fill="#111" />
+        </g>
       ) : category === 'safe-water' ? (
         <g>
           <path d="M7 11h6l3 12H4Z" fill="#df3f45" {...common} />

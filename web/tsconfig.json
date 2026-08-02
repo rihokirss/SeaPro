@@ -13,7 +13,6 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["vite/client", "vite-plugin-pwa/client"],
-    "baseUrl": ".",
     "paths": {
       "@seapro/shared": ["../shared/src/index.ts"]
     }

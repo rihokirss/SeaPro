@@ -2,6 +2,7 @@
   "name": "seapro",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-only",
   "description": "Mereilma kaardirakendus Läänemere ja Eesti ranniku jaoks",
   "type": "module",
   "workspaces": [
@@ -10,7 +11,7 @@
     "shared"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "dev": "NODE_ENV=development npm run dev --workspace=server & NODE_ENV=development npm run dev --workspace=web",

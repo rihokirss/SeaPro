@@ -84,9 +84,9 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          maplibre: ['maplibre-gl'],
-          react: ['react', 'react-dom'],
+        manualChunks(id) {
+          if (id.includes('/node_modules/maplibre-gl/')) return 'maplibre';
+          if (/\/node_modules\/(react|react-dom)\//.test(id)) return 'react';
         },
       },
     },

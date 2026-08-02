@@ -436,11 +436,18 @@ function navigationAidMarker(category: string): ImageData {
     triangle(-9, direction === 'north' || direction === 'east');
     triangle(-4, direction === 'north' || direction === 'west');
   } else if (category === 'isolated-danger') {
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-3.5, 2, 7, 10);
+    // NMA päevavaade: alt laienev must–punane–must trapets ja kaks musta
+    // kera. Tooder/poi kuju erineb, kuid eestvaate tingmärk on sama.
+    ctx.beginPath();
+    // Kere proportsioon on sama mis NMA ohutu vee märgi päevavaatel.
+    ctx.moveTo(-3.2, 0); ctx.lineTo(3.2, 0); ctx.lineTo(6, 12); ctx.lineTo(-6, 12); ctx.closePath();
+    ctx.fillStyle = '#111'; ctx.fill();
+    ctx.save();
+    ctx.clip();
     ctx.fillStyle = '#df3f45';
-    ctx.fillRect(-3.5, 5.5, 7, 3);
-    ctx.strokeRect(-3.5, 2, 7, 10); stroke();
+    ctx.fillRect(-6, 4, 12, 3.5);
+    ctx.restore();
+    stroke();
     ctx.beginPath(); ctx.arc(0, -10, 2.1, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill();
     ctx.beginPath(); ctx.arc(0, -5, 2.1, 0, Math.PI * 2); ctx.fill();
   } else if (category === 'safe-water') {

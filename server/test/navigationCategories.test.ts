@@ -31,5 +31,11 @@ describe('navigatsioonimärkide liigitus', () => {
       .toBe('leading-front');
     expect(categoryFromRegistry('Suurupi tuletorn', 'fixed', 'valge', 'Tuletorn, sihi ülemine'))
       .toBe('leading-rear');
+    expect(categoryFromRegistry(
+      'Lohusalu vraki eraldiasuva ohu tooder',
+      'seasonal',
+      undefined,
+      'Eraldiasuva ohu tooder',
+    )).toBe('isolated-danger');
   });
 });

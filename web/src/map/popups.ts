@@ -1,4 +1,5 @@
-import maplibregl, { type Map as MapLibreMap, type MapGeoJSONFeature } from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+import type { Map as MapLibreMap, MapGeoJSONFeature } from 'maplibre-gl';
 import type { Variable } from '@seapro/shared';
 import { degreesToCompass } from '@seapro/shared';
 import type { Translate } from '../i18n';

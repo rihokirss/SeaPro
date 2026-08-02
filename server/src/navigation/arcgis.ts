@@ -104,7 +104,7 @@ export async function fetchOfficialNavigation(
   bbox: [number, number, number, number],
 ): Promise<{ aids: NavigationAid[]; fairways: Fairway[] }> {
   const snapped = snapBbox(bbox);
-  const key = `nutimeri:navigation:v5:${snapped.join(',')}`;
+  const key = `nutimeri:navigation:v6:${snapped.join(',')}`;
   const { value } = await cache.get(key, STATIC_TTL, async () => {
     const [nmaIndex, fairwayCollection, ...aidCollections] = await Promise.all([
       // Registri koondfail on rikastus, mitte kaardi töötamise eeltingimus.

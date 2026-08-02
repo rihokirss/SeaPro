@@ -47,7 +47,12 @@ export function categoryFromRegistry(
   if (value.includes('vasaku kulje')) return 'lateral-port';
   if (value.includes('parema kulje')) return 'lateral-starboard';
   if (value.includes('teljepoi') || value.includes('teljetooder')) return 'safe-water';
-  if (value.includes('ohupoi') || value.includes('uksikohu')) return 'isolated-danger';
+  if (
+    value.includes('ohupoi')
+    || value.includes('uksikohu')
+    || value.includes('eraldiasuva ohu')
+    || value.includes('eraldiseisva ohu')
+  ) return 'isolated-danger';
   if (value.includes('erimark') || value.includes('eriotstarbeline') || value.includes('piirireziimi')) return 'special';
 
   // Nimetud sadama ujuvmärgil on värv sageli ainus külge määrav väli.

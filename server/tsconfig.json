@@ -13,7 +13,6 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
       "@seapro/shared": ["../shared/src/index.ts"]
     }
