@@ -1,5 +1,6 @@
 import type {
   GridFrame,
+  GridDayResult,
   ProviderCapabilities,
   StationReading,
   TimeSeries,
@@ -56,7 +57,7 @@ export interface WeatherProvider {
    * Klient hoiab need mälus ja vahetab tunde ilma võrguta — ajaliuguri
    * liigutamine peab olema hetkeline, mitte HTTP-ringi taga.
    */
-  gridDay?(q: GridQuery): Promise<GridFrame[]>;
+  gridDay?(q: GridQuery): Promise<GridDayResult>;
 
   /** Mõõtejaamad koos viimaste väärtustega. Ainult kui `caps.supportsStations`. */
   stations?(): Promise<StationReading[]>;

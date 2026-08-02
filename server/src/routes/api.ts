@@ -275,9 +275,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       if (wantDay) {
-        const frames = await provider.gridDay!({ bbox: snapped, steps, variables, time, modelId, waveModelId });
+        const result = await provider.gridDay!({ bbox: snapped, steps, variables, time, modelId, waveModelId });
         reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
-        return { frames };
+        return result;
       }
       const frame = await provider.grid({ bbox: snapped, steps, variables, time, modelId, waveModelId });
       reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');

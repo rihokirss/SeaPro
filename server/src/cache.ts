@@ -43,10 +43,20 @@ export interface CachedResult<T> {
   stale: boolean;
   /** Väärtuse vanus sekundites. */
   ageSeconds: number;
+  /** Viga, mille tõttu stale-vastus kasutusele võeti. Ainult jooksva päringu meta. */
+  fallbackError?: unknown;
 }
 
-/** Kettale kirjutatakse ainult see, mis on väiksem kui see piir (baitides). */
-const MAX_PERSISTED_ENTRY = 512 * 1024;
+/**
+ * Kettale kirjutatakse ainult see, mis on väiksem kui see piir (baitides).
+ *
+ * Nädalane Open-Meteo võrepaan võib üheksa välja ja 16 asukohaga ületada
+ * 512 kB. Vana piir jättis seetõttu just kaardipaanid cache.json-ist välja:
+ * deploy või PM2 restart kaotas viimased ilmaandmed, kuigi väiksemad kirjed
+ * taastati. 2 MB jätab välja päriselt hiiglaslikud vastused, kuid mahutab
+ * tavapärase võrepaani.
+ */
+const MAX_PERSISTED_ENTRY = 2 * 1024 * 1024;
 
 /** Kirjeid vanemad kui see, ei laadita tagasi — need on niikuinii kasutud. */
 const MAX_PERSISTED_AGE_MS = 24 * 3600 * 1000;
@@ -183,13 +193,33 @@ export class Cache {
 
     const inFlight = this.#pending.get(key) as Pending<T> | undefined;
     if (inFlight) {
-      const value = await inFlight.promise;
-      const entry = this.#fresh.get(key) as Entry<T> | undefined;
-      return {
-        value,
-        stale: false,
-        ageSeconds: entry ? (Date.now() - entry.storedAt) / 1000 : 0,
-      };
+      try {
+        const value = await inFlight.promise;
+        const entry = this.#fresh.get(key) as Entry<T> | undefined;
+        return {
+          value,
+          stale: false,
+          ageSeconds: entry ? (Date.now() - entry.storedAt) / 1000 : 0,
+        };
+      } catch (err) {
+        // Sama loader'it jagav esimene kutsuja jõuab allpool olevasse stale-
+        // fallback'i, kuid ootel kutsujad tulid varem siit otse veaga välja.
+        // Kaardiklient küsib sama nädalaplokki mitme päeva jaoks paralleelselt,
+        // seega kadus limiidi täitumisel osal klientidest kaart ka siis, kui
+        // täpselt sama võtme viimane edukas vastus oli olemas.
+        const backup = this.#stale.get(key) as Entry<T> | undefined;
+        if (backup) {
+          this.#stale.delete(key);
+          this.#stale.set(key, backup);
+          return {
+            value: backup.value,
+            stale: true,
+            ageSeconds: (Date.now() - backup.storedAt) / 1000,
+            fallbackError: err,
+          };
+        }
+        throw err;
+      }
     }
 
     const promise = loader()
@@ -217,10 +247,15 @@ export class Cache {
       // Allikas kukkus. Kui meil on vana edukas vastus, anname selle.
       const backup = this.#stale.get(key) as Entry<T> | undefined;
       if (backup) {
+        // Stale-tabamus on samuti päris kasutus: hoia praegu vaadatav paan
+        // LRU-järjekorra lõpus, et täituv cache seda esimesena välja ei viskaks.
+        this.#stale.delete(key);
+        this.#stale.set(key, backup);
         return {
           value: backup.value,
           stale: true,
           ageSeconds: (Date.now() - backup.storedAt) / 1000,
+          fallbackError: err,
         };
       }
       throw err;

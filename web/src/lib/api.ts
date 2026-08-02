@@ -1,5 +1,6 @@
 import type {
   GridFrame,
+  GridDayResult,
   Harbour,
   NavigationData,
   PointResult,
@@ -138,7 +139,7 @@ export const api = {
       waveModel?: string;
     },
     signal?: AbortSignal,
-  ): Promise<{ frames: GridFrame[] }> {
+  ): Promise<GridDayResult> {
     const p = new URLSearchParams({
       bbox: opts.bbox.map((n) => n.toFixed(3)).join(','),
       steps: String(opts.steps),
@@ -149,7 +150,7 @@ export const api = {
     if (opts.provider) p.set('provider', opts.provider);
     if (opts.model) p.set('model', opts.model);
     if (opts.waveModel) p.set('waveModel', opts.waveModel);
-    return get<{ frames: GridFrame[] }>(`/api/grid?${p}`, signal);
+    return get<GridDayResult>(`/api/grid?${p}`, signal);
   },
 
   harbours(bbox: [number, number, number, number], signal?: AbortSignal) {

@@ -4,6 +4,8 @@ SeaPro on avatud lähtekoodiga mereilma kaardirakendus Läänemere ja Eesti
 ranniku jaoks. See koondab prognoosid, mõõtejaamad, lained, tuule, veetaseme,
 AIS-laevad ja navigatsiooniinfo ühele interaktiivsele kaardile.
 
+Lähtekood ja arendus: [github.com/rihokirss/SeaPro](https://github.com/rihokirss/SeaPro)
+
 > [!WARNING]
 > SeaPro on informatiivne abivahend. Ära kasuta seda ainsa ilma- või
 > navigatsiooniinfo allikana. Merel järgi ametlikke teadaandeid, merekaarte ja
@@ -145,7 +147,7 @@ Nõutud on Node.js 22.12 või uuem ning npm.
 ## Kohalik käivitamine
 
 ```bash
-git clone <repositooriumi-aadress>
+git clone https://github.com/rihokirss/SeaPro.git
 cd SeaPro
 npm install
 cp .env.example .env

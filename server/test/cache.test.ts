@@ -84,4 +84,28 @@ describe('Cache', () => {
     expect(cache.bytes).toBeCloseTo(after1, -3);
     expect(cache.size).toBe(1);
   });
+
+  it('annab loaderi vea korral stale-vastuse ka paralleelsetele ootajatele', async () => {
+    const cache = new Cache();
+    await cache.get('ühine', 0, load('viimane edukas vastus'));
+
+    let rejectLoader!: (reason: Error) => void;
+    const failingLoader = vi.fn(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectLoader = reject;
+        }),
+    );
+
+    const first = cache.get('ühine', 60, failingLoader);
+    const waiting = cache.get('ühine', 60, failingLoader);
+    rejectLoader(new Error('Open-Meteo limiit'));
+
+    const [a, b] = await Promise.all([first, waiting]);
+    expect(a).toMatchObject({ value: 'viimane edukas vastus', stale: true });
+    expect(b).toMatchObject({ value: 'viimane edukas vastus', stale: true });
+    expect(a.fallbackError).toBeInstanceOf(Error);
+    expect(b.fallbackError).toBeInstanceOf(Error);
+    expect(failingLoader).toHaveBeenCalledTimes(1);
+  });
 });

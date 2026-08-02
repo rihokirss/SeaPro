@@ -199,6 +199,14 @@ export interface GridFrame {
   points: GridPoint[];
 }
 
+/** Kaardivälja vastus võib olla osaline, kui mõni võrgupaan ei tulnud. */
+export interface GridDayResult {
+  frames: GridFrame[];
+  warning?:
+    | { kind: 'rate_limited'; retryAfterSeconds: number }
+    | { kind: 'error' };
+}
+
 // ---------------------------------------------------------------------------
 // Mõõtejaamad ja poid
 // ---------------------------------------------------------------------------

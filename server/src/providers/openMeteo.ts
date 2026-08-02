@@ -1,5 +1,6 @@
 import type {
   GridFrame,
+  GridDayResult,
   GridPoint,
   ProviderCapabilities,
   TimeSeries,
@@ -9,7 +10,7 @@ import type {
 import { cache } from '../cache.js';
 import { config } from '../config.js';
 import { HttpError, fetchJson } from '../http.js';
-import { rateLimiter } from '../rateLimit.js';
+import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { round, type GridQuery, type PointQuery, type WeatherProvider } from './types.js';
 
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -204,7 +205,13 @@ async function fetchBudgeted<T>(url: string, cost: number): Promise<T> {
       // terve päeva jooksul sadu asjatuid päringuid allikale, mis oli meid
       // just üle koormamise eest hoiatanud.
       const daily = /daily/i.test(err.body ?? '');
-      rateLimiter.cooldown(source, daily ? secondsToUtcMidnight() : secondsToNextHour());
+      const retryAfterSeconds = daily ? secondsToUtcMidnight() : secondsToNextHour();
+      rateLimiter.cooldown(source, retryAfterSeconds);
+      // Esimene 429 peab kliendile andma sama täpse akna nagu kõik cooldown'i
+      // ajal järgnevad päringud. Toore HttpErrori puhul eeldas marsruut alati
+      // tunnilimiiti ja näitas päevase limiidi korral eksitavalt liiga lühikest
+      // ooteaega.
+      throw new RateLimitError(source, retryAfterSeconds, daily ? 'day' : 'hour');
     }
     throw err;
   }
@@ -416,7 +423,7 @@ export class OpenMeteoProvider implements WeatherProvider {
 
   /** Üks tund. Ehitatud sama ööpäevase ploki pealt mis `gridDay`. */
   async grid(q: GridQuery): Promise<GridFrame> {
-    const frames = await this.gridDay(q);
+    const { frames } = await this.gridDay(q);
     const wanted = new Date(q.time);
     wanted.setUTCMinutes(0, 0, 0);
     const target = wanted.getTime();
@@ -451,7 +458,7 @@ export class OpenMeteoProvider implements WeatherProvider {
    * käib mälust ja on hetkeline. Andmemaht on väike: 64 punkti x 24 tundi
    * x paar välja.
    */
-  async gridDay(q: GridQuery): Promise<GridFrame[]> {
+  async gridDay(q: GridQuery): Promise<GridDayResult> {
     const [south, west, north, east] = q.bbox;
 
     const isMarine = q.variables.every((v) => MARINE_BY_VARIABLE[v]);
@@ -473,7 +480,7 @@ export class OpenMeteoProvider implements WeatherProvider {
       : q.modelId;
 
     const wantedApiVars = q.variables.map((v) => byVariable[v]).filter((x): x is string => !!x);
-    if (wantedApiVars.length === 0) return [];
+    if (wantedApiVars.length === 0) return { frames: [] };
 
     // KÕIK selle API muutujad, mitte ainult küsitud — atmosfääris 9, meres 10,
     // mõlemad mahuvad kaaluvabasse kümnesse. Kihi vahetamine (tuul -> temperatuur
@@ -514,6 +521,7 @@ export class OpenMeteoProvider implements WeatherProvider {
 
     // Paanid tõmmatakse eraldi, sest just see teebki nihutamise odavaks:
     // ühine osa tuleb vahemälust ja maksma läheb ainult uus serv.
+    const failures: unknown[] = [];
     const fetched = await Promise.all(
       tiles.map((tile) =>
         this.#fetchGridTile({
@@ -528,7 +536,11 @@ export class OpenMeteoProvider implements WeatherProvider {
         }).catch((err) => {
           // Üks ebaõnnestunud paan ei tohi tervet välja tühjaks teha —
           // parem osaline kaart kui tühi.
-          if (!(err instanceof HttpError)) throw err;
+          // RateLimitError tekib enne HTTP-kutset, kui Open-Meteo on cooldown'is.
+          // See peab käituma siin samamoodi nagu allika enda HTTP-viga: alles
+          // olevad stale-paanid kuvatakse ja ainult puuduv paan jäetakse vahele.
+          if (!(err instanceof HttpError) && !(err instanceof RateLimitError)) throw err;
+          failures.push(err);
           return null;
         }),
       ),
@@ -539,15 +551,21 @@ export class OpenMeteoProvider implements WeatherProvider {
     const responses: OmResponse[] = [];
     for (const part of fetched) {
       if (!part) continue;
+      if (part.fallbackError) failures.push(part.fallbackError);
       lats.push(...part.lats);
       lons.push(...part.lons);
       responses.push(...(Array.isArray(part.value) ? part.value : [part.value]));
     }
-    if (responses.length === 0) return [];
+    // Kui mitte ühtegi paani pole alles, peab viga jõudma marsruudini: UI näitab
+    // siis limiiditeadet ega tõlgenda tühja 200-vastust edukaks laadimiseks.
+    if (responses.length === 0) {
+      if (failures.length > 0) throw failures[0];
+      return { frames: [] };
+    }
 
     // Ajaveerg on kõigil punktidel sama, seega piisab esimesest vastusest.
     const times = responses[0]?.hourly?.time as string[] | undefined;
-    if (!times || times.length === 0) return [];
+    if (!times || times.length === 0) return { frames: [] };
 
     // Plokk katab mitu ööpäeva, klient küsib ühe. Väljastame ainult küsitud
     // päeva: ülejäänu ootab vahemälus ja on järgmise päeva jaoks tasuta.
@@ -556,7 +574,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     for (let i = 0; i < times.length; i++) {
       if (normalizeTime(times[i]!).slice(0, 10) === dayPrefix) hourIndexes.push(i);
     }
-    if (hourIndexes.length === 0) return [];
+    if (hourIndexes.length === 0) return { frames: [] };
 
     // Väljastame ainult KÜSITUD muutujad, kuigi vahemällu tõmbasime kõik.
     // Muidu kasvaks kliendi vastus 9 muutuja jagu, ilma et keegi neid vajaks.
@@ -601,7 +619,26 @@ export class OpenMeteoProvider implements WeatherProvider {
       }
     });
 
-    return frames;
+    let warning: GridDayResult['warning'];
+    if (failures.length > 0) {
+      const limited = failures.find(
+        (err) => err instanceof RateLimitError || (err instanceof HttpError && err.status === 429),
+      );
+      if (limited instanceof RateLimitError) {
+        warning = { kind: 'rate_limited', retryAfterSeconds: limited.retryAfterSeconds };
+      } else if (limited instanceof HttpError) {
+        warning = {
+          kind: 'rate_limited',
+          retryAfterSeconds: /daily/i.test(limited.body ?? '')
+            ? secondsToUtcMidnight()
+            : secondsToNextHour(),
+        };
+      } else {
+        warning = { kind: 'error' };
+      }
+    }
+
+    return { frames, ...(warning ? { warning } : {}) };
   }
 
   /**
@@ -619,7 +656,12 @@ export class OpenMeteoProvider implements WeatherProvider {
     tile: TileIndex;
     blockStart: string;
     blockEnd: string;
-  }): Promise<{ lats: number[]; lons: number[]; value: OmResponse | OmResponse[] }> {
+  }): Promise<{
+    lats: number[];
+    lons: number[];
+    value: OmResponse | OmResponse[];
+    fallbackError?: unknown;
+  }> {
     const { url, apiVars, isMarine, modelId, spacing, tile, blockStart, blockEnd } = opts;
     const lats: number[] = [];
     const lons: number[] = [];
@@ -655,12 +697,17 @@ export class OpenMeteoProvider implements WeatherProvider {
       variables: apiVars.length,
       days: BLOCK_DAYS,
     });
-    const { value } = await cache.get(key, config.ttl.openMeteo, () =>
+    const cached = await cache.get(key, config.ttl.openMeteo, () =>
       isMarine
         ? fetchMarineWithFallback(url, params, apiVars, cost)
         : fetchBudgeted<OmResponse | OmResponse[]>(`${url}?${params}`, cost),
     );
-    return { lats, lons, value };
+    return {
+      lats,
+      lons,
+      value: cached.value,
+      ...(cached.fallbackError ? { fallbackError: cached.fallbackError } : {}),
+    };
   }
 
   async #fetchSeries(

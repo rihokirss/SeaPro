@@ -153,7 +153,13 @@ function fetchGridDay(opts: {
     )
     .then((res) => {
       opts.onFrames(res.frames);
-      opts.onNotice(null);
+      opts.onNotice(
+        res.warning?.kind === 'rate_limited'
+          ? { kind: 'rateLimited', retryAfterSeconds: res.warning.retryAfterSeconds }
+          : res.warning?.kind === 'error'
+            ? { kind: 'error' }
+            : null,
+      );
     })
     .catch((err: unknown) => {
       if (ac.signal.aborted) return;
@@ -930,6 +936,9 @@ export function App() {
                   min: Math.max(1, Math.ceil(layerNotice.retryAfterSeconds / 60)),
                 })
               : t('layer.failed')}
+            {layerNotice.kind === 'rateLimited' && gridFrame
+              ? t('layer.showingCached')
+              : null}
             {/* Kui kaardil on mõne muu tunni andmed, tuleb see VÄLJA ÖELDA.
                 Vaikselt vale aja näitamine on mereilmakaardil ohtlikum kui
                 andmete puudumine — kasutaja usub kella, mida ta näeb. */}
