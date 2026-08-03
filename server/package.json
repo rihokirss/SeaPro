@@ -14,11 +14,13 @@
   "dependencies": {
     "@fastify/static": "^10.1.2",
     "@seapro/shared": "*",
+    "d3-contour": "^4.0.2",
     "fastify": "^5.11.0",
-    "proj4": "^2.21.0",
+    "geotiff": "^3.0.5",
     "ws": "^8.21.1"
   },
   "devDependencies": {
+    "@types/d3-contour": "^3.0.6",
     "@types/node": "^26.1.2",
     "@types/ws": "^8.18.1",
     "pino-pretty": "^13.1.3",

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, Map as MapLibreMap, RasterTileSource } from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
 import 'maplibre-gl/dist/maplibre-gl.css';
 // MapLibre 6 otsib tööprotsessi faili oma mooduli URL-i kõrvalt
 // (`./maplibre-gl-worker.mjs`). Vite ei näe seda staatiliselt ega emiteeri
@@ -40,6 +41,9 @@ export interface MapViewProps {
  * hinnanguga ja ring oleks eksitav mürakera üle poole kaardist.
  */
 const ACCURACY_RING_MAX_M = 1000;
+const DEPTH_CONTOUR_MIN_ZOOM = 7;
+const DEPTH_SAMPLE_MIN_ZOOM = 12;
+const EMPTY_FEATURE_COLLECTION: FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 /** Web Mercatori resolutsioon: meetrit piksli kohta ekvaatoril zoomil 0. */
 const EQUATOR_M_PER_PX = 156543.03392;
@@ -77,6 +81,89 @@ function addRaster(map: MapLibreMap, def: RasterLayerDef, beforeId?: string): vo
       },
       beforeId,
     );
+  }
+}
+
+/** EMODneti WFS-i GeoJSON kuvatakse päris vektorina, mitte rasterpildina. */
+function addDepthContours(map: MapLibreMap, beforeId?: string): void {
+  if (!map.getSource('src-depth-contours')) {
+    map.addSource('src-depth-contours', {
+      type: 'geojson',
+      data: EMPTY_FEATURE_COLLECTION,
+      attribution: '<a href="https://emodnet.ec.europa.eu/">EMODnet Bathymetry (CC BY 4.0)</a>',
+    });
+  }
+  if (!map.getLayer('depth-contours')) {
+    map.addLayer({
+      id: 'depth-contours',
+      type: 'line',
+      source: 'src-depth-contours',
+      minzoom: DEPTH_CONTOUR_MIN_ZOOM,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round',
+      },
+      paint: {
+        'line-color': '#0878a8',
+        'line-opacity': 0.82,
+        'line-width': [
+          'interpolate', ['linear'], ['zoom'],
+          DEPTH_CONTOUR_MIN_ZOOM, 0.8,
+          14, 1.6,
+        ],
+      },
+    }, beforeId);
+  }
+  if (!map.getLayer('depth-contour-labels')) {
+    map.addLayer({
+      id: 'depth-contour-labels',
+      type: 'symbol',
+      source: 'src-depth-contours',
+      minzoom: DEPTH_CONTOUR_MIN_ZOOM,
+      layout: {
+        'symbol-placement': 'line',
+        'symbol-spacing': 350,
+        'text-field': ['concat', ['to-string', ['get', 'elevation']], ' m'],
+        'text-font': ['Open Sans Regular'],
+        'text-size': 11,
+        'text-keep-upright': true,
+      },
+      paint: {
+        'text-color': '#075f86',
+        'text-halo-color': 'rgba(235, 247, 251, 0.95)',
+        'text-halo-width': 1.5,
+      },
+    }, beforeId);
+  }
+  if (!map.getSource('src-depth-samples')) {
+    map.addSource('src-depth-samples', {
+      type: 'geojson',
+      data: EMPTY_FEATURE_COLLECTION,
+      attribution: '<a href="https://emodnet.ec.europa.eu/">EMODnet DTM</a>',
+    });
+  }
+  if (!map.getLayer('depth-sample-labels')) {
+    map.addLayer({
+      id: 'depth-sample-labels',
+      type: 'symbol',
+      source: 'src-depth-samples',
+      minzoom: DEPTH_SAMPLE_MIN_ZOOM,
+      layout: {
+        'text-field': ['get', 'depthLabel'],
+        'text-font': ['Open Sans Regular'],
+        'text-size': [
+          'interpolate', ['linear'], ['zoom'],
+          DEPTH_SAMPLE_MIN_ZOOM, 10,
+          16, 12,
+        ],
+        'text-allow-overlap': false,
+      },
+      paint: {
+        'text-color': '#174d67',
+        'text-halo-color': 'rgba(238, 248, 251, 0.92)',
+        'text-halo-width': 1.25,
+      },
+    }, beforeId);
   }
 }
 
@@ -281,6 +368,81 @@ export function MapView({
       }
     }
   }, [activeOverlays, radarFrame, styleReady]);
+
+  // Samasügavusjooned: nähtava ala WFS-päring ja GeoJSON-i vektorkuva.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady) return;
+
+    const wanted = activeOverlays.includes('depth-details');
+    if (!wanted) {
+      if (map.getLayer('depth-sample-labels')) map.removeLayer('depth-sample-labels');
+      if (map.getLayer('depth-contour-labels')) map.removeLayer('depth-contour-labels');
+      if (map.getLayer('depth-contours')) map.removeLayer('depth-contours');
+      return;
+    }
+
+    const before = LAYER_ORDER.find((id) => map.getLayer(id));
+    addDepthContours(map, before);
+
+    let controller: AbortController | null = null;
+    const refresh = (): void => {
+      const source = map.getSource<GeoJSONSource>('src-depth-contours');
+      const sampleSource = map.getSource<GeoJSONSource>('src-depth-samples');
+      if (!source || !sampleSource) return;
+      if (map.getZoom() < DEPTH_CONTOUR_MIN_ZOOM) {
+        source.setData(EMPTY_FEATURE_COLLECTION);
+        sampleSource.setData(EMPTY_FEATURE_COLLECTION);
+        return;
+      }
+
+      const bounds = map.getBounds();
+      const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
+        .map((value) => value.toFixed(5))
+        .join(',');
+      controller?.abort();
+      controller = new AbortController();
+      const zoom = Math.floor(map.getZoom());
+      fetch(
+        `/api/depth-contours?bbox=${encodeURIComponent(bbox)}&zoom=${zoom}`,
+        { signal: controller.signal },
+      )
+        .then(async (response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return await response.json() as FeatureCollection;
+        })
+        .then((data) => source.setData(data))
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          console.error('[SeaPro] samasügavusjoonte laadimine ebaõnnestus:', error);
+        });
+
+      if (map.getZoom() < DEPTH_SAMPLE_MIN_ZOOM) {
+        sampleSource.setData(EMPTY_FEATURE_COLLECTION);
+      } else {
+        fetch(
+          `/api/depth-samples?bbox=${encodeURIComponent(bbox)}&zoom=${zoom}`,
+          { signal: controller.signal },
+        )
+          .then(async (response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json() as FeatureCollection;
+          })
+          .then((data) => sampleSource.setData(data))
+          .catch((error: unknown) => {
+            if (error instanceof DOMException && error.name === 'AbortError') return;
+            console.error('[SeaPro] mudelsügavuste laadimine ebaõnnestus:', error);
+          });
+      }
+    };
+
+    refresh();
+    map.on('moveend', refresh);
+    return () => {
+      controller?.abort();
+      map.off('moveend', refresh);
+    };
+  }, [activeOverlays, styleReady]);
 
   // Oma asukoha marker.
   useEffect(() => {

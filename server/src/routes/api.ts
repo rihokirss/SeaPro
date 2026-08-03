@@ -19,7 +19,12 @@ import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
 import { searchPlaces } from '../search/photon.js';
 import { fetchRadarTimeline } from '../radar.js';
-import { fetchDepthTile, type DepthTileLayer } from '../depthTiles.js';
+import {
+  fetchDepthContours,
+  fetchDenseDepthContours,
+  fetchDepthSamples,
+  type DepthContourBbox,
+} from '../depthContours.js';
 import {
   fetchNavigationWarnings,
   fetchOfficialHarbours,
@@ -196,28 +201,56 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     return timeline;
   });
 
-  /** Nutimere/HIS-i L-EST97 WMS teisendatuna MapLibre'i XYZ-paanideks. */
-  app.get('/api/depth-tiles/:layer/:z/:x/:y', async (req, reply) => {
-    const { layer, z: rawZ, x: rawX, y: rawY } = req.params as Record<string, string>;
-    if (layer !== 'contours' && layer !== 'soundings') {
-      return reply.code(404).send({ error: 'Tundmatu sügavuskiht' });
-    }
-    const z = Number(rawZ);
-    const x = Number(rawX);
-    const y = Number(rawY);
-    const size = 2 ** z;
+  /** EMODneti samasügavusjooned GeoJSON-vektorina nähtava kaardiala jaoks. */
+  app.get('/api/depth-contours', async (req, reply) => {
+    const query = req.query as Record<string, unknown>;
+    const raw = query.bbox;
+    const bbox = typeof raw === 'string' ? raw.split(',').map(Number) : [];
+    const zoom = Number(query.zoom ?? 0);
     if (
-      !Number.isInteger(z) || z < 0 || z > 18
-      || !Number.isInteger(x) || x < 0 || x >= size
-      || !Number.isInteger(y) || y < 0 || y >= size
+      bbox.length !== 4
+      || bbox.some((value) => !Number.isFinite(value))
+      || bbox[0]! < -180 || bbox[2]! > 180
+      || bbox[1]! < -90 || bbox[3]! > 90
+      || bbox[0]! >= bbox[2]! || bbox[1]! >= bbox[3]!
+      || bbox[2]! - bbox[0]! > 20 || bbox[3]! - bbox[1]! > 20
     ) {
-      return reply.code(400).send({ error: 'Vigased paanikoordinaadid' });
+      return reply.code(400).send({
+        error: 'bbox peab olema "lääs,lõuna,ida,põhi" ja katma kuni 20° ala',
+      });
     }
 
-    const tile = await fetchDepthTile(layer as DepthTileLayer, z, x, y);
-    reply.type('image/png');
+    const typedBbox = bbox as DepthContourBbox;
+    if (zoom >= 11 && bbox[2]! - bbox[0]! <= 1.5 && bbox[3]! - bbox[1]! <= 1.5) {
+      const data = await fetchDenseDepthContours(typedBbox);
+      reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      return data;
+    }
+
+    const body = await fetchDepthContours(typedBbox);
+    reply.type('application/geo+json');
     reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-    return reply.send(tile);
+    return reply.send(body);
+  });
+
+  /** Hõredad, mudelist tuletatud sügavusnumbrid; kuvatakse ainult lähisuumis. */
+  app.get('/api/depth-samples', async (req, reply) => {
+    const query = req.query as Record<string, unknown>;
+    const bbox = typeof query.bbox === 'string' ? query.bbox.split(',').map(Number) : [];
+    const zoom = Number(query.zoom);
+    if (
+      bbox.length !== 4 || bbox.some((value) => !Number.isFinite(value))
+      || bbox[0]! < -180 || bbox[2]! > 180 || bbox[1]! < -90 || bbox[3]! > 90
+      || bbox[0]! >= bbox[2]! || bbox[1]! >= bbox[3]!
+      || bbox[2]! - bbox[0]! > 20 || bbox[3]! - bbox[1]! > 20
+      || !Number.isFinite(zoom) || zoom < 0 || zoom > 22
+    ) {
+      return reply.code(400).send({ error: 'Vigane bbox või zoom' });
+    }
+
+    const data = await fetchDepthSamples(bbox as DepthContourBbox, zoom);
+    reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    return data;
   });
 
   /** Kasutaja algatatud kohanime- ja sadamaotsing OpenStreetMapist. */
