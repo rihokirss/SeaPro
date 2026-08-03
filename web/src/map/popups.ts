@@ -26,6 +26,8 @@ export interface PopupContext {
   t: Translate;
   speedUnit: SpeedUnit;
   lang: string;
+  /** Marsruudi redigeerimisel kuuluvad kõik kaardi žestid redaktorile. */
+  interactionBlocked: boolean;
 }
 
 let popup: maplibregl.Popup | null = null;
@@ -113,6 +115,7 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
   // ei saa alumise kihi hiljem registreeritud handler pealmist popupi enam
   // kogemata üle kirjutada.
   map.on('click', (e) => {
+    if (getContext().interactionBlocked) return;
     const layers = POPUP_CLICK_LAYERS.filter((layer) => map.getLayer(layer));
     if (!layers.length) return;
 
@@ -164,6 +167,10 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
   // Kursor ja hover-vihje.
   for (const layer of POPUP_CLICK_LAYERS) {
     map.on('mousemove', layer, (e) => {
+      if (getContext().interactionBlocked) {
+        hoverTip?.remove();
+        return;
+      }
       map.getCanvas().style.cursor = 'pointer';
 
       const f = e.features?.[0];
@@ -192,6 +199,7 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     });
 
     map.on('mouseleave', layer, () => {
+      if (getContext().interactionBlocked) return;
       map.getCanvas().style.cursor = '';
       hoverTip?.remove();
     });

@@ -519,6 +519,11 @@ export interface TrackSummary {
   endedAt?: string;
   /** Meetrites. */
   distance?: number;
+  /** Sekundites. */
+  durationSeconds?: number;
+  /** Arvutatud kasutaja sisestatud l/h põhjal. */
+  estimatedFuelLitres?: number;
+  averageSpeedKnots?: number;
 }
 
 export interface TrackPoint {
@@ -532,6 +537,78 @@ export interface TrackPoint {
 
 export interface Track extends TrackSummary {
   points: TrackPoint[];
+}
+
+// ---------------------------------------------------------------------------
+// Marsruudid ja marsruudianalüüs
+// ---------------------------------------------------------------------------
+
+export interface RouteWaypoint {
+  id: string;
+  lat: number;
+  lon: number;
+  name?: string;
+}
+
+export interface Route {
+  id: string;
+  name: string;
+  waypoints: RouteWaypoint[];
+  /** ISO 8601 koos ajavööndiga. */
+  startTime: string;
+  speedKnots: number;
+  draughtM: number;
+  underKeelClearanceM: number;
+  fuelLitresPerHour: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DepthRisk = 'safe' | 'caution' | 'danger' | 'unknown';
+
+export interface DepthRiskSegment {
+  from: [number, number]; // [lon, lat]
+  to: [number, number];
+  risk: DepthRisk;
+  minDepthM: number | null;
+  requiredDepthM: number;
+}
+
+export interface RouteWeatherSample {
+  lat: number;
+  lon: number;
+  time: string;
+  distanceNm: number;
+  values: Partial<Record<
+    'wind_speed' | 'wind_gust' | 'wind_dir' | 'wave_height' | 'wave_period' | 'wave_dir',
+    number | null
+  >>;
+  weatherAvailable: boolean;
+  depthM: number | null;
+  depthRisk: DepthRisk;
+}
+
+export interface RouteAnalysis {
+  distanceNm: number;
+  durationSeconds: number;
+  arrivalTime: string;
+  estimatedFuelLitres: number;
+  requiredDepthM: number;
+  samples: RouteWeatherSample[];
+  depthSegments: DepthRiskSegment[];
+  warnings: string[];
+  restrictions: Array<{ kind: 'fairway' | 'harbour'; name: string; maxDraughtM: number }>;
+}
+
+export interface RouteAnalysisRequest {
+  waypoints: Array<Pick<RouteWaypoint, 'lat' | 'lon'>>;
+  startTime: string;
+  speedKnots: number;
+  draughtM: number;
+  underKeelClearanceM: number;
+  fuelLitresPerHour: number;
+  model?: string;
+  waveModel?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -578,3 +655,5 @@ export function degreesToCompass(deg: number): string {
   const idx = Math.round(((deg % 360) + 360) % 360 / 22.5) % 16;
   return points[idx] ?? 'N';
 }
+
+export * from './route.js';

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface Position {
   lat: number;
@@ -19,6 +19,9 @@ export interface GeoState {
   position: Position | null;
   /** Küsib ühe värske asukoha ja annab selle kutsujale kaardi tsentreerimiseks. */
   request(onLocated?: (position: Position) => void): void;
+  watching: boolean;
+  startWatch(): void;
+  stopWatch(): void;
 }
 
 /**
@@ -30,6 +33,15 @@ export interface GeoState {
 export function useGeolocation(): GeoState {
   const [status, setStatus] = useState<GeoStatus>('idle');
   const [position, setPosition] = useState<Position | null>(null);
+  const [watching, setWatching] = useState(false);
+  const watchId = useRef<number | null>(null);
+
+  const fromBrowser = (pos: GeolocationPosition): Position => ({
+    lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy,
+    heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
+    speed: Number.isFinite(pos.coords.speed) ? pos.coords.speed : null,
+    timestamp: pos.timestamp,
+  });
 
   const locate = useCallback((opts: {
     onLocated?: (position: Position) => void;
@@ -50,14 +62,7 @@ export function useGeolocation(): GeoState {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const next: Position = {
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
-          speed: Number.isFinite(pos.coords.speed) ? pos.coords.speed : null,
-          timestamp: pos.timestamp,
-        };
+        const next = fromBrowser(pos);
         setPosition(next);
         setStatus('ok');
         opts.onLocated?.(next);
@@ -79,6 +84,21 @@ export function useGeolocation(): GeoState {
   const request = useCallback((onLocated?: (position: Position) => void) => {
     locate({ onLocated });
   }, [locate]);
+
+  const stopWatch = useCallback(() => {
+    if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
+    watchId.current = null; setWatching(false);
+  }, []);
+
+  const startWatch = useCallback(() => {
+    if (watchId.current !== null || !('geolocation' in navigator) || !window.isSecureContext) return;
+    setStatus('locating'); setWatching(true);
+    watchId.current = navigator.geolocation.watchPosition(
+      (pos) => { setPosition(fromBrowser(pos)); setStatus('ok'); },
+      (err) => { if (err.code === err.PERMISSION_DENIED) setStatus('denied'); else setStatus('unavailable'); stopWatch(); },
+      { enableHighAccuracy: true, maximumAge: 2_000, timeout: 20_000 },
+    );
+  }, [stopWatch]);
 
   /* Kui kasutaja on asukohaloa juba varem andnud, küsime ühe punkti vaikselt
      ette. See ei ava loaküsimust ega käivita jälgimisrežiimi, aga võimaldab
@@ -103,5 +123,7 @@ export function useGeolocation(): GeoState {
     };
   }, [locate]);
 
-  return { status, position, request };
+  useEffect(() => stopWatch, [stopWatch]);
+
+  return { status, position, request, watching, startWatch, stopWatch };
 }

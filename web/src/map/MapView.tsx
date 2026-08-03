@@ -21,6 +21,8 @@ import { registerIcons } from './icons';
 import { LAYER_ORDER } from './layerOrder';
 import { addPlaceLabels } from './layers/placeLabels';
 import type { Position } from '../lib/geolocation';
+import type { DepthRiskSegment, RouteWaypoint, TrackPoint } from '@seapro/shared';
+import { addRouteLayers, ROUTE_LINE_LAYER, ROUTE_WAYPOINT_LAYER, updateRouteLayers } from './layers/route';
 
 export interface MapViewProps {
   center: [number, number];
@@ -29,9 +31,17 @@ export interface MapViewProps {
   activeOverlays: string[];
   radarFrame: RadarFrame;
   ownPosition: Position | null;
+  routeWaypoints: RouteWaypoint[];
+  routeSegments: DepthRiskSegment[];
+  trackPoints: TrackPoint[];
+  routeEditing: boolean;
   onReady(map: MapLibreMap): void;
   onMoveEnd(bbox: [number, number, number, number], zoom: number): void;
   onPick(lat: number, lon: number): void;
+  onRouteMove(index: number, lat: number, lon: number): void;
+  onRouteMoveStart(): void;
+  onRouteInsert(index: number, lat: number, lon: number): void;
+  onUserMove(): void;
 }
 
 
@@ -173,16 +183,26 @@ export function MapView({
   activeOverlays,
   radarFrame,
   ownPosition,
+  routeWaypoints,
+  routeSegments,
+  trackPoints,
+  routeEditing,
   onReady,
   onMoveEnd,
   onPick,
+  onRouteMove,
+  onRouteMoveStart,
+  onRouteInsert,
+  onUserMove,
 }: MapViewProps): React.ReactElement {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [styleReady, setStyleReady] = useState(false);
   // Hoiame callback'id ref'is, et kaarti ei ehitataks iga renderi peale uuesti.
-  const cb = useRef({ onReady, onMoveEnd, onPick });
-  cb.current = { onReady, onMoveEnd, onPick };
+  const cb = useRef({ onReady, onMoveEnd, onPick, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove });
+  cb.current = { onReady, onMoveEnd, onPick, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove };
+  const routeEditingRef = useRef(routeEditing);
+  routeEditingRef.current = routeEditing;
 
   useEffect(() => {
     if (!container.current || mapRef.current) return;
@@ -244,6 +264,7 @@ export function MapView({
       addColorBase(map);
       addDarkBase(map);
       addPlaceLabels(map);
+      addRouteLayers(map);
       // Oma asukoha allikas luuakse kohe, et kiht oleks õiges järjekorras
       // olemas ka enne esimest GPS-fixi.
       map.addSource('own-position', {
@@ -322,10 +343,39 @@ export function MapView({
     });
 
     map.on('moveend', () => emitMove(map));
+    map.on('dragstart', () => cb.current.onUserMove());
+
+    let draggedWaypoint: number | null = null;
+    const beginWaypointDrag = (e: maplibregl.MapLayerMouseEvent | maplibregl.MapLayerTouchEvent): void => {
+      if (!routeEditingRef.current) return;
+      const index = Number(e.features?.[0]?.properties?.index);
+      if (!Number.isInteger(index)) return;
+      e.preventDefault(); cb.current.onRouteMoveStart(); draggedWaypoint = index; map.dragPan.disable();
+    };
+    map.on('mousedown', ROUTE_WAYPOINT_LAYER, beginWaypointDrag);
+    map.on('touchstart', ROUTE_WAYPOINT_LAYER, beginWaypointDrag);
+    const moveWaypoint = (e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent): void => {
+      if (draggedWaypoint === null) return;
+      cb.current.onRouteMove(draggedWaypoint, e.lngLat.lat, e.lngLat.lng);
+    };
+    map.on('mousemove', moveWaypoint);
+    map.on('touchmove', moveWaypoint);
+    const endWaypointDrag = (): void => { if (draggedWaypoint !== null) { draggedWaypoint = null; map.dragPan.enable(); } };
+    map.on('mouseup', endWaypointDrag); map.on('touchend', endWaypointDrag);
+    map.on('click', ROUTE_LINE_LAYER, (e) => {
+      if (!routeEditingRef.current) return;
+      const index = Number(e.features?.[0]?.properties?.segmentIndex);
+      if (Number.isInteger(index)) cb.current.onRouteInsert(index + 1, e.lngLat.lat, e.lngLat.lng);
+    });
 
     map.on('click', (e) => {
       // Kui klikk tabas mõnda andmekihti (jaam, laev), tegeleb sellega
       // vastav kihi enda käsitleja — siin ei tohi punktipaneeli avada.
+      if (routeEditingRef.current) {
+        const routeHit = map.queryRenderedFeatures(e.point, { layers: [ROUTE_WAYPOINT_LAYER, ROUTE_LINE_LAYER] });
+        if (routeHit.length === 0) cb.current.onPick(e.lngLat.lat, e.lngLat.lng);
+        return;
+      }
       const hits = map.queryRenderedFeatures(e.point, {
         layers: LAYER_ORDER.filter((id) => map.getLayer(id)),
       });
@@ -467,6 +517,13 @@ export function MapView({
         : [],
     });
   }, [ownPosition, styleReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady) return;
+    updateRouteLayers(map, routeWaypoints, routeSegments, trackPoints, routeEditing);
+    map.getCanvas().style.cursor = routeEditing ? 'crosshair' : '';
+  }, [routeWaypoints, routeSegments, trackPoints, routeEditing, styleReady]);
 
   return <div ref={container} className="map-container" />;
 }

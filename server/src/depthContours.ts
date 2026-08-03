@@ -2,11 +2,13 @@ import { cache } from './cache.js';
 import { fetchJson, request } from './http.js';
 import { contours } from 'd3-contour';
 import { fromArrayBuffer } from 'geotiff';
+import { distanceMetres, interpolatePosition, type DepthRiskSegment } from '@seapro/shared';
 
 const EMODNET_WFS = 'https://ows.emodnet-bathymetry.eu/wfs';
 const EMODNET_REST = 'https://rest.emodnet-bathymetry.eu/depth_sample';
 const EMODNET_WCS = 'https://ows.emodnet-bathymetry.eu/wcs';
 const DTM_RESOLUTION = 1 / 960; // 1/16 kaareminutit
+const ROUTE_TILE_DEGREES = 0.1;
 
 /** WFS-i ja GeoJSON-i tavapärane järjestus: lääs, lõuna, ida, põhi. */
 export type DepthContourBbox = [number, number, number, number];
@@ -269,4 +271,92 @@ export async function fetchDepthSamples(
   }
 
   return { type: 'FeatureCollection', features };
+}
+
+interface DepthTile {
+  bbox: DepthContourBbox;
+  width: number;
+  height: number;
+  values: Array<number | null>;
+}
+
+function routeTileBbox(lon: number, lat: number): DepthContourBbox {
+  const west = Math.floor(lon / ROUTE_TILE_DEGREES) * ROUTE_TILE_DEGREES;
+  const south = Math.floor(lat / ROUTE_TILE_DEGREES) * ROUTE_TILE_DEGREES;
+  return [west, south, west + ROUTE_TILE_DEGREES, south + ROUTE_TILE_DEGREES]
+    .map((n) => Number(n.toFixed(8))) as DepthContourBbox;
+}
+
+async function fetchDepthTile(bbox: DepthContourBbox): Promise<DepthTile> {
+  const key = `emodnet:route-depth:v1:${bbox.join(':')}`;
+  const { value } = await cache.get(key, 30 * 86400, async () => {
+    const response = await request(depthCoverageUrl(bbox), {
+      headers: { Accept: 'image/tiff' }, timeoutMs: 30_000, retries: 1,
+    });
+    const tiff = await fromArrayBuffer(await response.arrayBuffer());
+    const image = await tiff.getImage();
+    const raw = await image.readRasters({ interleave: true });
+    return {
+      bbox: image.getBoundingBox() as DepthContourBbox,
+      width: image.getWidth(),
+      height: image.getHeight(),
+      values: Array.from(raw as ArrayLike<number>, (n) => Number.isFinite(n) && n < 0 ? -n : null),
+    } satisfies DepthTile;
+  });
+  return value;
+}
+
+function tileDepth(tile: DepthTile, lon: number, lat: number): number | null {
+  const [west, south, east, north] = tile.bbox;
+  const x = Math.max(0, Math.min(tile.width - 1, Math.floor((lon - west) / (east - west) * tile.width)));
+  const y = Math.max(0, Math.min(tile.height - 1, Math.floor((north - lat) / (north - south) * tile.height)));
+  return tile.values[y * tile.width + x] ?? null;
+}
+
+/**
+ * Proovib marsruuti DTM-i lahutuse lähedalt. Väga pika raja korral kasvab samm,
+ * et üks raport ei saaks laadida piiramatult WCS-paanisid.
+ */
+export async function analyseRouteDepth(
+  waypoints: Array<{ lat: number; lon: number }>,
+  requiredDepthM: number,
+): Promise<DepthRiskSegment[]> {
+  const totalMetres = waypoints.slice(1).reduce((sum, p, i) => sum + distanceMetres(waypoints[i]!, p), 0);
+  const stepM = Math.max(120, totalMetres / 5000);
+  const probes: Array<{ lat: number; lon: number }> = [];
+  for (let i = 1; i < waypoints.length; i++) {
+    const a = waypoints[i - 1]!; const b = waypoints[i]!;
+    const count = Math.max(1, Math.ceil(distanceMetres(a, b) / stepM));
+    if (i === 1) probes.push(a);
+    for (let n = 1; n <= count; n++) probes.push(interpolatePosition(a, b, n / count));
+  }
+  const wantedTiles = new Map<string, DepthContourBbox>();
+  for (const point of probes) {
+    const bbox = routeTileBbox(point.lon, point.lat); wantedTiles.set(bbox.join(':'), bbox);
+  }
+  const entries = [...wantedTiles.entries()];
+  const loadedTiles = new Map<string, DepthTile | null>();
+  let tileCursor = 0;
+  await Promise.all(Array.from({ length: Math.min(4, entries.length) }, async () => {
+    while (tileCursor < entries.length) {
+      const [key, bbox] = entries[tileCursor++]!;
+      try { loadedTiles.set(key, await fetchDepthTile(bbox)); } catch { loadedTiles.set(key, null); }
+    }
+  }));
+  const depths = probes.map((point) => {
+    const bbox = routeTileBbox(point.lon, point.lat);
+    const tile = loadedTiles.get(bbox.join(':'));
+    return tile ? tileDepth(tile, point.lon, point.lat) : null;
+  });
+  return probes.slice(1).map((point, i) => {
+    const pair = [depths[i] ?? null, depths[i + 1] ?? null].filter((v): v is number => v !== null);
+    const minDepthM = pair.length ? Math.min(...pair) : null;
+    const risk = minDepthM === null ? 'unknown'
+      : minDepthM < requiredDepthM ? 'danger'
+        : minDepthM < requiredDepthM + 0.5 ? 'caution' : 'safe';
+    return {
+      from: [probes[i]!.lon, probes[i]!.lat], to: [point.lon, point.lat],
+      risk, minDepthM, requiredDepthM,
+    } satisfies DepthRiskSegment;
+  });
 }

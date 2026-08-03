@@ -10,8 +10,13 @@ import type {
   Variable,
   Vessel,
   NavigationData,
+  Route,
+  RouteAnalysis,
+  RouteWaypoint,
+  Track,
+  TrackPoint,
 } from '@seapro/shared';
-import { isWaveVariable } from '@seapro/shared';
+import { bearingDegrees, crossTrackDistanceMetres, distanceMetres, isWaveVariable, routeDistanceNm, segmentProgress } from '@seapro/shared';
 import { I18nContext, detectLang, makeTranslate, saveLang, type Lang } from './i18n';
 import { RateLimitedError, api, type AppConfig } from './lib/api';
 import { useGeolocation } from './lib/geolocation';
@@ -39,6 +44,9 @@ import { TopBar } from './components/TopBar';
 import { MapLegend } from './components/MapLegend';
 import { MapKey } from './components/MapKey';
 import { LocateButton } from './components/LocateButton';
+import { RoutePanel } from './components/RoutePanel';
+import { NavigationBar } from './components/NavigationBar';
+import { routeStore } from './lib/routeStore';
 import { setPlaceLabelsVisible } from './map/layers/placeLabels';
 import {
   setNavigationVisibility,
@@ -368,6 +376,17 @@ function useGridDays(params: {
   }, [tick, wantedKey]);
 }
 
+const makeId = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+
+function newRoute(): Route {
+  const now = new Date().toISOString();
+  return {
+    id: makeId(), name: 'Uus marsruut', waypoints: [], startTime: now,
+    speedKnots: 6, draughtM: 1.2, underKeelClearanceM: 0.5, fuelLitresPerHour: 5,
+    createdAt: now, updatedAt: now,
+  };
+}
+
 export function App() {
   const [lang, setLangState] = useState<Lang>(detectLang);
   const t = useMemo(() => makeTranslate(lang), [lang]);
@@ -392,6 +411,16 @@ export function App() {
 
   const [layers, setLayers] = useState<LayerState>(() => loadLayerState(DEFAULT_LAYERS));
   const [panelOpen, setPanelOpen] = useState(false);
+  const [routeOpen, setRouteOpen] = useState(false);
+  const [route, setRoute] = useState<Route>(newRoute);
+  const [savedRoutes, setSavedRoutes] = useState<Route[]>([]);
+  const [routeEditing, setRouteEditing] = useState(false);
+  const [routeAnalysis, setRouteAnalysis] = useState<RouteAnalysis | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [undoRoutes, setUndoRoutes] = useState<RouteWaypoint[][]>([]);
+  const [redoRoutes, setRedoRoutes] = useState<RouteWaypoint[][]>([]);
+  const editStart = useRef<Route | null>(null);
   const [speedUnit, setSpeedUnit] = useState<SpeedUnit>(loadSpeedUnit);
   const { theme, setTheme } = useTheme();
 
@@ -426,6 +455,35 @@ export function App() {
   useEffect(() => {
     saveLayerState(layers);
   }, [layers]);
+
+  useEffect(() => {
+    routeStore.listRoutes().then((items) => setSavedRoutes(items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (routeEditing || route.waypoints.length < 2) { setRouteAnalysis(null); return; }
+    const ac = new AbortController();
+    const timer = window.setTimeout(() => {
+      setRouteLoading(true); setRouteError(null);
+      api.routeAnalysis({
+        waypoints: route.waypoints, startTime: route.startTime, speedKnots: route.speedKnots,
+        draughtM: route.draughtM, underKeelClearanceM: route.underKeelClearanceM,
+        fuelLitresPerHour: route.fuelLitresPerHour,
+        model: activeModel === 'best_match' ? undefined : activeModel, waveModel: activeWaveModel,
+      }, ac.signal).then(setRouteAnalysis).catch((err: unknown) => {
+        if (!ac.signal.aborted) setRouteError(err instanceof Error ? err.message : t('error.generic'));
+      }).finally(() => { if (!ac.signal.aborted) setRouteLoading(false); });
+    }, 500);
+    return () => { window.clearTimeout(timer); ac.abort(); };
+  }, [route, routeEditing, activeModel, activeWaveModel, t]);
+
+  useEffect(() => {
+    if (routeEditing || route.waypoints.length < 2) return;
+    const timer = window.setTimeout(() => {
+      routeStore.saveRoute(route).then(() => routeStore.listRoutes()).then((items) => setSavedRoutes(items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))).catch(() => {});
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [route, routeEditing]);
 
   /**
    * Andmepäringute jaoks viivitatud aeg.
@@ -501,6 +559,90 @@ export function App() {
   // Ref üksi ei käivita renderdust, seega kihtide efektid jääksid kaardi
   // valmimist ootama igavesti. See lipp äratab nad üles.
   const [mapReady, setMapReady] = useState(false);
+  const [navigationActive, setNavigationActive] = useState(false);
+  const [nextWaypointIndex, setNextWaypointIndex] = useState(1);
+  const [followingPosition, setFollowingPosition] = useState(true);
+  const [recordTrack, setRecordTrack] = useState(false);
+  const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([]);
+  const [offRouteWarning, setOffRouteWarning] = useState(false);
+  const offRouteSince = useRef<number | null>(null);
+  const navigationStartedAt = useRef<number>(0);
+
+  const startNavigation = useCallback(() => {
+    if (route.waypoints.length < 2) return;
+    setNavigationActive(true); setNextWaypointIndex(1); setFollowingPosition(true);
+    setTrackPoints([]); setRecordTrack(false); setOffRouteWarning(false);
+    navigationStartedAt.current = Date.now(); setRouteOpen(false); setRouteEditing(false);
+    geo.startWatch();
+  }, [route.waypoints.length, geo.startWatch]);
+
+  const stopNavigation = useCallback(() => {
+    geo.stopWatch(); setNavigationActive(false); setOffRouteWarning(false);
+    if (recordTrack && trackPoints.length > 1 && window.confirm(t('nav.saveTrack'))) {
+      const ended = new Date().toISOString();
+      const durationSeconds = Math.max(0, (Date.now() - navigationStartedAt.current) / 1000);
+      const distanceNm = routeDistanceNm(trackPoints);
+      const track: Track = {
+        id: makeId(), name: `${route.name} · ${new Date().toLocaleDateString()}`, providerId: 'device-gps',
+        startedAt: new Date(navigationStartedAt.current).toISOString(), endedAt: ended,
+        distance: distanceNm * 1852, durationSeconds,
+        averageSpeedKnots: durationSeconds ? distanceNm / durationSeconds * 3600 : 0,
+        estimatedFuelLitres: durationSeconds / 3600 * route.fuelLitresPerHour,
+        points: trackPoints,
+      };
+      routeStore.saveTrack(track).catch(() => {});
+    }
+    setRecordTrack(false);
+  }, [geo.stopWatch, recordTrack, trackPoints, route.name, route.fuelLitresPerHour, t]);
+
+  useEffect(() => {
+    if (!navigationActive || !geo.position || route.waypoints.length < 2) return;
+    const position = geo.position;
+    const target = route.waypoints[nextWaypointIndex];
+    const previous = route.waypoints[Math.max(0, nextWaypointIndex - 1)]!;
+    if (target && (distanceMetres(position, target) <= 50 || segmentProgress(position, previous, target) >= 1) && nextWaypointIndex < route.waypoints.length - 1) {
+      setNextWaypointIndex((index) => Math.min(route.waypoints.length - 1, index + 1));
+    }
+    if (followingPosition) mapRef.current?.easeTo({ center: [position.lon, position.lat], duration: 500 });
+    const a = route.waypoints[Math.max(0, nextWaypointIndex - 1)]!;
+    const b = route.waypoints[Math.min(nextWaypointIndex, route.waypoints.length - 1)]!;
+    const crossTrack = crossTrackDistanceMetres(position, a, b);
+    const limit = Math.max(100, position.accuracy * 2);
+    if (crossTrack > limit) {
+      offRouteSince.current ??= Date.now();
+      if (Date.now() - offRouteSince.current >= 15_000) setOffRouteWarning(true);
+    } else { offRouteSince.current = null; setOffRouteWarning(false); }
+    if (recordTrack) setTrackPoints((current) => {
+      const last = current.at(-1);
+      if (last) {
+        const elapsed = (position.timestamp - new Date(last.time ?? 0).getTime()) / 1000;
+        const moved = distanceMetres(last, position);
+        if (elapsed < 5 && moved < 10) return current;
+        if (elapsed > 0 && moved / elapsed > 51.45) return current; // >100 kn GPS-hüpe
+      }
+      return [...current, { lat: position.lat, lon: position.lon, time: new Date(position.timestamp).toISOString(), speed: position.speed == null ? undefined : position.speed * 1.943844, course: position.heading ?? undefined }];
+    });
+  }, [navigationActive, geo.position, route.waypoints, nextWaypointIndex, followingPosition, recordTrack]);
+
+  useEffect(() => {
+    if (!navigationActive || !('wakeLock' in navigator)) return;
+    let sentinel: { release(): Promise<void> } | null = null;
+    (navigator as Navigator & { wakeLock: { request(type: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock.request('screen').then((value) => { sentinel = value; }).catch(() => {});
+    return () => { void sentinel?.release(); };
+  }, [navigationActive]);
+
+  const navMetrics = useMemo(() => {
+    const pos = geo.position; const target = route.waypoints[nextWaypointIndex];
+    if (!pos || !target) return { distance: 0, bearing: 0, crossTrack: 0, remaining: 0, eta: null as string | null };
+    const a = route.waypoints[Math.max(0, nextWaypointIndex - 1)]!;
+    const remaining = distanceMetres(pos, target) / 1852 + routeDistanceNm(route.waypoints.slice(nextWaypointIndex));
+    const speedKnots = pos.speed && pos.speed > 0.25 ? pos.speed * 1.943844 : route.speedKnots;
+    return {
+      distance: distanceMetres(pos, target), bearing: bearingDegrees(pos, target),
+      crossTrack: crossTrackDistanceMetres(pos, a, target), remaining,
+      eta: speedKnots > 0 ? new Date(Date.now() + remaining / speedKnots * 3_600_000).toISOString() : null,
+    };
+  }, [geo.position, route.waypoints, route.speedKnots, nextWaypointIndex]);
 
   const changeSpeedUnit = useCallback((u: SpeedUnit) => {
     setSpeedUnit(u);
@@ -859,17 +1001,38 @@ export function App() {
    * et ta ei sega, ja siis on uue punkti vaatamine palju sagedasem soov kui
    * sulgemine. Sulgemiseks on ribal oma rist.
    */
+  const commitWaypoints = useCallback((waypoints: RouteWaypoint[]) => {
+    setUndoRoutes((items) => [...items.slice(-49), route.waypoints]); setRedoRoutes([]);
+    setRoute((current) => ({ ...current, waypoints, updatedAt: new Date().toISOString() }));
+  }, [route.waypoints]);
+
   const handlePick = useCallback((lat: number, lon: number) => {
+    if (routeEditing) {
+      commitWaypoints([...route.waypoints, { id: makeId(), lat, lon }]);
+      return;
+    }
     setPicked({ lat, lon });
     setSheetExpanded(false); // Uus punkt algab alati ribast.
     setPointResult(null);
+  }, [routeEditing, route.waypoints, commitWaypoints]);
+
+  const moveRouteWaypoint = useCallback((index: number, lat: number, lon: number) => {
+    setRoute((current) => ({ ...current, updatedAt: new Date().toISOString(), waypoints: current.waypoints.map((p, i) => i === index ? { ...p, lat, lon } : p) }));
   }, []);
+
+  const insertRouteWaypoint = useCallback((index: number, lat: number, lon: number) => {
+    const next = [...route.waypoints]; next.splice(index, 0, { id: makeId(), lat, lon }); commitWaypoints(next);
+  }, [route.waypoints, commitWaypoints]);
 
   // Popupid loevad ühikut ja keelt renderdamise hetkel; hoiame neid ref'is,
   // et kaardi klikikäsitlejaid ei peaks iga seadistuse muutuse peale uuesti
   // registreerima.
-  const popupCtx = useRef({ t, speedUnit, lang });
-  popupCtx.current = { t, speedUnit, lang };
+  const popupCtx = useRef({ t, speedUnit, lang, interactionBlocked: routeEditing });
+  popupCtx.current = { t, speedUnit, lang, interactionBlocked: routeEditing };
+
+  useEffect(() => {
+    if (routeEditing) closePopup();
+  }, [routeEditing]);
 
   const handleReady = useCallback((map: MapLibreMap) => {
     mapRef.current = map;
@@ -941,6 +1104,7 @@ export function App() {
       <div className={`app${picked ? ' has-point-forecast' : ''}`}>
         <TopBar
           onOpenLayers={() => setPanelOpen(true)}
+          onOpenRoutes={() => { setRouteOpen(true); setPicked(null); }}
           geo={geo}
           favorites={favorites}
           onGoTo={goTo}
@@ -953,10 +1117,33 @@ export function App() {
           activeOverlays={layers.overlays}
           radarFrame={radarFrame}
           ownPosition={geo.position}
+          routeWaypoints={route.waypoints}
+          routeSegments={routeAnalysis?.depthSegments ?? []}
+          trackPoints={trackPoints}
+          routeEditing={routeEditing}
           onReady={handleReady}
           onMoveEnd={handleMoveEnd}
           onPick={handlePick}
+          onRouteMove={moveRouteWaypoint}
+          onRouteMoveStart={() => { setUndoRoutes((items) => [...items.slice(-49), route.waypoints]); setRedoRoutes([]); }}
+          onRouteInsert={insertRouteWaypoint}
+          onUserMove={() => { if (navigationActive) setFollowingPosition(false); }}
         />
+
+        {navigationActive ? <NavigationBar
+          nextIndex={nextWaypointIndex}
+          distanceToNextM={navMetrics.distance}
+          bearing={navMetrics.bearing}
+          crossTrackM={navMetrics.crossTrack}
+          remainingNm={navMetrics.remaining}
+          eta={navMetrics.eta}
+          warning={offRouteWarning}
+          following={followingPosition}
+          recording={recordTrack}
+          onResume={() => { setFollowingPosition(true); if (geo.position) goTo(geo.position.lat, geo.position.lon, 13); }}
+          onToggleRecording={() => setRecordTrack((value) => !value)}
+          onStop={stopNavigation}
+        /> : null}
 
         {layerNotice ? (
           <div className="layer-notice" role="status">
@@ -1037,6 +1224,31 @@ export function App() {
           onSpeedUnitChange={changeSpeedUnit}
           theme={theme}
           onThemeChange={setTheme}
+        />
+
+        <RoutePanel
+          open={routeOpen}
+          route={route}
+          savedRoutes={savedRoutes}
+          analysis={routeAnalysis}
+          loading={routeLoading}
+          error={routeError}
+          editing={routeEditing}
+          canUndo={undoRoutes.length > 0}
+          canRedo={redoRoutes.length > 0}
+          onClose={() => { if (!routeEditing) setRouteOpen(false); }}
+          onChange={setRoute}
+          onNew={() => { setRoute(newRoute()); setRouteAnalysis(null); setUndoRoutes([]); setRedoRoutes([]); }}
+          onLoad={(next) => { setRoute(next); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(false); }}
+          onDelete={(id) => { routeStore.deleteRoute(id).then(() => routeStore.listRoutes()).then(setSavedRoutes).catch(() => {}); setRoute(newRoute()); setRouteAnalysis(null); }}
+          onStartEdit={() => { editStart.current = structuredClone(route); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(true); }}
+          onFinishEdit={() => { setRouteEditing(false); editStart.current = null; setRoute((current) => ({ ...current, updatedAt: new Date().toISOString() })); }}
+          onCancelEdit={() => { if (editStart.current) setRoute(editStart.current); setRouteEditing(false); setUndoRoutes([]); setRedoRoutes([]); }}
+          onUndo={() => setUndoRoutes((history) => { const previous = history.at(-1); if (!previous) return history; setRedoRoutes((redo) => [route.waypoints, ...redo]); setRoute((current) => ({ ...current, waypoints: previous, updatedAt: new Date().toISOString() })); return history.slice(0, -1); })}
+          onRedo={() => setRedoRoutes((history) => { const next = history[0]; if (!next) return history; setUndoRoutes((undo) => [...undo, route.waypoints]); setRoute((current) => ({ ...current, waypoints: next, updatedAt: new Date().toISOString() })); return history.slice(1); })}
+          onDeleteLast={() => { if (route.waypoints.length) commitWaypoints(route.waypoints.slice(0, -1)); }}
+          onUseLocation={() => { if (geo.position) commitWaypoints([...route.waypoints, { id: makeId(), lat: geo.position.lat, lon: geo.position.lon }]); else geo.request((position) => commitWaypoints([...route.waypoints, { id: makeId(), lat: position.lat, lon: position.lon }])); }}
+          onNavigate={startNavigation}
         />
 
         <PointSheet

@@ -10,6 +10,7 @@ interface Props {
   favorites: ReturnType<typeof useFavorites>;
   onGoTo(lat: number, lon: number, zoom?: number): void;
   bbox?: [number, number, number, number];
+  onOpenRoutes(): void;
 }
 
 /** Kompassiroos — logo asemel. Puhas SVG, ei vaja fonti ega pildifaili. */
@@ -27,7 +28,7 @@ function CompassRose() {
   );
 }
 
-export function TopBar({ onOpenLayers, geo, favorites, onGoTo, bbox }: Props) {
+export function TopBar({ onOpenLayers, onOpenRoutes, geo, favorites, onGoTo, bbox }: Props) {
   const { t } = useI18n();
   const [favOpen, setFavOpen] = useState(false);
 
@@ -64,6 +65,9 @@ export function TopBar({ onOpenLayers, geo, favorites, onGoTo, bbox }: Props) {
       {/* "Minu asukoht" oli varem siin. Kolis alla paremasse nurka
           (`LocateButton` `.mapctl` virnas) — pöidla ulatusse. */}
       <div className="topbar__actions">
+        <button type="button" className="icon-btn icon-btn--brass" onClick={onOpenRoutes} title={t('route.title')} aria-label={t('route.title')}>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="18" r="2" fill="currentColor"/><circle cx="19" cy="5" r="2" fill="currentColor"/><path d="M6.5 16.5c2-7 8-2 11-10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+        </button>
         <div className="topbar__fav">
           <button
             type="button"

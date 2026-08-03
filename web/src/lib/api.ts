@@ -11,6 +11,8 @@ import type {
   SearchResult,
   Variable,
   Vessel,
+  RouteAnalysis,
+  RouteAnalysisRequest,
 } from '@seapro/shared';
 import { getSessionId } from './session';
 
@@ -62,6 +64,20 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
     throw new Error(detail);
   }
   return (await res.json()) as T;
+}
+
+async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST', signal,
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-SeaPro-Session': getSessionId() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({})) as { error?: string; source?: string; retryAfterSeconds?: number };
+    if (res.status === 503 && payload.error === 'rate_limited') throw new RateLimitedError(payload.source ?? 'allikas', payload.retryAfterSeconds ?? 0);
+    throw new Error(payload.error ?? String(res.status));
+  }
+  return await res.json() as T;
 }
 
 export const api = {
@@ -178,5 +194,9 @@ export const api = {
     const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
     p.set('include', include.join(','));
     return get<NavigationData & { errors?: string[] }>(`/api/navigation?${p}`, signal);
+  },
+
+  routeAnalysis(request: RouteAnalysisRequest, signal?: AbortSignal) {
+    return post<RouteAnalysis>('/api/route-analysis', request, signal);
   },
 };

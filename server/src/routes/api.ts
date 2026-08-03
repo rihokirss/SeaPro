@@ -7,6 +7,7 @@ import type {
   SearchResult,
   TimeSeries,
   Variable,
+  RouteAnalysisRequest,
 } from '@seapro/shared';
 import { VARIABLES } from '@seapro/shared';
 import { cache } from '../cache.js';
@@ -39,6 +40,7 @@ import {
   getProvider,
   listCapabilities,
 } from '../providers/registry.js';
+import { analyseRoute } from '../routeAnalysis.js';
 
 const VARIABLE_SET = new Set<string>(VARIABLES);
 
@@ -529,6 +531,40 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           : null)
         .filter(Boolean),
     };
+  });
+
+  /** Marsruudi ilma-, aja-, kütuse- ja EMODneti sügavusanalüüs. */
+  app.post('/api/route-analysis', async (req, reply) => {
+    const body = req.body as Partial<RouteAnalysisRequest> | null;
+    const waypoints = body?.waypoints;
+    const startMs = new Date(body?.startTime ?? '').getTime();
+    const validPoint = (p: unknown): p is { lat: number; lon: number } => {
+      if (!p || typeof p !== 'object') return false;
+      const point = p as { lat?: unknown; lon?: unknown };
+      return Number.isFinite(point.lat) && Number.isFinite(point.lon)
+        && Number(point.lat) >= -90 && Number(point.lat) <= 90
+        && Number(point.lon) >= -180 && Number(point.lon) <= 180;
+    };
+    const values = [body?.speedKnots, body?.draughtM, body?.underKeelClearanceM, body?.fuelLitresPerHour];
+    if (!Array.isArray(waypoints) || waypoints.length < 2 || waypoints.length > 100
+      || !waypoints.every(validPoint) || !Number.isFinite(startMs)
+      || values.some((value) => !Number.isFinite(value))
+      || Number(body!.speedKnots) <= 0 || Number(body!.speedKnots) > 100
+      || Number(body!.draughtM) < 0 || Number(body!.draughtM) > 30
+      || Number(body!.underKeelClearanceM) < 0 || Number(body!.underKeelClearanceM) > 20
+      || Number(body!.fuelLitresPerHour) < 0 || Number(body!.fuelLitresPerHour) > 10_000) {
+      return reply.code(400).send({ error: 'Vigane marsruut või laeva parameetrid' });
+    }
+    try {
+      reply.header('Cache-Control', 'no-store');
+      return await analyseRoute(body as RouteAnalysisRequest);
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        reply.header('Retry-After', String(err.retryAfterSeconds));
+        return reply.code(503).send({ error: 'rate_limited', source: err.source, retryAfterSeconds: err.retryAfterSeconds });
+      }
+      throw err;
+    }
   });
 
   /** Trackid — liides on olemas, allikaid veel pole (Traccar / GPX tulevad hiljem). */
