@@ -164,37 +164,10 @@ export function LayerPanel({
               hint={t('layer.chart.hint')}
             />
             <Toggle
-              checked={layers.navigationWarnings}
-              onChange={(v) => set({ navigationWarnings: v })}
-              label={t('layer.navigationWarnings')}
-            />
-            <Toggle
-              checked={layers.navigationAids}
-              onChange={(v) => set({ navigationAids: v })}
-              label={t('layer.navigationAids')}
-            />
-            <Toggle
-              checked={layers.officialNavigation}
-              onChange={(v) => set({ officialNavigation: v })}
-              label={t('layer.officialNavigation')}
-              hint={t('layer.officialNavigation.hint')}
-            />
-            <Toggle
-              checked={layers.wrecks}
-              onChange={(v) => set({ wrecks: v })}
-              label={t('layer.wrecks')}
-            />
-            <Toggle
               checked={layers.overlays.includes('depth-details')}
               onChange={(v) => toggleOverlay('depth-details', v)}
               label={t('layer.depthDetails')}
               hint={t('layer.depthDetails.hint')}
-            />
-            <Toggle
-              checked={layers.overlays.includes('seamark')}
-              onChange={(v) => toggleOverlay('seamark', v)}
-              label={t('layer.seamark')}
-              hint={t('layer.seamark.hint')}
             />
             <Toggle
               checked={layers.overlays.includes('bathymetry')}
@@ -206,6 +179,33 @@ export function LayerPanel({
               checked={layers.placeLabels}
               onChange={(v) => set({ placeLabels: v })}
               label={t('layer.placeLabels')}
+            />
+            <Toggle
+              checked={layers.officialNavigation}
+              onChange={(v) => set({ officialNavigation: v })}
+              label={t('layer.officialNavigation')}
+              hint={t('layer.officialNavigation.hint')}
+            />
+            <Toggle
+              checked={layers.navigationWarnings}
+              onChange={(v) => set({ navigationWarnings: v })}
+              label={t('layer.navigationWarnings')}
+            />
+            <Toggle
+              checked={layers.wrecks}
+              onChange={(v) => set({ wrecks: v })}
+              label={t('layer.wrecks')}
+            />
+            <Toggle
+              checked={layers.navigationAids}
+              onChange={(v) => set({ navigationAids: v })}
+              label={t('layer.navigationAids')}
+            />
+            <Toggle
+              checked={layers.overlays.includes('seamark')}
+              onChange={(v) => toggleOverlay('seamark', v)}
+              label={t('layer.seamark')}
+              hint={t('layer.seamark.hint')}
             />
           </section>
 
@@ -232,6 +232,16 @@ export function LayerPanel({
           <section className="panel__section">
             <h3>{t('layer.group.weather')}</h3>
 
+            <Toggle
+              checked={layers.overlays.includes('radar')}
+              onChange={(v) => toggleOverlay('radar', v)}
+              label={t('layer.radar')}
+            />
+            <Toggle
+              checked={layers.stations}
+              onChange={(v) => set({ stations: v })}
+              label={t('layer.stations')}
+            />
             <h4 className="panel__subhead">{t('layer.wind')}</h4>
             <div className="chips">
               {(['off', 'arrows', 'animated'] as const).map((mode) => (
@@ -246,17 +256,6 @@ export function LayerPanel({
                 </button>
               ))}
             </div>
-
-            <Toggle
-              checked={layers.stations}
-              onChange={(v) => set({ stations: v })}
-              label={t('layer.stations')}
-            />
-            <Toggle
-              checked={layers.overlays.includes('radar')}
-              onChange={(v) => toggleOverlay('radar', v)}
-              label={t('layer.radar')}
-            />
           </section>
 
           <section className="panel__section">
