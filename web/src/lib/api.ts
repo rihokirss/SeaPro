@@ -6,6 +6,7 @@ import type {
   PointResult,
   ProviderCapabilities,
   ProviderError,
+  RadarTimeline,
   StationReading,
   SearchResult,
   Variable,
@@ -67,6 +68,8 @@ export const api = {
   config: (signal?: AbortSignal) => get<AppConfig>('/api/config', signal),
 
   providers: (signal?: AbortSignal) => get<ProviderCapabilities[]>('/api/providers', signal),
+
+  radarTimes: (signal?: AbortSignal) => get<RadarTimeline>('/api/radar-times', signal),
 
   search(
     opts: { q: string; lang: 'et' | 'en'; bbox?: [number, number, number, number] },

@@ -87,6 +87,8 @@
   "layer.bathymetry": "Merepõhja sügavusvarjutus",
   "layer.bathymetry.hint": "EMODneti üldistatud batümeetria; ei asenda navigatsioonikaarti",
   "layer.radar": "Sademeradar",
+  "layer.radarForecast": "Radari lühiennustus: {time}",
+  "layer.radarUnavailable": "Selleks ajaks radaripilti pole",
   "layer.wind": "Tuul",
   "layer.waves": "Lained",
   "layer.stations": "Ilma- ja merejaamad",

@@ -17,6 +17,7 @@ import { vessels } from '../ais/registry.js';
 import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
 import { searchPlaces } from '../search/photon.js';
+import { fetchRadarTimeline } from '../radar.js';
 import {
   fetchNavigationWarnings,
   fetchOfficialHarbours,
@@ -167,6 +168,13 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   }));
 
   app.get('/api/providers', async () => listCapabilities());
+
+  /** Saadaval vaatlus- ja nowcast-kaadrite ajad Keskkonnaagentuuri WMS-ist. */
+  app.get('/api/radar-times', async (_req, reply) => {
+    const timeline = await fetchRadarTimeline();
+    reply.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
+    return timeline;
+  });
 
   /** Kasutaja algatatud kohanime- ja sadamaotsing OpenStreetMapist. */
   app.get('/api/search', async (req, reply) => {

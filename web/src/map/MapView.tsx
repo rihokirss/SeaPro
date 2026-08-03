@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
-import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import type { GeoJSONSource, Map as MapLibreMap, RasterTileSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 // MapLibre 6 otsib tööprotsessi faili oma mooduli URL-i kõrvalt
 // (`./maplibre-gl-worker.mjs`). Vite ei näe seda staatiliselt ega emiteeri
@@ -11,6 +11,7 @@ import {
   OVERLAY_LAYERS,
   baseStyle,
   overlayIsActive,
+  type RadarFrame,
   type RasterLayerDef,
 } from './basemaps';
 import { addColorBase } from './colorBase';
@@ -25,6 +26,7 @@ export interface MapViewProps {
   zoom: number;
   /** Millised overlay-kihid on sisse lülitatud. */
   activeOverlays: string[];
+  radarFrame: RadarFrame;
   ownPosition: Position | null;
   onReady(map: MapLibreMap): void;
   onMoveEnd(bbox: [number, number, number, number], zoom: number): void;
@@ -82,6 +84,7 @@ export function MapView({
   center,
   zoom,
   activeOverlays,
+  radarFrame,
   ownPosition,
   onReady,
   onMoveEnd,
@@ -258,17 +261,26 @@ export function MapView({
 
     for (const def of OVERLAY_LAYERS) {
       const wanted = overlayIsActive(def.id, activeOverlays);
+      const effectiveDef = def.id === 'radar' ? radarFrame.def : def;
       const exists = Boolean(map.getLayer(def.id));
 
-      if (wanted && !exists) {
+      if (wanted && effectiveDef) {
+        // Sama radariallikas vahetab ajaliuguri liikumisel URL-i. `setTiles`
+        // tühjendab vanad paanid ja paneb MapLibre'i valitud WMS kaadrit küsima.
+        if (def.id === 'radar') {
+          map.getSource<RasterTileSource>(`src-${def.id}`)?.setTiles(effectiveDef.tiles);
+        }
+      }
+
+      if (wanted && effectiveDef && !exists) {
         // Lisa esimese andmekihi ETTE, et andmed jääksid alati peale.
         const before = LAYER_ORDER.find((id) => map.getLayer(id));
-        addRaster(map, def, before);
-      } else if (!wanted && exists) {
+        addRaster(map, effectiveDef, before);
+      } else if ((!wanted || !effectiveDef) && exists) {
         map.removeLayer(def.id);
       }
     }
-  }, [activeOverlays, styleReady]);
+  }, [activeOverlays, radarFrame, styleReady]);
 
   // Oma asukoha marker.
   useEffect(() => {

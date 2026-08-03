@@ -1,4 +1,5 @@
 import type { StyleSpecification } from 'maplibre-gl';
+import type { RadarTimeline } from '@seapro/shared';
 
 /**
  * Aluskaardid ja overlay'd.
@@ -25,6 +26,24 @@ export interface RasterLayerDef {
 export interface OverlayControlDef {
   id: string;
   labelKey: string;
+}
+
+export interface RadarFrame {
+  def: RasterLayerDef | null;
+  kind: 'observation' | 'forecast' | 'unavailable';
+  /** WMS-ist valitud tegelik kaadriaeg. */
+  time: string | null;
+}
+
+const RADAR_WMS = 'https://ilmgs.envir.ee/geoserver/ilm/wms';
+
+function radarTileUrl(layer: 'cmp_cap' | 'nowcasting', time?: string): string {
+  return (
+    `${RADAR_WMS}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap` +
+    `&LAYERS=ilm:${layer}&STYLES=&FORMAT=image/png&TRANSPARENT=true&SRS=EPSG:3857` +
+    '&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256' +
+    (time ? `&TIME=${encodeURIComponent(time)}` : '')
+  );
 }
 
 /**
@@ -93,17 +112,71 @@ export const OVERLAY_LAYERS: RasterLayerDef[] = [
   {
     id: 'radar',
     labelKey: 'layer.radar',
-    tiles: [
-      'https://ilmgs.envir.ee/geoserver/ilm/wms?' +
-        'SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=ilm:cmp_cap&STYLES=' +
-        '&FORMAT=image/png&TRANSPARENT=true&SRS=EPSG:3857' +
-        '&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256',
-    ],
+    tiles: [radarTileUrl('cmp_cap')],
     attribution: '<a href="https://www.ilmateenistus.ee/">Keskkonnaagentuur</a>',
     bounds: [20.0, 56.8, 29.0, 60.5],
     opacity: 0.6,
   },
 ];
+
+const RADAR_DEF = OVERLAY_LAYERS.find((layer) => layer.id === 'radar')!;
+
+function closestTime(times: string[], target: number): string | null {
+  let closest: string | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  for (const time of times) {
+    const next = Math.abs(Date.parse(time) - target);
+    if (next < distance) {
+      closest = time;
+      distance = next;
+    }
+  }
+  // Ajaliugur on tunnise sammuga, radar viieminutiline. Üle poole tunni
+  // kaugune kaader kuulub juba teise liuguripositsiooni juurde.
+  return distance <= 30 * 60_000 ? closest : null;
+}
+
+/** Valib ajaliuguri hetkele päris vaatluse või radari lühiennustuse. */
+export function radarFrameAt(
+  selectedTime: Date,
+  timeline: RadarTimeline | null,
+  now = new Date(),
+): RadarFrame {
+  const currentHour = new Date(now);
+  currentHour.setMinutes(0, 0, 0);
+
+  // Ajainfo laadimise ajal säilitame tänase käitumise: NÜÜD näitab WMS-i
+  // vaikimisi kõige värskemat vaatlust.
+  if (!timeline) {
+    return selectedTime.getTime() === currentHour.getTime()
+      ? { def: RADAR_DEF, kind: 'observation', time: null }
+      : { def: null, kind: 'unavailable', time: null };
+  }
+
+  const target = selectedTime.getTime();
+  const isCurrentHour = target === currentHour.getTime();
+  const latestAge = timeline.latestObservation
+    ? now.getTime() - Date.parse(timeline.latestObservation)
+    : Number.POSITIVE_INFINITY;
+  // Kui ajajoone päring jäi cache'i varukoopia peale, ei lukusta me NÜÜD
+  // vaadet vanale ajatemplile. Ilma TIME parameetrita annab WMS ise värskeima.
+  if (isCurrentHour && latestAge > 30 * 60_000) {
+    return { def: RADAR_DEF, kind: 'observation', time: null };
+  }
+
+  const time = isCurrentHour
+    ? timeline.latestObservation
+    : closestTime(target > currentHour.getTime() ? timeline.forecasts : timeline.observations, target);
+  if (!time) return { def: null, kind: 'unavailable', time: null };
+
+  const kind = target > currentHour.getTime() ? 'forecast' : 'observation';
+  const layer = kind === 'forecast' ? 'nowcasting' : 'cmp_cap';
+  return {
+    def: { ...RADAR_DEF, tiles: [radarTileUrl(layer, time)] },
+    kind,
+    time,
+  };
+}
 
 /**
  * Kasutaja lülitid. Eesti ja Soome ENC on üks navigatsioonikaart: nende

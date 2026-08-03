@@ -2536,6 +2536,31 @@ button.sheet__grip::before {
   pointer-events: none;
 }
 
+/* Radari tulevikukaader peab olema selgelt prognoosina märgitud. Kui ajaliugur
+   läheb nowcast'i ~90 minuti ulatusest välja, ütleme ka tühja kihi põhjuse. */
+.radar-time-status {
+  position: absolute;
+  top: calc(64px + var(--safe-top));
+  left: calc(var(--s4) + var(--safe-left));
+  z-index: 17;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: var(--s3) var(--s4);
+  background: var(--float);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-size: var(--t-sm);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+
+.radar-time-status.is-unavailable {
+  border-color: rgba(224, 168, 63, 0.5);
+  color: var(--warn);
+}
+
 
 /* --- Graafiku legend ------------------------------------------------------
    Kaks probleemi lahendatud korraga:

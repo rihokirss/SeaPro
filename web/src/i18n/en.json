@@ -87,6 +87,8 @@
   "layer.bathymetry": "Seabed depth shading",
   "layer.bathymetry.hint": "Generalised EMODnet bathymetry; not a substitute for a nautical chart",
   "layer.radar": "Precipitation radar",
+  "layer.radarForecast": "Radar nowcast: {time}",
+  "layer.radarUnavailable": "No radar image is available for this time",
   "layer.wind": "Wind",
   "layer.waves": "Waves",
   "layer.stations": "Weather and sea stations",

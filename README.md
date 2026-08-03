@@ -122,7 +122,8 @@ SeaPro pakub sellele nii heledat kui tumedat merekasutuseks kohandatud stiili.
 
 - **tuul** — väljalülitatud, suunanoolte või animeeritud osakestena;
 - **ilmajaamad ja lainepoid** — viimased mõõtmised koos ajatempliga;
-- **ilmaradar** — Keskkonnaagentuuri WMS-kiht;
+- **ilmaradar** — Keskkonnaagentuuri WMS-ist tegelikud radarivaatlused ja
+  umbes 90 minuti `nowcasting`-lühiennustus; kaader järgib ajaliugurit;
 - **valevärviväli** — korraga üks ruumiline väli: tuulekiirus,
   lainekõrgus, pilvisus, sademed, õhu- või meretemperatuur, rõhk, veetase,
   hoovuse kiirus või nähtavus;

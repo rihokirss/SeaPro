@@ -382,7 +382,7 @@ poleks ühtki kvooti ega võtmesõltuvust.
 | Merekaart (FI) | `julkinen.traficom.fi/s57/wms`, `layers=cells`, `styles=style-id-203` | WMS, läbipaistva maismaaga |
 | Navigatsioonimärgid | `tiles.openseamap.org/seamark/` | globaalne |
 | Sügavused | `ows.emodnet-bathymetry.eu/wms` | |
-| Ilmaradar | `ilmgs.envir.ee/geoserver/ilm/wms`, `layers=ilm:cmp_cap` | Eesti |
+| Ilmaradar | `ilmgs.envir.ee/geoserver/ilm/wms`, vaatlus `ilm:cmp_cap`, lühiennustus `ilm:nowcasting` | Eesti; 5 min kaadrid, nowcast umbes 90 min tulevikku; SeaPro ajaliugur valib lähima päriselt avaldatud kaadri |
 
 ### Navily kaart
 

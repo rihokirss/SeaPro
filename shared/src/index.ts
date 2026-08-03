@@ -493,6 +493,20 @@ export interface SearchResult {
 }
 
 // ---------------------------------------------------------------------------
+// Sademeradar
+// ---------------------------------------------------------------------------
+
+/** Keskkonnaagentuuri WMS-ist leitud päriselt saadaval radarikaadrite ajad. */
+export interface RadarTimeline {
+  /** Tegelikud komposiitradari vaatlused, ISO 8601 UTC. */
+  observations: string[];
+  /** Vaatlusest edasi arvutatud lühiennustuse kaadrid, ISO 8601 UTC. */
+  forecasts: string[];
+  latestObservation: string | null;
+  latestForecast: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Trackid (kaatri rajad) — liides valmis, implementatsioon tuleb hiljem
 // ---------------------------------------------------------------------------
 

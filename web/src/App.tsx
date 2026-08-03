@@ -4,6 +4,7 @@ import type {
   GridFrame,
   PointResult,
   ProviderCapabilities,
+  RadarTimeline,
   Harbour,
   StationReading,
   Variable,
@@ -21,6 +22,7 @@ import { loadMapView, saveMapView } from './lib/mapView';
 import { loadLayerState, saveLayerState } from './lib/layerState';
 import { floorToHour, formatDateTime } from './lib/time';
 import { MapView } from './map/MapView';
+import { radarFrameAt } from './map/basemaps';
 import { hideWindArrows, updateWindArrows } from './map/layers/windArrows';
 import { hideScalarField, updateScalarField } from './map/layers/scalarField';
 import { setBasemapMuted } from './map/basemapTone';
@@ -394,6 +396,32 @@ export function App() {
   const { theme, setTheme } = useTheme();
 
   const [selectedTime, setSelectedTime] = useState<Date>(() => floorToHour());
+  const [radarTimeline, setRadarTimeline] = useState<RadarTimeline | null>(null);
+
+  // GetCapabilities XML on suur; iga brauser ei tõmba seda otse. SeaPro
+  // server parsib ja cache'ib ajad ning klient värskendab neid kord minutis
+  // ainult siis, kui radar on päriselt sisse lülitatud.
+  useEffect(() => {
+    if (!layers.overlays.includes('radar')) return;
+    let active = true;
+    const load = (): void => {
+      api.radarTimes().then(
+        (timeline) => { if (active) setRadarTimeline(timeline); },
+        () => { /* NÜÜD-kaader töötab WMS-i vaikeajaga edasi. */ },
+      );
+    };
+    load();
+    const interval = window.setInterval(load, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [layers.overlays]);
+
+  const radarFrame = useMemo(
+    () => radarFrameAt(selectedTime, radarTimeline),
+    [selectedTime, radarTimeline],
+  );
 
   useEffect(() => {
     saveLayerState(layers);
@@ -923,6 +951,7 @@ export function App() {
           center={center}
           zoom={savedView?.zoom ?? config?.defaultZoom ?? 7}
           activeOverlays={layers.overlays}
+          radarFrame={radarFrame}
           ownPosition={geo.position}
           onReady={handleReady}
           onMoveEnd={handleMoveEnd}
@@ -945,6 +974,16 @@ export function App() {
             {staleFieldTime ? (
               <strong> {t('layer.showingTime', { time: staleFieldTime })}</strong>
             ) : null}
+          </div>
+        ) : null}
+
+        {layers.overlays.includes('radar') && radarFrame.kind !== 'observation' ? (
+          <div className={`radar-time-status is-${radarFrame.kind}`} role="status">
+            {radarFrame.kind === 'forecast'
+              ? t('layer.radarForecast', {
+                  time: radarFrame.time ? formatDateTime(radarFrame.time, lang) : '',
+                })
+              : t('layer.radarUnavailable')}
           </div>
         ) : null}
 
