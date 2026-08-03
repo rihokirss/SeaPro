@@ -1236,6 +1236,7 @@ export function App() {
           editing={routeEditing}
           canUndo={undoRoutes.length > 0}
           canRedo={redoRoutes.length > 0}
+          speedUnit={speedUnit}
           onClose={() => { if (!routeEditing) setRouteOpen(false); }}
           onChange={setRoute}
           onNew={() => { setRoute(newRoute()); setRouteAnalysis(null); setUndoRoutes([]); setRedoRoutes([]); }}

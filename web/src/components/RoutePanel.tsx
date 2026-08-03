@@ -1,6 +1,7 @@
 import type { Route, RouteAnalysis } from '@seapro/shared';
-import { degreesToCompass, msToKnots } from '@seapro/shared';
+import { degreesToCompass } from '@seapro/shared';
 import { useI18n } from '../i18n';
+import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 
 interface Props {
   open: boolean;
@@ -12,6 +13,7 @@ interface Props {
   editing: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  speedUnit: SpeedUnit;
   onClose(): void;
   onChange(route: Route): void;
   onNew(): void;
@@ -91,10 +93,10 @@ export function RoutePanel(props: Props) {
         </p> : null}
         {props.analysis.warnings.map((warning) => <p className="route-status is-error" key={warning}>{t(`route.warning.${warning}`)}</p>)}
         {props.analysis.restrictions.map((item) => <p className="route-depth-alert" key={`${item.kind}-${item.name}`}>{t('route.restriction', { name: item.name, depth: item.maxDraughtM.toFixed(1) })}</p>)}
-        <div className="route-chart-block"><span>{t('route.wind')}</span><WeatherSparkline analysis={props.analysis} field="wind_speed" color="#35a7d8" /></div>
+        <div className="route-chart-block"><span>{t('route.wind')} ({unitLabel('wind_speed', props.speedUnit)})</span><WeatherSparkline analysis={props.analysis} field="wind_speed" color="#35a7d8" /></div>
         <div className="route-chart-block"><span>{t('route.waves')}</span><WeatherSparkline analysis={props.analysis} field="wave_height" color="#c88728" /></div>
         <div className="route-table-wrap"><table className="route-table"><thead><tr><th>{t('chart.time')}</th><th>NM</th><th>{t('route.wind')}</th><th>{t('route.waves')}</th><th>{t('route.depth')}</th></tr></thead><tbody>
-          {props.analysis.samples.map((s, i) => <tr key={`${s.time}-${i}`} className={`risk-${s.depthRisk}`}><td>{fmt(s.time)}</td><td>{s.distanceNm.toFixed(1)}</td><td>{s.values.wind_speed == null ? '—' : `${msToKnots(s.values.wind_speed).toFixed(1)} kn ${s.values.wind_dir == null ? '' : degreesToCompass(s.values.wind_dir)}`}</td><td>{s.values.wave_height == null ? '—' : `${s.values.wave_height.toFixed(1)} m`}</td><td>{s.depthM == null ? '—' : `${s.depthM.toFixed(1)} m`}</td></tr>)}
+          {props.analysis.samples.map((s, i) => <tr key={`${s.time}-${i}`} className={`risk-${s.depthRisk}`}><td>{fmt(s.time)}</td><td>{s.distanceNm.toFixed(1)}</td><td>{s.values.wind_speed == null ? '—' : `${formatValue('wind_speed', s.values.wind_speed, props.speedUnit)} ${unitLabel('wind_speed', props.speedUnit)} ${s.values.wind_dir == null ? '' : degreesToCompass(s.values.wind_dir)}`}</td><td>{s.values.wave_height == null ? '—' : `${s.values.wave_height.toFixed(1)} m`}</td><td>{s.depthM == null ? '—' : `${s.depthM.toFixed(1)} m`}</td></tr>)}
         </tbody></table></div>
         <p className="route-safety">{t('route.depthDisclaimer')}</p>
         <button className="primary route-navigate" onClick={props.onNavigate}>{t('route.navigate')}</button>
