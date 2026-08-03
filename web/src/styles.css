@@ -164,6 +164,17 @@
 .route-panel__header h2 { margin: 0; font-size: var(--t-lg); }
 .route-panel__toolbar { margin: var(--s3) 0 var(--s5); }
 .route-panel button, .route-panel select, .route-panel input { min-height: 40px; color: var(--text); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 0 var(--s3); }
+.route-panel__toolbar select {
+  /* Native select'i avatud menüü ei oska läbipaistvat `--surface-2` pinda
+     teemaga kokku segada. Kasutame siin teadlikult läbipaistmatut pinda. */
+  background-color: var(--surface-solid);
+  color-scheme: dark;
+}
+.route-panel__toolbar select option {
+  color: var(--text);
+  background-color: var(--surface-solid);
+}
+:root[data-theme='light'] .route-panel__toolbar select { color-scheme: light; }
 .route-panel button { cursor: pointer; }
 .route-panel button.primary { color: var(--on-accent); background: var(--accent-strong); border-color: var(--accent); }
 .route-panel button:disabled { opacity: .45; cursor: default; }
