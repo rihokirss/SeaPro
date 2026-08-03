@@ -134,6 +134,7 @@ SeaPro pakub sellele nii heledat kui tumedat merekasutuseks kohandatud stiili.
 - Eesti ja Soome ametlikud elektroonilised merekaardid Transpordiameti ja
   Traficomi WMS-teenustest;
 - ametlikud navigatsioonimärgid ja faarvaatrid;
+- Nutimere ametlikud samasügavusjooned ja sügavuspunktid;
 - kehtivad navigatsioonihoiatused ning vrakid;
 - OpenSeaMapi meremärgid;
 - EMODneti batümeetria;

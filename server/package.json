@@ -15,6 +15,7 @@
     "@fastify/static": "^10.1.2",
     "@seapro/shared": "*",
     "fastify": "^5.11.0",
+    "proj4": "^2.21.0",
     "ws": "^8.21.1"
   },
   "devDependencies": {

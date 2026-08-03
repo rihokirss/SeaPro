@@ -18,6 +18,7 @@ import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
 import { searchPlaces } from '../search/photon.js';
 import { fetchRadarTimeline } from '../radar.js';
+import { fetchDepthTile, type DepthTileLayer } from '../depthTiles.js';
 import {
   fetchNavigationWarnings,
   fetchOfficialHarbours,
@@ -174,6 +175,30 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const timeline = await fetchRadarTimeline();
     reply.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
     return timeline;
+  });
+
+  /** Nutimere/HIS-i L-EST97 WMS teisendatuna MapLibre'i XYZ-paanideks. */
+  app.get('/api/depth-tiles/:layer/:z/:x/:y', async (req, reply) => {
+    const { layer, z: rawZ, x: rawX, y: rawY } = req.params as Record<string, string>;
+    if (layer !== 'contours' && layer !== 'soundings') {
+      return reply.code(404).send({ error: 'Tundmatu sügavuskiht' });
+    }
+    const z = Number(rawZ);
+    const x = Number(rawX);
+    const y = Number(rawY);
+    const size = 2 ** z;
+    if (
+      !Number.isInteger(z) || z < 0 || z > 18
+      || !Number.isInteger(x) || x < 0 || x >= size
+      || !Number.isInteger(y) || y < 0 || y >= size
+    ) {
+      return reply.code(400).send({ error: 'Vigased paanikoordinaadid' });
+    }
+
+    const tile = await fetchDepthTile(layer as DepthTileLayer, z, x, y);
+    reply.type('image/png');
+    reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    return reply.send(tile);
   });
 
   /** Kasutaja algatatud kohanime- ja sadamaotsing OpenStreetMapist. */

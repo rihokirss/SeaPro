@@ -4,7 +4,7 @@ import { SCALAR_FIELDS } from '../map/colorScales';
 
 const STORAGE_KEY = 'seapro.layers';
 const SCHEMA_VERSION = 1;
-const OVERLAYS = new Set(['chart', 'seamark', 'bathymetry', 'radar']);
+const OVERLAYS = new Set(['chart', 'depth-details', 'seamark', 'bathymetry', 'radar']);
 const WIND_DISPLAYS = new Set<WindDisplay>(['off', 'arrows', 'animated']);
 const BOOLEAN_KEYS = [
   'stations',

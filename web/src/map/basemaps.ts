@@ -98,6 +98,28 @@ export const OVERLAY_LAYERS: RasterLayerDef[] = [
     minzoom: 9,
   },
   {
+    // Nutimere hüdrograafiaandmed tulevad HIS-ist L-EST97 projektsioonis.
+    // Meie server teisendab MapLibre'i XYZ-paani bbox'i WMS-i jaoks õigeks.
+    id: 'depth-contours',
+    labelKey: 'layer.depthDetails',
+    tiles: ['/api/depth-tiles/contours/{z}/{x}/{y}'],
+    attribution: '<a href="https://gis.transpordiamet.ee/nutimeri/">Transpordiamet HIS</a>',
+    bounds: [20.37, 57.52, 28.2, 60.0],
+    minzoom: 9,
+  },
+  {
+    id: 'depth-soundings',
+    labelKey: 'layer.depthDetails',
+    // Versioon query-stringis väldib varem 24 tunniks cache'itud tihedate
+    // `default`-stiili paanide taaskasutamist.
+    tiles: ['/api/depth-tiles/soundings/{z}/{x}/{y}?style=reduced-v1'],
+    attribution: '<a href="https://gis.transpordiamet.ee/nutimeri/">Transpordiamet HIS</a>',
+    bounds: [20.37, 57.52, 28.2, 60.0],
+    // Numbrid oleksid ülevaatekaardil üksteise peal; lähisuumis säilib
+    // ametliku WMS-i täielik punktitihedus.
+    minzoom: 14,
+  },
+  {
     id: 'bathymetry',
     labelKey: 'layer.bathymetry',
     tiles: [
@@ -185,15 +207,18 @@ export function radarFrameAt(
  */
 export const OVERLAY_CONTROLS: OverlayControlDef[] = [
   { id: 'chart', labelKey: 'layer.chart' },
+  { id: 'depth-details', labelKey: 'layer.depthDetails' },
   { id: 'seamark', labelKey: 'layer.seamark' },
   { id: 'bathymetry', labelKey: 'layer.bathymetry' },
   { id: 'radar', labelKey: 'layer.radar' },
 ];
 
 export function overlayIsActive(layerId: string, activeControls: string[]): boolean {
-  return layerId === 'chart-ee' || layerId === 'chart-fi'
-    ? activeControls.includes('chart')
-    : activeControls.includes(layerId);
+  if (layerId === 'chart-ee' || layerId === 'chart-fi') return activeControls.includes('chart');
+  if (layerId === 'depth-contours' || layerId === 'depth-soundings') {
+    return activeControls.includes('depth-details');
+  }
+  return activeControls.includes(layerId);
 }
 
 /** Minimaalne stiil — rasterkihid lisatakse dünaamiliselt. */

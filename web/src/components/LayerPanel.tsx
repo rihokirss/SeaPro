@@ -185,6 +185,12 @@ export function LayerPanel({
               label={t('layer.wrecks')}
             />
             <Toggle
+              checked={layers.overlays.includes('depth-details')}
+              onChange={(v) => toggleOverlay('depth-details', v)}
+              label={t('layer.depthDetails')}
+              hint={t('layer.depthDetails.hint')}
+            />
+            <Toggle
               checked={layers.overlays.includes('seamark')}
               onChange={(v) => toggleOverlay('seamark', v)}
               label={t('layer.seamark')}

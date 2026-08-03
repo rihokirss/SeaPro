@@ -41,6 +41,8 @@
   "layer.wrecks": "Known wrecks",
   "layer.officialNavigation": "Clickable fairways and aids",
   "layer.officialNavigation.hint": "Estonian registry data; partly duplicates the nautical chart",
+  "layer.depthDetails": "Depth contours and soundings",
+  "layer.depthDetails.hint": "Official Nutimeri/HIS survey data; spot soundings appear when zoomed in",
   "navigation.warning": "Navigational warning",
   "navigation.warningNumber": "Warning number",
   "navigation.validity": "Validity",
