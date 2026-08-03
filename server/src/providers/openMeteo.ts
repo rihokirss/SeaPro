@@ -356,7 +356,9 @@ const BLOCK_DAYS = 7;
  */
 const POINT_FORECAST_DAYS = 10;
 const GRID_TARGET_POINTS = 8;
-const LAT_SPACINGS = [0.05, 0.1, 0.25, 0.5, 1, 2];
+// 4° samm on ainult väga laia Läänemere ülevaate jaoks. See hoiab ka kogu
+// WEATHER_GRID_BBOX ala nelja paani sees; lähivaadete lahutus ei muutu.
+const LAT_SPACINGS = [0.05, 0.1, 0.25, 0.5, 1, 2, 4];
 const LON_FACTOR = 2;
 
 interface TileIndex {
@@ -542,6 +544,12 @@ export class OpenMeteoProvider implements WeatherProvider {
       if (next === undefined) break;
       spacing = next;
       tiles = coveringTiles(q.bbox, spacing);
+    }
+    if (tiles.length > MAX_TILES) {
+      throw Object.assign(
+        new Error(`Grid vajaks ${tiles.length} paani; lubatud on kuni ${MAX_TILES}`),
+        { statusCode: 400 },
+      );
     }
 
     // Paanid tõmmatakse eraldi, sest just see teebki nihutamise odavaks:

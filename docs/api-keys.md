@@ -102,6 +102,18 @@ curl -s localhost:8080/api/health | jq .budgets
 Kui `spent` läheneb `limit`-ile, degradeerub rakendus sujuvalt vahemälust
 serveeritud andmetele, mitte tühjale ekraanile.
 
+Avalike ilmapäringute geograafiline kulupiir on AIS-ist eraldi seadistatav:
+
+```bash
+WEATHER_GRID_BBOX=53.0,12.0,66.7,31.5
+WEATHER_POINT_BBOX=53.0,12.0,66.7,31.5
+```
+
+Mõlemad kasutavad järjekorda `lõuna,lääs,põhi,ida`. Grid lõigatakse lubatud
+alasse ja täielikult väljaspool olev päring lükatakse tagasi; punktiprognoos
+on väljaspool määratud ala alati keelatud. See piir kehtib serveris ka siis,
+kui `/api/grid` või `/api/point` kutsutakse otse ilma veebikliendita.
+
 Tasulise paketi võtme saab lisada `.env` faili:
 
 ```bash

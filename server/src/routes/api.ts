@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type {
+  BBox,
   PointResult,
   ProviderError,
   StationReading,
@@ -56,6 +57,24 @@ function parseCoord(raw: unknown, name: string, min: number, max: number): numbe
     });
   }
   return n;
+}
+
+function pointInBbox(lat: number, lon: number, [south, west, north, east]: BBox): boolean {
+  return lat >= south && lat <= north && lon >= west && lon <= east;
+}
+
+/** Lõikab kasutaja ala lubatud ristkülikusse; `null`, kui ühisosa puudub. */
+export function intersectBbox(
+  [south, west, north, east]: BBox,
+  [limitSouth, limitWest, limitNorth, limitEast]: BBox,
+): BBox | null {
+  const clipped: BBox = [
+    Math.max(south, limitSouth),
+    Math.max(west, limitWest),
+    Math.min(north, limitNorth),
+    Math.min(east, limitEast),
+  ];
+  return clipped[0] < clipped[2] && clipped[1] < clipped[3] ? clipped : null;
 }
 
 /**
@@ -228,6 +247,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const q = req.query as Record<string, unknown>;
     const lat = parseCoord(q.lat, 'lat', -90, 90);
     const lon = parseCoord(q.lon, 'lon', -180, 180);
+    if (!pointInBbox(lat, lon, config.weatherPointBbox)) {
+      return reply.code(400).send({ error: 'Punkt jääb WEATHER_POINT_BBOX alast välja' });
+    }
     // Ülempiir 240 h = 10 päeva. Open-Meteo ulatub 16 päevani ja MET Norway
     // 9-ni, aga üle 2 nädala hakkab Open-Meteo ühte punkti mitmeks kutseks
     // lugema ja prognoosi väärtus on üle ~7 päeva niikuinii nõrk.
@@ -281,8 +303,15 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'bbox peab olema "lõuna,lääs,põhi,ida"' });
     }
     const [south, west, north, east] = parts as [number, number, number, number];
-    if (south >= north || west >= east) {
+    if (
+      south < -90 || north > 90 || west < -180 || east > 180
+      || south >= north || west >= east
+    ) {
       return reply.code(400).send({ error: 'bbox on tagurpidi või tühi' });
+    }
+    const clipped = intersectBbox([south, west, north, east], config.weatherGridBbox);
+    if (!clipped) {
+      return reply.code(400).send({ error: 'bbox jääb WEATHER_GRID_BBOX alast välja' });
     }
 
     const providerId = String(q.provider ?? 'open-meteo');
@@ -303,7 +332,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     // mitmepunktilise päringu iga punkti eraldi kutseks, seega 12x12 võrgustik
     // on 144 kutset. Kleepimine tähendab, et lähestikused vaated jagavad ühte
     // vastust ja tegelik päringute arv kukub suurusjärgu võrra.
-    const snapped = snapBbox([south, west, north, east]);
+    // `snapBbox` laiendab servad võrejooneni; lõikame pärast seda uuesti, et
+    // ümardamine ei saaks seadistatud kulupiirist paari kümnendiku võrra väljuda.
+    const snapped = intersectBbox(snapBbox(clipped), config.weatherGridBbox)!;
     const time = snapHour(typeof q.time === 'string' && q.time ? q.time : new Date().toISOString());
 
     // `window=day` annab kogu ööpäeva korraga. Server tõmbas selle niikuinii

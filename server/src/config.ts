@@ -28,7 +28,14 @@ function bbox(name: string, fallback: BBox): BBox {
   if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
     throw new Error(`${name} peab olema "lõuna,lääs,põhi,ida", sai: ${raw}`);
   }
-  return parts as BBox;
+  const [south, west, north, east] = parts as BBox;
+  if (
+    south < -90 || north > 90 || west < -180 || east > 180
+    || south >= north || west >= east
+  ) {
+    throw new Error(`${name} koordinaadid või järjestus on vigane: ${raw}`);
+  }
+  return [south, west, north, east];
 }
 
 const contactEmail = str('CONTACT_EMAIL', '');
@@ -94,6 +101,10 @@ export const config = {
   defaultZoom: num('DEFAULT_ZOOM', 7),
   // Kogu Läänemeri: Taani väinadest Botnia lahe põhjaosani.
   aisBbox: bbox('AIS_BBOX', [53.0, 9.0, 66.0, 31.5]),
+  /** Avaliku grid-API kulupiir; hoitakse AIS-ist eraldi seadistatavana. */
+  weatherGridBbox: bbox('WEATHER_GRID_BBOX', [53.0, 12.0, 66.7, 31.5]),
+  /** Avaliku punktiprognoosi kulupiir; võib tulevikus grid'ist erineda. */
+  weatherPointBbox: bbox('WEATHER_POINT_BBOX', [53.0, 12.0, 66.7, 31.5]),
 } as const;
 
 export function warnAboutConfig(log: (msg: string) => void): void {
