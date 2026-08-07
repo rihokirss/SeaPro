@@ -1711,6 +1711,24 @@ button.sheet__grip::before {
   padding: var(--s4) var(--s5) !important;
 }
 
+/* Klikiga avatud andmepopup peab jääma valevärviskaala ja ajariba ette,
+   kuid ülariba ning päris paneelid on sellest endiselt kõrgemal. */
+.maplibregl-popup.data-popup {
+  z-index: 18;
+}
+
+.maplibregl-popup.data-popup--positioning {
+  visibility: hidden;
+}
+
+/* Pika märgiinfo korral mahub popup ka telefoni püstvaates ekraanile. Sisu
+   kerib popupi sees; kaart ise jääb samal ajal kasutatavaks ja popup avatuks. */
+.maplibregl-popup.data-popup .maplibregl-popup-content {
+  max-height: calc(100dvh - 64px - var(--safe-top) - var(--safe-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .maplibregl-popup-tip {
   border-top-color: var(--surface) !important;
   border-bottom-color: var(--surface) !important;

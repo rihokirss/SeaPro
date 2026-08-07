@@ -958,7 +958,10 @@ export function App() {
       updateVessels(map, vessels, view?.zoom ?? map.getZoom());
     } else {
       setVesselsVisible(map, false);
-      closePopup();
+      // Tühi AIS-vastus on kaardi liigutamisel täiesti tavaline ega tohi
+      // sulgeda mõne teise kihi (nt navimärgi) popupi. Laevapopup suletakse
+      // ainult siis, kui kasutaja laevakihi päriselt välja lülitab.
+      if (!layers.vessels) closePopup('vessel:');
     }
   }, [vessels, layers.vessels, mapReady, view]);
 

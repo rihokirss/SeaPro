@@ -53,6 +53,46 @@ let openFeatureId: string | null = null;
  */
 let hoverTip: maplibregl.Popup | null = null;
 
+/**
+ * Nihutab kaarti ainult nii palju, et avatud popup jääks tervenisti ekraanile.
+ *
+ * MapLibre valib küll popupile sobiva ankru, kuid ei liiguta kaarti, kui suur
+ * popup ei mahu valitud punkti ja ekraaniserva vahele. Telefonis tähendas see,
+ * et kasutaja pidi popupi lugemiseks kaarti lohistama. Mõõdame kasti pärast
+ * brauseri paigutust ning teeme vajadusel ühe lühikese nihke.
+ */
+function keepPopupInView(map: MapLibreMap, activePopup: maplibregl.Popup): void {
+  window.requestAnimationFrame(() => {
+    if (popup !== activePopup || !activePopup.isOpen()) return;
+
+    const mapRect = map.getContainer().getBoundingClientRect();
+    const popupRect = activePopup.getElement().getBoundingClientRect();
+    const edge = 16;
+    let panX = 0;
+    let panY = 0;
+
+    if (popupRect.left < mapRect.left + edge) {
+      panX = popupRect.left - mapRect.left - edge;
+    } else if (popupRect.right > mapRect.right - edge) {
+      panX = popupRect.right - mapRect.right + edge;
+    }
+
+    if (popupRect.top < mapRect.top + edge) {
+      panY = popupRect.top - mapRect.top - edge;
+    } else if (popupRect.bottom > mapRect.bottom - edge) {
+      panY = popupRect.bottom - mapRect.bottom + edge;
+    }
+
+    if (panX !== 0 || panY !== 0) {
+      // Paiguta enne popupi nähtavaks tegemist kohe lõppasendisse. Animeeritud
+      // kaardinihe pani juba avatud popupi ekraanil "järele sõitma".
+      map.panBy([panX, panY], { duration: 0 });
+    }
+
+    activePopup.removeClassName('data-popup--positioning');
+  });
+}
+
 const POPUP_CLICK_LAYERS = [
   STATIONS_LAYER,
   HARBOURS_LAYER,
@@ -81,7 +121,12 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     openFeatureId = featureId;
     popup = new maplibregl.Popup({
       closeButton: true,
-      closeOnClick: true,
+      // Kaardi lohistamine popupi lugemiseks ei tohi seda telefonis sulgeda.
+      // Sulgemist juhime ise: rist, sama objekt või päriselt tühi kaardiklõps.
+      closeOnClick: false,
+      // Popup on esimese paigutuskaadri ajal peidus. keepPopupInView eemaldab
+      // lisaklassi pärast ühekordset ekraaniserva korrigeerimist.
+      className: 'data-popup data-popup--positioning',
       /**
        * Ülempiir, mitte fikseeritud laius.
        *
@@ -93,12 +138,15 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
        * Piir on ekraanist sõltuv, sest telefonis oleks 340 px juba peaaegu
        * terve laius ja popup kataks selle koha, mille kohta ta räägib.
        */
-      maxWidth: `min(340px, calc(100vw - 32px))`,
+      maxWidth: `min(340px, calc(100vw - 32px - var(--safe-left) - var(--safe-right)))`,
       offset: 14,
+      padding: { top: 16, right: 16, bottom: 16, left: 16 },
     })
       .setLngLat(lngLat)
       .setHTML(html)
       .addTo(map);
+
+    keepPopupInView(map, popup);
 
     // Kui kasutaja sulgeb popupi nupust või mujale klõpsates, peab ka meie
     // arvestus nullima — muidu nõuaks järgmine klõps sama markeri peal kahte
@@ -137,7 +185,10 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
         return true;
       });
 
-    if (!targets.length) return;
+    if (!targets.length) {
+      closePopup();
+      return;
+    }
     hoverTip?.remove();
 
     if (targets.length === 1) {
@@ -326,7 +377,11 @@ function vesselTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   });
 }
 
-export function closePopup(): void {
+export function closePopup(featurePrefix?: string): void {
+  // Andmekihi peitmine tohib sulgeda ainult selle kihi enda popupi. Näiteks
+  // tühi AIS-vaade ei tohi kaardi liigutamisel navimärgi popupi kinni panna.
+  if (featurePrefix && !openFeatureId?.startsWith(featurePrefix)) return;
+
   popup?.remove();
   popup = null;
   openFeatureId = null;
