@@ -19,10 +19,9 @@ export function LocalizedDateTimePicker({ value, onChange }: Props) {
     onChange={(date: Date | null) => { if (date) onChange(date.toISOString()); }}
     locale={dateLocale}
     dateFormat={lang === 'et' ? 'dd.MM.yyyy HH:mm' : 'dd/MM/yyyy HH:mm'}
-    showTimeSelect
+    showTimeInput
     timeFormat="HH:mm"
-    timeIntervals={15}
-    timeCaption={t('route.time')}
+    timeInputLabel={t('route.time')}
     calendarStartDay={1}
     className="route-date-input"
     wrapperClassName="route-date-picker"

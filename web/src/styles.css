@@ -146,21 +146,25 @@
 .route-panel {
   position: absolute;
   z-index: 19;
-  top: calc(76px + var(--safe-top));
-  left: calc(var(--s4) + var(--safe-left));
-  bottom: calc(var(--s4) + var(--safe-bottom));
-  width: min(430px, calc(100vw - 2 * var(--s4)));
-  padding: var(--s5);
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(430px, calc(100vw - 120px));
+  padding: calc(76px + var(--safe-top)) var(--s5) calc(var(--s5) + var(--safe-bottom)) calc(var(--s5) + var(--safe-left));
   display: flex;
   flex-direction: column;
   overflow: hidden;
   color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  border: 0;
+  border-right: 1px solid var(--line-strong);
+  border-radius: 0;
   box-shadow: var(--shadow-lg);
-  backdrop-filter: var(--blur-panel);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: route-sheet-in 180ms var(--ease);
 }
+@keyframes route-sheet-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 .route-panel__header, .route-panel__toolbar, .route-edit-actions { display: flex; align-items: center; gap: var(--s3); }
 .route-panel__header { flex: none; justify-content: space-between; z-index: 2; min-height: var(--touch); padding: var(--s2) 0 var(--s3); background: var(--surface-solid); }
 .route-panel__drag-zone { min-width: 0; flex: 1; display: flex; align-items: center; gap: var(--s3); padding: 0 !important; color: var(--text) !important; background: transparent !important; border: 0 !important; text-align: left; cursor: default !important; }
@@ -213,13 +217,11 @@
 .route-calendar .react-datepicker__day:hover, .route-calendar .react-datepicker__month-text:hover, .route-calendar .react-datepicker__quarter-text:hover, .route-calendar .react-datepicker__year-text:hover { background: var(--surface-2); }
 .route-calendar .react-datepicker__day--selected, .route-calendar .react-datepicker__day--keyboard-selected { color: var(--on-accent); background: var(--accent-strong); }
 .route-calendar .react-datepicker__day--today { box-shadow: inset 0 0 0 1px var(--accent); }
-.route-calendar .react-datepicker__time-container { border-color: var(--line); }
-.route-calendar .react-datepicker__header--time { min-height: 64px; display: grid; place-items: end center; padding-bottom: var(--s2); }
-.route-calendar .react-datepicker-time__header { color: var(--text); font-size: var(--t-sm); }
-.route-calendar .react-datepicker__time, .route-calendar .react-datepicker__time-box, .route-calendar .react-datepicker__time-list { background: var(--surface-solid) !important; }
-.route-calendar .react-datepicker__time-list-item { color: var(--text); }
-.route-calendar .react-datepicker__time-list-item:hover { background: var(--surface-2) !important; }
-.route-calendar .react-datepicker__time-list-item--selected { color: var(--on-accent) !important; background: var(--accent-strong) !important; }
+.route-calendar .react-datepicker__input-time-container { display: flex; align-items: center; justify-content: center; gap: var(--s3); margin: 0; padding: var(--s3); border-top: 1px solid var(--line); }
+.route-calendar .react-datepicker-time__caption { color: var(--text-dim); font-size: var(--t-sm); }
+.route-calendar .react-datepicker-time__input-container, .route-calendar .react-datepicker-time__input { display: flex; align-items: center; }
+.route-calendar .react-datepicker-time__input input { min-width: 108px; min-height: 40px; box-sizing: border-box; padding: 0 var(--s3); color: var(--text); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm); font: inherit; font-variant-numeric: tabular-nums; color-scheme: dark; }
+:root[data-theme='light'] .route-calendar .react-datepicker-time__input input { color-scheme: light; }
 #route-datepicker-portal { position: relative; z-index: 40; }
 .route-edit-actions { flex-wrap: wrap; margin-top: var(--s5); }
 .route-waypoints { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--line); }
@@ -298,6 +300,7 @@
     border-radius: var(--r-lg) var(--r-lg) 0 0;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    animation: none;
     transition: height 180ms var(--ease);
   }
   .route-panel.is-dragging { transition: none; }
