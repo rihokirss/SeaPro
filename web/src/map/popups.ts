@@ -119,9 +119,17 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     const layers = POPUP_CLICK_LAYERS.filter((layer) => map.getLayer(layer));
     if (!layers.length) return;
 
+    // Sõrm ei taba ühte pikslit ning puutepunkti keskkoht pole kasutajale
+    // visuaalselt tajutav. Otsime telefonis 24×24 px alast; hiirel jääb ala
+    // väikeseks, et tihedas sadamas ei valitaks kõrvalobjekti.
+    const padding = window.matchMedia('(pointer: coarse)').matches ? 12 : 3;
+    const hitBox: [[number, number], [number, number]] = [
+      [e.point.x - padding, e.point.y - padding],
+      [e.point.x + padding, e.point.y + padding],
+    ];
     const seen = new Set<string>();
     const targets = map
-      .queryRenderedFeatures(e.point, { layers })
+      .queryRenderedFeatures(hitBox, { layers })
       .map((feature) => clickTarget(feature, e.lngLat, getContext()))
       .filter((target): target is ClickTarget => {
         if (!target || seen.has(target.id)) return false;

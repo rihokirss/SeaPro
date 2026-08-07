@@ -232,6 +232,10 @@ export function MapView({
       touchPitch: false,
       maxZoom: 18,
       minZoom: 3,
+      // Telefoni puudutus liigub loomulikult mõne piksli ka siis, kui kasutaja
+      // tahab vajutada. MapLibre'i vaikimisi 3 px piir tõlgendas sellise tapi
+      // sageli lohistamiseks ega tekitanud üldse click-sündmust.
+      clickTolerance: 8,
     });
     mapRef.current = map;
 
@@ -408,7 +412,11 @@ export function MapView({
         else cb.current.onPick(e.lngLat.lat, e.lngLat.lng);
         return;
       }
-      const hits = map.queryRenderedFeatures(e.point, {
+      const padding = window.matchMedia('(pointer: coarse)').matches ? 12 : 3;
+      const hits = map.queryRenderedFeatures([
+        [e.point.x - padding, e.point.y - padding],
+        [e.point.x + padding, e.point.y + padding],
+      ], {
         layers: LAYER_ORDER.filter((id) => map.getLayer(id)),
       });
       if (hits.length > 0) return;
