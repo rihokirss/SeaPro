@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ChevronUp, Star, X } from 'lucide-react';
 import type { PointResult, Variable } from '@seapro/shared';
 import { degreesToCompass } from '@seapro/shared';
 import { useI18n } from '../i18n';
@@ -212,22 +213,7 @@ export function PointSheet({
             </span>
           )}
 
-            <svg
-              className="sheet__peek-chevron"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                d="M6 15l6-6 6 6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ChevronUp className="sheet__peek-chevron" size={20} aria-hidden="true" />
           </button>
 
           {/* Eraldi nupp, mitte riba sees: nupp nupu sees ei ole lubatud.
@@ -239,7 +225,7 @@ export function PointSheet({
             onClick={onClose}
             aria-label={t('action.close')}
           >
-            ✕
+            <X size={21} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -275,10 +261,10 @@ export function PointSheet({
             aria-label={isFavorite ? t('action.removeFavorite') : t('action.addFavorite')}
             title={isFavorite ? t('action.removeFavorite') : t('action.addFavorite')}
           >
-            {isFavorite ? '★' : '☆'}
+            <Star size={20} fill={isFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
           </button>
           <button type="button" className="icon-btn" onClick={onClose} aria-label={t('action.close')}>
-            ✕
+            <X size={21} aria-hidden="true" />
           </button>
         </div>
       </header>

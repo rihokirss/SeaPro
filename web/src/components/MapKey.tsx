@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Info } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { FRESHNESS_COLORS, HARBOUR_COLORS, VESSEL_COLORS } from '../map/icons';
 
@@ -206,16 +207,7 @@ export function MapKey({
         aria-label={t('key.title')}
         title={t('key.title')}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-          <path
-            d="M12 10.5v6"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-          <circle cx="12" cy="7.4" r="1.3" fill="currentColor" />
-        </svg>
+        <Info size={19} aria-hidden="true" />
       </button>
     </div>
   );

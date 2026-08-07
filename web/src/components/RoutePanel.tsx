@@ -1,8 +1,14 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { GripVertical, Play, Redo2, Settings2, Trash2, Undo2, X } from 'lucide-react';
 import type { Route, RouteAnalysis, RouteWaypoint } from '@seapro/shared';
 import { degreesToCompass, routeDistanceNm } from '@seapro/shared';
 import { useI18n } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
+
+const LocalizedDateTimePicker = lazy(async () => {
+  const module = await import('./LocalizedDateTimePicker');
+  return { default: module.LocalizedDateTimePicker };
+});
 
 interface Props {
   open: boolean;
@@ -63,11 +69,6 @@ function nearestSnap(height: number, heights: SheetHeights): SheetSnap {
   'collapsed');
 }
 
-function localInput(iso: string): string {
-  const date = new Date(iso); const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
-
 function WeatherSparkline({ analysis, field, color }: { analysis: RouteAnalysis; field: 'wind_speed' | 'wave_height'; color: string }) {
   const values = analysis.samples.map((s) => s.values[field] ?? null);
   const present = values.filter((v): v is number => v !== null);
@@ -75,12 +76,6 @@ function WeatherSparkline({ analysis, field, color }: { analysis: RouteAnalysis;
   const max = Math.max(...present, 0.1);
   const points = values.map((v, i) => `${i / Math.max(1, values.length - 1) * 100},${36 - (v ?? 0) / max * 32}`).join(' ');
   return <svg className="route-chart" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polyline points={points} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" /></svg>;
-}
-
-function TrashIcon() {
-  return <svg className="route-trash-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>;
 }
 
 export function RoutePanel(props: Props) {
@@ -252,10 +247,10 @@ export function RoutePanel(props: Props) {
             disabled={props.loading || !props.analysis}
             title={props.loading ? t('route.analysing') : t('route.navigate')}
           >
-            <span aria-hidden="true">▶</span> {props.loading ? t('route.analysingShort') : t('route.navigate')}
+            <Play size={16} fill="currentColor" aria-hidden="true" /> {props.loading ? t('route.analysingShort') : t('route.navigate')}
           </button>
         ) : null}
-        <button className="icon-btn" onClick={() => { if (props.editing) props.onCancelEdit(); props.onClose(); }} aria-label={t('action.close')}>×</button>
+        <button className="icon-btn" onClick={() => { if (props.editing) props.onCancelEdit(); props.onClose(); }} aria-label={t('action.close')}><X size={21} aria-hidden="true" /></button>
       </header>
 
       <div className="route-mobile-compact" aria-label={t('route.edit')}>
@@ -264,11 +259,11 @@ export function RoutePanel(props: Props) {
           <span>{selectedWaypoint ? `${selectedWaypoint.lat.toFixed(4)}, ${selectedWaypoint.lon.toFixed(4)}` : `${distanceNm.toFixed(1)} NM`}</span>
         </div>
         {props.editing ? <>
-          <button onClick={props.onUndo} disabled={!props.canUndo} aria-label={t('action.undo')}>↶</button>
-          <button onClick={props.onRedo} disabled={!props.canRedo} aria-label={t('action.redo')}>↷</button>
-          <button className="route-delete-button" onClick={() => { if (selectedWaypoint) props.onDeleteWaypoint(selectedWaypoint.id); }} disabled={!selectedWaypoint} aria-label={t('route.deletePoint')}><TrashIcon /></button>
+          <button onClick={props.onUndo} disabled={!props.canUndo} aria-label={t('action.undo')}><Undo2 size={20} aria-hidden="true" /></button>
+          <button onClick={props.onRedo} disabled={!props.canRedo} aria-label={t('action.redo')}><Redo2 size={20} aria-hidden="true" /></button>
+          <button className="route-delete-button" onClick={() => { if (selectedWaypoint) props.onDeleteWaypoint(selectedWaypoint.id); }} disabled={!selectedWaypoint} aria-label={t('route.deletePoint')}><Trash2 className="route-trash-icon" size={22} aria-hidden="true" /></button>
         </> : props.analysis ? <span className="route-mobile-compact__summary">{(props.analysis.durationSeconds / 3600).toFixed(1)} h · {props.analysis.estimatedFuelLitres.toFixed(1)} l</span> : null}
-        <button onClick={() => setSheetSnap('half')} aria-label={t('route.details')}>⚙</button>
+        <button onClick={() => setSheetSnap('half')} aria-label={t('route.details')}><Settings2 size={20} aria-hidden="true" /></button>
         {props.editing ? <button className="primary" onClick={props.onFinishEdit} disabled={props.route.waypoints.length < 2} title={props.route.waypoints.length < 2 ? t('route.needTwoPoints') : undefined}>{t('action.done')}</button> : null}
       </div>
 
@@ -282,7 +277,9 @@ export function RoutePanel(props: Props) {
       </div>
       <div className="route-form">
         <label>{t('route.name')}<input value={props.route.name} onChange={(e) => props.onChange({ ...props.route, name: e.target.value, updatedAt: new Date().toISOString() })} /></label>
-        <label>{t('route.startTime')}<input type="datetime-local" value={localInput(props.route.startTime)} onChange={(e) => props.onChange({ ...props.route, startTime: new Date(e.target.value).toISOString(), updatedAt: new Date().toISOString() })} /></label>
+        <label>{t('route.startTime')}<Suspense fallback={<input className="route-date-input" value={new Date(props.route.startTime).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB')} readOnly aria-busy="true" />}>
+          <LocalizedDateTimePicker value={props.route.startTime} onChange={(startTime) => props.onChange({ ...props.route, startTime, updatedAt: new Date().toISOString() })} />
+        </Suspense></label>
         <div className="route-form__grid">
           <label>{t('route.speed')}<input type="number" min="0.1" step="0.1" value={props.route.speedKnots} onChange={(e) => setNumber('speedKnots', e.target.value)} /></label>
           <label>{t('route.fuelRate')}<input type="number" min="0" step="0.1" value={props.route.fuelLitresPerHour} onChange={(e) => setNumber('fuelLitresPerHour', e.target.value)} /></label>
@@ -292,7 +289,7 @@ export function RoutePanel(props: Props) {
       </div>
       <div className="route-edit-actions">
         {props.editing ? <>
-          <button onClick={props.onUndo} disabled={!props.canUndo}>↶</button><button onClick={props.onRedo} disabled={!props.canRedo}>↷</button>
+          <button onClick={props.onUndo} disabled={!props.canUndo} aria-label={t('action.undo')}><Undo2 size={20} aria-hidden="true" /></button><button onClick={props.onRedo} disabled={!props.canRedo} aria-label={t('action.redo')}><Redo2 size={20} aria-hidden="true" /></button>
           <button onClick={() => { if (selectedWaypoint) props.onDeleteWaypoint(selectedWaypoint.id); }} disabled={!selectedWaypoint}>{t('route.deletePoint')}</button>
           <button onClick={props.onUseLocation}>{t('route.useLocation')}</button>
           <button onClick={props.onCancelEdit}>{t('action.cancel')}</button><button className="primary" onClick={props.onFinishEdit} disabled={props.route.waypoints.length < 2} title={props.route.waypoints.length < 2 ? t('route.needTwoPoints') : undefined}>{t('action.done')}</button>
@@ -319,7 +316,7 @@ export function RoutePanel(props: Props) {
                 <span className={`route-waypoint-row__badge is-${index === 0 ? 'start' : index === props.route.waypoints.length - 1 ? 'finish' : 'middle'}`}>{badge}</span>
                 <span className="route-waypoint-row__text"><strong>{point.name || role}</strong><small>{point.lat.toFixed(5)}, {point.lon.toFixed(5)}</small></span>
               </button>
-              <button type="button" className="route-waypoint-row__delete" onClick={() => props.onDeleteWaypoint(point.id)} aria-label={`${t('route.deletePoint')}: ${role}`}><TrashIcon /></button>
+              <button type="button" className="route-waypoint-row__delete" onClick={() => props.onDeleteWaypoint(point.id)} aria-label={`${t('route.deletePoint')}: ${role}`}><Trash2 className="route-trash-icon" size={22} aria-hidden="true" /></button>
               <button
                 type="button"
                 className="route-waypoint-row__handle"
@@ -329,7 +326,7 @@ export function RoutePanel(props: Props) {
                 onPointerCancel={finishWaypointDrag}
                 onClick={(event) => event.stopPropagation()}
                 aria-label={`${t('route.reorderPoint')}: ${role}`}
-              >⠿</button>
+              ><GripVertical size={22} aria-hidden="true" /></button>
             </div>;
           })}
           {props.route.waypoints.length === 0 ? <p className="route-waypoints__empty">{t('route.noPoints')}</p> : null}

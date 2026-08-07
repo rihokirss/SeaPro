@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Menu, Pencil, Route, Star, Trash2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import type { GeoState } from '../lib/geolocation';
 import type { useFavorites } from '../lib/favorites';
@@ -66,7 +67,7 @@ export function TopBar({ onOpenLayers, onOpenRoutes, geo, favorites, onGoTo, bbo
           (`LocateButton` `.mapctl` virnas) — pöidla ulatusse. */}
       <div className="topbar__actions">
         <button type="button" className="icon-btn icon-btn--brass" onClick={onOpenRoutes} title={t('route.title')} aria-label={t('route.title')}>
-          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="18" r="2" fill="currentColor"/><circle cx="19" cy="5" r="2" fill="currentColor"/><path d="M6.5 16.5c2-7 8-2 11-10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          <Route size={20} aria-hidden="true" />
         </button>
         <div className="topbar__fav">
           <button
@@ -77,7 +78,7 @@ export function TopBar({ onOpenLayers, onOpenRoutes, geo, favorites, onGoTo, bbo
             aria-label={t('action.favorites')}
             aria-expanded={favOpen}
           >
-            ★
+            <Star size={20} fill="currentColor" aria-hidden="true" />
           </button>
           {favOpen ? (
             <div className="dropdown">
@@ -125,7 +126,7 @@ export function TopBar({ onOpenLayers, onOpenRoutes, geo, favorites, onGoTo, bbo
                         aria-label={t('action.renameFavorite')}
                         title={t('action.renameFavorite')}
                       >
-                        ✎
+                        <Pencil size={17} aria-hidden="true" />
                       </button>
                       <button
                         type="button"
@@ -133,7 +134,7 @@ export function TopBar({ onOpenLayers, onOpenRoutes, geo, favorites, onGoTo, bbo
                         onClick={() => favorites.remove(f.id)}
                         aria-label={t('action.removeFavorite')}
                       >
-                        ✕
+                        <Trash2 size={18} aria-hidden="true" />
                       </button>
                     </li>
                   ))}
@@ -150,7 +151,7 @@ export function TopBar({ onOpenLayers, onOpenRoutes, geo, favorites, onGoTo, bbo
           title={t('action.layers')}
           aria-label={t('action.layers')}
         >
-          ☰
+          <Menu size={21} aria-hidden="true" />
         </button>
       </div>
 

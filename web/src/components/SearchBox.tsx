@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Anchor, MapPin, Search } from 'lucide-react';
 import type { SearchResult } from '@seapro/shared';
 import { useI18n } from '../i18n';
 import { api } from '../lib/api';
@@ -100,10 +101,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
           window.requestAnimationFrame(() => input.current?.focus());
         }}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="10.5" cy="10.5" r="6.5" />
-          <path d="m15.5 15.5 5 5" />
-        </svg>
+        <Search size={20} aria-hidden="true" />
       </button>
       <form
         className="search__form"
@@ -159,10 +157,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
           aria-label={t('search.submit')}
           title={t('search.submit')}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="10.5" cy="10.5" r="6.5" />
-            <path d="m15.5 15.5 5 5" />
-          </svg>
+          <Search size={20} aria-hidden="true" />
         </button>
       </form>
 
@@ -185,7 +180,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
                     onClick={() => choose(result)}
                   >
                     <span className="search__kind" aria-hidden="true">
-                      {result.kind === 'harbour' ? '⚓' : '⌖'}
+                      {result.kind === 'harbour' ? <Anchor size={18} /> : <MapPin size={18} />}
                     </span>
                     <span className="search__label">
                       <strong>{result.name}</strong>

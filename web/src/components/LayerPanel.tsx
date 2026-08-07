@@ -1,4 +1,5 @@
 import type { ProviderCapabilities, Variable } from '@seapro/shared';
+import { X } from 'lucide-react';
 import { LANGS, useI18n } from '../i18n';
 import { COLOR_SCALES, SCALAR_FIELDS, rgbaCss, sampleScale } from '../map/colorScales';
 import { THEMES, type Theme } from '../lib/theme';
@@ -150,7 +151,7 @@ export function LayerPanel({
         <header className="panel__head">
           <h2>{t('action.layers')}</h2>
           <button type="button" className="icon-btn" onClick={onClose} aria-label={t('action.close')}>
-            ✕
+            <X size={21} aria-hidden="true" />
           </button>
         </header>
 
