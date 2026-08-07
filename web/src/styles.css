@@ -151,7 +151,9 @@
   bottom: calc(var(--s4) + var(--safe-bottom));
   width: min(430px, calc(100vw - 2 * var(--s4)));
   padding: var(--s5);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -160,8 +162,20 @@
   backdrop-filter: var(--blur-panel);
 }
 .route-panel__header, .route-panel__toolbar, .route-edit-actions { display: flex; align-items: center; gap: var(--s3); }
-.route-panel__header { justify-content: space-between; position: sticky; top: calc(-1 * var(--s5)); z-index: 2; padding: var(--s3) 0; background: var(--surface-solid); }
-.route-panel__header h2 { margin: 0; font-size: var(--t-lg); }
+.route-panel__header { flex: none; justify-content: space-between; z-index: 2; min-height: var(--touch); padding: var(--s2) 0 var(--s3); background: var(--surface-solid); }
+.route-panel__drag-zone { min-width: 0; flex: 1; display: flex; align-items: center; gap: var(--s3); padding: 0 !important; color: var(--text) !important; background: transparent !important; border: 0 !important; text-align: left; cursor: default !important; }
+.route-panel__grip { display: none; width: 42px; height: 4px; flex: none; border-radius: var(--r-pill); background: var(--line-strong); }
+.route-panel__titles { min-width: 0; display: block; }
+.route-panel__titles strong, .route-panel__titles small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-panel__titles strong { font-size: var(--t-lg); }
+.route-panel__titles small { color: var(--text-dim); font-size: var(--t-sm); font-weight: var(--w-reg); }
+.route-panel__navigate { flex: none; min-height: var(--touch) !important; white-space: nowrap; }
+.route-panel__navigate:disabled { color: var(--text-dim); background: var(--surface-2); }
+.route-panel__content { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.route-panel__content::-webkit-scrollbar { width: 8px; }
+.route-panel__content::-webkit-scrollbar-track { background: transparent; }
+.route-panel__content::-webkit-scrollbar-thumb { background: var(--line-strong); border: 2px solid var(--surface-solid); border-radius: var(--r-pill); }
+.route-mobile-compact { display: none; }
 .route-panel__toolbar { margin: var(--s3) 0 var(--s5); }
 .route-panel button, .route-panel select, .route-panel input { min-height: 40px; color: var(--text); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 0 var(--s3); }
 .route-panel__toolbar select {
@@ -201,7 +215,6 @@
 .route-table th, .route-table td { padding: var(--s3); text-align: left; border-bottom: 1px solid var(--line); }
 .route-table tr.risk-danger td:last-child { color: var(--danger); font-weight: var(--w-bold); }
 .route-table tr.risk-caution td:last-child { color: var(--warn); }
-.route-navigate { width: 100%; margin-top: var(--s3); min-height: var(--touch) !important; }
 
 /* Aktiivne navigatsioon — tavavaates seda elementi ei renderdata. */
 .nav-bar {
@@ -219,7 +232,46 @@
 .nav-bar button.is-recording { color: white; background: #b42f3b; }
 
 @media (max-width: 700px) {
-  .route-panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 68vh; border-radius: var(--r-lg) var(--r-lg) 0 0; padding-bottom: calc(var(--s5) + var(--safe-bottom)); }
+  .route-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: var(--route-sheet-height, 50dvh);
+    max-height: calc(100dvh - 72px - var(--safe-top));
+    padding: 0 var(--s4) var(--safe-bottom);
+    color: var(--text);
+    background: var(--surface-solid);
+    border: 1px solid var(--line-strong);
+    border-bottom: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: height 180ms var(--ease);
+  }
+  .route-panel.is-dragging { transition: none; }
+  .route-panel__header { min-height: 54px; padding: 0; }
+  .route-panel__drag-zone { position: relative; align-self: stretch; padding-top: 12px !important; touch-action: none; cursor: ns-resize !important; }
+  .route-panel__grip { position: absolute; top: 6px; left: 50%; display: block; transform: translateX(-50%); }
+  .route-panel__titles strong { font-size: var(--t-base); }
+  .route-panel__titles small { font-size: var(--t-cap); }
+  .route-panel__navigate { max-width: 148px; overflow: hidden; text-overflow: ellipsis; }
+  .route-panel__content { padding: 0 var(--s1) var(--s5); }
+  .route-panel.snap-collapsed .route-panel__content { display: none; }
+  .route-panel.snap-collapsed .route-mobile-compact {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+  }
+  .route-mobile-compact__status { min-width: 0; flex: 1; padding-left: var(--s2); }
+  .route-mobile-compact__status strong, .route-mobile-compact__status span { display: block; white-space: nowrap; }
+  .route-mobile-compact__status strong { font-size: var(--t-sm); }
+  .route-mobile-compact__status span { color: var(--text-dim); font-family: var(--num); font-size: var(--t-cap); }
+  .route-mobile-compact__summary { color: var(--text-dim); font-family: var(--num); font-size: var(--t-cap); white-space: nowrap; }
+  .route-mobile-compact button { min-width: 38px; min-height: var(--touch); padding: 0 var(--s3); }
+  .route-mobile-compact button.primary { min-width: 58px; }
   .nav-bar { top: auto; bottom: calc(var(--s3) + var(--safe-bottom)); width: calc(100vw - 2 * var(--s3)); box-sizing: border-box; overflow-x: auto; justify-content: flex-start; transform: translateX(-50%); }
   .nav-bar > div:nth-child(3), .nav-bar > div:nth-child(4) { display: none; }
 }
@@ -1562,9 +1614,8 @@ button.sheet__grip::before {
   padding: 1px var(--s2) !important;
 }
 
-/* Omistus on OSM-i litsentsi järgi kohustuslik, seega seda ei saa ära võtta.
-   Kokku volditud kujul on ta aga ainult ⓘ-nupp nurgas ja tekst ilmub
-   hiire või puute peale — kaardilt ei võta see praktiliselt midagi. */
+/* Omistus on litsentside järgi kohustuslik; kompaktsena on ta ainult ⓘ ning
+   avab allikate teksti puudutuse või klõpsu peale. */
 .maplibregl-ctrl-attrib {
   background: var(--float) !important;
   backdrop-filter: var(--blur);
