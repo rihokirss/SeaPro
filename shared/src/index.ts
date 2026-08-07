@@ -472,11 +472,41 @@ export interface Fairway {
   type?: string;
 }
 
+export type TrafficSchemeKind =
+  | 'separation_lane'
+  | 'separation_zone'
+  | 'separation_boundary'
+  | 'separation_line'
+  | 'separation_crossing'
+  | 'separation_roundabout'
+  | 'inshore_traffic_zone'
+  | 'precautionary_area'
+  | 'navigation_line'
+  | 'recommended_route_centreline'
+  | 'recommended_track'
+  | 'recommended_traffic_lane'
+  | 'two-way_route'
+  | 'traffic_lane';
+
+/** OpenStreetMapi/OpenSeaMapi liikluseraldusskeemi objekt ilma navimärkideta. */
+export interface TrafficScheme {
+  id: string;
+  kind: TrafficSchemeKind;
+  geometry:
+    | { type: 'LineString'; coordinates: [number, number][] }
+    | { type: 'MultiLineString'; coordinates: [number, number][][] }
+    | { type: 'Polygon'; coordinates: [number, number][][] }
+    | { type: 'MultiPolygon'; coordinates: [number, number][][][] };
+  name?: string;
+  orientation?: number;
+}
+
 export interface NavigationData {
   warnings: NavigationWarning[];
   wrecks: Wreck[];
   aids: NavigationAid[];
   fairways: Fairway[];
+  trafficSchemes: TrafficScheme[];
 }
 
 // ---------------------------------------------------------------------------

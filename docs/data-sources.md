@@ -388,7 +388,7 @@ poleks ühtki kvooti ega võtmesõltuvust.
 | Merekaart (EE) | `gis.transpordiamet.ee/primar/wms_ip/TranspordiametNutimeri` | WMS, `layers=cells&styles=style-id-263`, bounds 57.45–60.1 N |
 | Merekaart (FI) | `julkinen.traficom.fi/s57/wms`, `layers=cells`, `styles=style-id-203` | WMS, läbipaistva maismaaga |
 | Samasügavusjooned ja mudelsügavused | `ows.emodnet-bathymetry.eu/wfs`, `emodnet:contours`; WCS `emodnet:mean`; `rest.emodnet-bathymetry.eu/depth_sample` | Ülevaates WFS-vektorid; lähisuumis DTM-ist genereeritud 1 m jooned kuni 5 m-ni, edasi 5 m samm, lisaks hõre punktvõre; CC BY 4.0 |
-| Navigatsioonimärgid | `tiles.openseamap.org/seamark/` | globaalne |
+| Liikluseraldusskeemid | OpenStreetMap `seamark:type` objektid Overpassi kaudu | Ainult liiklusrajad, -alad, piirid ja soovituslikud teed; poid ning muud navimärgid on välja filtreeritud |
 | Sügavused | `ows.emodnet-bathymetry.eu/wms` | |
 | Ilmaradar | `ilmgs.envir.ee/geoserver/ilm/wms`, vaatlus `ilm:cmp_cap`, lühiennustus `ilm:nowcasting` | Eesti; 5 min kaadrid, nowcast umbes 90 min tulevikku; SeaPro ajaliugur valib lähima päriselt avaldatud kaadri |
 

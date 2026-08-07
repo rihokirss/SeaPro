@@ -2,10 +2,18 @@ import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import type { FilterSpecification, GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { NavigationData } from '@seapro/shared';
 import { insertBefore } from '../layerOrder';
-import { fixedAidIconCategory, NAVIGATION_WARNING_ICON, WRECK_ICON } from '../icons';
+import {
+  fixedAidIconCategory,
+  NAVIGATION_WARNING_ICON,
+  TRAFFIC_DIRECTION_ICON,
+  WRECK_ICON,
+} from '../icons';
 
 const SOURCE_ID = 'navigation-src';
 
+export const TRAFFIC_SCHEME_AREAS_LAYER = 'traffic-scheme-areas';
+export const TRAFFIC_SCHEME_LINES_LAYER = 'traffic-scheme-lines';
+export const TRAFFIC_SCHEME_ARROWS_LAYER = 'traffic-scheme-arrows';
 export const FAIRWAYS_LAYER = 'official-fairways';
 export const WARNING_AREAS_LAYER = 'navigation-warning-areas';
 export const WARNING_LINE_HIT_LAYER = 'navigation-warning-line-hit';
@@ -31,6 +39,7 @@ export interface NavigationVisibility {
   warnings: boolean;
   wrecks: boolean;
   aids: boolean;
+  traffic: boolean;
   official: boolean;
 }
 
@@ -114,15 +123,107 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
     });
   }
 
+  for (const scheme of data.trafficSchemes) {
+    features.push({
+      type: 'Feature',
+      geometry: scheme.geometry as Geometry,
+      properties: {
+        featureKind: 'traffic-scheme',
+        id: scheme.id,
+        schemeKind: scheme.kind,
+        name: scheme.name ?? '',
+        orientation: scheme.orientation ?? null,
+      },
+    });
+  }
+
   const collection: FeatureCollection = { type: 'FeatureCollection', features };
   const source = map.getSource<GeoJSONSource>(SOURCE_ID);
   if (source) source.setData(collection);
-  else map.addSource(SOURCE_ID, { type: 'geojson', data: collection });
+  else map.addSource(SOURCE_ID, {
+    type: 'geojson',
+    data: collection,
+    attribution: '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+  });
 
   ensureLayers(map);
 }
 
 function ensureLayers(map: MapLibreMap): void {
+  if (!map.getLayer(TRAFFIC_SCHEME_AREAS_LAYER)) {
+    map.addLayer({
+      id: TRAFFIC_SCHEME_AREAS_LAYER,
+      type: 'fill',
+      source: SOURCE_ID,
+      filter: ['all',
+        ['==', ['get', 'featureKind'], 'traffic-scheme'],
+        ['==', ['geometry-type'], 'Polygon'],
+      ],
+      minzoom: 6,
+      paint: {
+        'fill-color': [
+          'match', ['get', 'schemeKind'],
+          'precautionary_area', '#d581ce',
+          'inshore_traffic_zone', '#c596d8',
+          '#b34ebc',
+        ],
+        'fill-opacity': 0.16,
+      },
+    }, insertBefore(map, TRAFFIC_SCHEME_AREAS_LAYER));
+  }
+
+  if (!map.getLayer(TRAFFIC_SCHEME_LINES_LAYER)) {
+    map.addLayer({
+      id: TRAFFIC_SCHEME_LINES_LAYER,
+      type: 'line',
+      source: SOURCE_ID,
+      // Ühesuunalise raja joont ennast ei kuva: suunda näitab paks nool.
+      // Alles jäävad skeemi päris piirid, eraldusjooned ja soovituslikud teed.
+      filter: ['all',
+        ['==', ['get', 'featureKind'], 'traffic-scheme'],
+        ['match', ['get', 'schemeKind'],
+          ['separation_lane', 'recommended_traffic_lane', 'traffic_lane'], false,
+          true,
+        ],
+      ],
+      minzoom: 6,
+      paint: {
+        'line-color': '#a93ab4',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 11, 1.8, 15, 2.5],
+        'line-opacity': 0.82,
+      },
+    }, insertBefore(map, TRAFFIC_SCHEME_LINES_LAYER));
+  }
+
+  if (!map.getLayer(TRAFFIC_SCHEME_ARROWS_LAYER)) {
+    map.addLayer({
+      id: TRAFFIC_SCHEME_ARROWS_LAYER,
+      type: 'symbol',
+      source: SOURCE_ID,
+      filter: ['all',
+        ['==', ['get', 'featureKind'], 'traffic-scheme'],
+        ['in', ['get', 'schemeKind'], ['literal', [
+          'separation_lane',
+          'recommended_traffic_lane',
+          'traffic_lane',
+        ]]],
+        ['==', ['geometry-type'], 'LineString'],
+      ],
+      minzoom: 7,
+      layout: {
+        // Üks nool iga rajalõigu keskel. `line` + suur symbol-spacing jättis
+        // lühikesed TSS-lõigud täiesti nooleta.
+        'symbol-placement': 'line-center',
+        'icon-image': TRAFFIC_DIRECTION_ICON,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 7, 0.75, 11, 1, 15, 1.3],
+        'icon-rotation-alignment': 'map',
+        'icon-keep-upright': false,
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    }, insertBefore(map, TRAFFIC_SCHEME_ARROWS_LAYER));
+  }
+
   if (!map.getLayer(FAIRWAYS_LAYER)) {
     map.addLayer({
       id: FAIRWAYS_LAYER,
@@ -333,6 +434,11 @@ export function setNavigationVisibility(map: MapLibreMap, visibility: Navigation
     visibility.warnings,
   );
   setVisible(map, [WRECKS_LAYER, WRECK_LABELS_LAYER], visibility.wrecks);
+  setVisible(
+    map,
+    [TRAFFIC_SCHEME_AREAS_LAYER, TRAFFIC_SCHEME_LINES_LAYER, TRAFFIC_SCHEME_ARROWS_LAYER],
+    visibility.traffic,
+  );
 
   // AIS AToN ja registrimärgid jagavad allikat. Registriobjektide lüliti
   // võib märgid sisse tuua ka siis, kui reaalaja AIS-märgid on väljas.

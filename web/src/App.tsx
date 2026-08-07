@@ -54,7 +54,7 @@ import {
 } from './map/layers/navigation';
 
 const DEFAULT_LAYERS: LayerState = {
-  overlays: ['seamark'],
+  overlays: [],
   // Vaikimisi nooled + tuulevälja gradient: nool annab suuna, väli kiiruse.
   // Koos loevad nad end ühe pilguga, kumbki eraldi mitte.
   windDisplay: 'arrows',
@@ -66,8 +66,9 @@ const DEFAULT_LAYERS: LayerState = {
   placeLabels: true,
   navigationWarnings: true,
   navigationAids: true,
+  trafficSchemes: true,
   wrecks: false,
-  officialNavigation: false,
+  officialNavigation: true,
 };
 
 const EMPTY_NAVIGATION: NavigationData = {
@@ -75,6 +76,7 @@ const EMPTY_NAVIGATION: NavigationData = {
   wrecks: [],
   aids: [],
   fairways: [],
+  trafficSchemes: [],
 };
 
 /**
@@ -864,14 +866,15 @@ export function App() {
 
   // --- Navigatsiooniohutus -------------------------------------------------
   const [navigationData, setNavigationData] = useState<NavigationData>(EMPTY_NAVIGATION);
-  const wantNavigation =
+  const wantNavigationData =
     layers.navigationWarnings ||
     layers.navigationAids ||
     layers.wrecks ||
     layers.officialNavigation;
+  const wantNavigation = wantNavigationData || layers.trafficSchemes;
 
   useEffect(() => {
-    if (!wantNavigation || !view) return;
+    if (!wantNavigationData || !view) return;
     let cancelled = false;
 
     const include: Array<'warnings' | 'aids' | 'wrecks' | 'official'> = [];
@@ -882,7 +885,10 @@ export function App() {
 
     const load = (): void => {
       api.navigation(view.bbox, include).then((data) => {
-        if (!cancelled) setNavigationData(data);
+        if (!cancelled) setNavigationData((current) => ({
+          ...data,
+          trafficSchemes: current.trafficSchemes,
+        }));
       }).catch(() => {
         // Staatilised kihid on serveris kettavahemälus ja vana edukas
         // vastus jääb ekraanile; üks allikatõrge ei kustuta ohutusinfot.
@@ -898,7 +904,7 @@ export function App() {
       window.clearInterval(timer);
     };
   }, [
-    wantNavigation,
+    wantNavigationData,
     layers.navigationWarnings,
     layers.navigationAids,
     layers.wrecks,
@@ -907,16 +913,28 @@ export function App() {
   ]);
 
   useEffect(() => {
+    if (!layers.trafficSchemes || !view) return;
+    const ac = new AbortController();
+    api.trafficSchemes(view.bbox, ac.signal).then(({ trafficSchemes }) => {
+      setNavigationData((current) => ({ ...current, trafficSchemes }));
+    }).catch(() => {
+      // Overpass on koormatud; viimane edukas skeem jääb kaardile alles.
+    });
+    return () => ac.abort();
+  }, [layers.trafficSchemes, view?.bbox.join(',')]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
     if (wantNavigation) updateNavigation(map, navigationData);
     setNavigationVisibility(map, {
       warnings: layers.navigationWarnings,
       aids: layers.navigationAids,
+      traffic: layers.trafficSchemes,
       wrecks: layers.wrecks,
       official: layers.officialNavigation,
     });
-  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.wrecks, layers.officialNavigation, mapReady]);
+  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.trafficSchemes, layers.wrecks, layers.officialNavigation, mapReady]);
 
   // --- Laevad (AIS) --------------------------------------------------------
   const [vessels, setVessels] = useState<Vessel[]>([]);

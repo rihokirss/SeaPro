@@ -27,6 +27,7 @@ export interface LayerState {
   placeLabels: boolean;
   navigationWarnings: boolean;
   navigationAids: boolean;
+  trafficSchemes: boolean;
   wrecks: boolean;
   officialNavigation: boolean;
 }
@@ -203,10 +204,10 @@ export function LayerPanel({
               label={t('layer.navigationAids')}
             />
             <Toggle
-              checked={layers.overlays.includes('seamark')}
-              onChange={(v) => toggleOverlay('seamark', v)}
-              label={t('layer.seamark')}
-              hint={t('layer.seamark.hint')}
+              checked={layers.trafficSchemes}
+              onChange={(v) => set({ trafficSchemes: v })}
+              label={t('layer.trafficSchemes')}
+              hint={t('layer.trafficSchemes.hint')}
             />
           </section>
 

@@ -91,13 +91,6 @@ export const OVERLAY_LAYERS: RasterLayerDef[] = [
     minzoom: 7,
   },
   {
-    id: 'seamark',
-    labelKey: 'layer.seamark',
-    tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'],
-    attribution: '<a href="https://www.openseamap.org/">OpenSeaMap</a>',
-    minzoom: 9,
-  },
-  {
     id: 'bathymetry',
     labelKey: 'layer.bathymetry',
     tiles: [
@@ -186,7 +179,6 @@ export function radarFrameAt(
 export const OVERLAY_CONTROLS: OverlayControlDef[] = [
   { id: 'chart', labelKey: 'layer.chart' },
   { id: 'depth-details', labelKey: 'layer.depthDetails' },
-  { id: 'seamark', labelKey: 'layer.seamark' },
   { id: 'bathymetry', labelKey: 'layer.bathymetry' },
   { id: 'radar', labelKey: 'layer.radar' },
 ];

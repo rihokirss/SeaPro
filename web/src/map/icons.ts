@@ -222,7 +222,7 @@ function vesselDot(fill: string): ImageData {
  * Sadama marker — ankur ringi sees.
  *
  * Ankur on merekaardil sadama universaalne märk, seega ei pea seda õppima.
- * Ring ümber eristab teda OpenSeaMapi ankrualade märkidest, mis on samuti
+ * Ring ümber eristab teda merekaardi ankruala märkidest, mis on samuti
  * ankrukujulised, aga ilma raamita.
  */
 function harbourMarker(fill: string, radius = 9.5): ImageData {
@@ -495,6 +495,36 @@ function navigationAidMarker(category: string): ImageData {
 
 export const NAVIGATION_WARNING_ICON = 'navigation-warning';
 export const WRECK_ICON = 'navigation-wreck';
+export const TRAFFIC_DIRECTION_ICON = 'traffic-direction';
+
+/**
+ * Liikluseraldusraja suur paks nool.
+ *
+ * Canvas-ikoon väldib fondiglüüfi probleemi: merekaardi nool peab ilmuma ka
+ * siis, kui kasutatavas PBF-fondis vastavat Unicode'i noolt pole. Kujund on
+ * vaikimisi paremale, MapLibre pöörab selle joone suunda.
+ */
+function trafficDirectionArrow(): ImageData {
+  const size = 42;
+  const c = makeCanvas(size);
+  const { ctx } = c;
+  const mid = size / 2;
+  ctx.translate(mid, mid);
+
+  ctx.beginPath();
+  ctx.moveTo(-16, -4.5);
+  ctx.lineTo(5, -4.5);
+  ctx.lineTo(5, -11);
+  ctx.lineTo(17, 0);
+  ctx.lineTo(5, 11);
+  ctx.lineTo(5, 4.5);
+  ctx.lineTo(-16, 4.5);
+  ctx.closePath();
+  ctx.fillStyle = '#a93ab4';
+  ctx.fill();
+
+  return toImageData(c);
+}
 
 /** Selge vrakisiluett: murdunud mast, viltune kere ja kaks veelainet. */
 function wreckMarker(): ImageData {
@@ -611,6 +641,7 @@ export function registerIcons(map: MapLibreMap): void {
     [ANCHORAGE_ICON]: harbourMarker(HARBOUR_COLORS.anchorage, 7.5),
     [NAVIGATION_WARNING_ICON]: navigationWarningMarker(),
     [WRECK_ICON]: wreckMarker(),
+    [TRAFFIC_DIRECTION_ICON]: trafficDirectionArrow(),
   };
 
   for (const kind of ['coastal', 'offshore', 'buoy'] as const) {

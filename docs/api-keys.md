@@ -72,7 +72,7 @@ Digitraffici najal tööle.
 | Riigi Ilmateenistus | avaandmed |
 | Fintraffic Digitraffic AIS | avaandmed, vajab ainult `Digitraffic-User` päist |
 | Windfinder | avaliku lehe parsimine (ametlik API on tasuline B2B) |
-| Kõik kaardikihid | OSM, Transpordiamet, OpenSeaMap, EMODnet, Keskkonnaagentuur |
+| Kõik kaardikihid | OSM/Overpass, Transpordiamet, EMODnet, Keskkonnaagentuur |
 
 **Kaardipaanide kohta eraldi:** MapTiler ja Mapbox on sihilikult VÄLDITUD.
 Mõlemad nõuaksid võtit ja tooksid kvoodi kaasa. Kasutame rasterpaane ja

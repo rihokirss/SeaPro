@@ -136,7 +136,8 @@ SeaPro pakub sellele nii heledat kui tumedat merekasutuseks kohandatud stiili.
 - ametlikud navigatsioonimärgid ja faarvaatrid;
 - EMODneti vektorkujul samasügavusjooned;
 - kehtivad navigatsioonihoiatused ning vrakid;
-- OpenSeaMapi meremärgid;
+- OpenStreetMapi liikluseraldusskeemid eraldi vektorkihina, ilma ametlikke
+  navigatsioonimärke dubleerivate poideta;
 - EMODneti batümeetria;
 - kohanimed, mida saab tihedama kaardipildi jaoks eraldi peita.
 

@@ -3,6 +3,7 @@ import type {
   GridDayResult,
   Harbour,
   NavigationData,
+  TrafficScheme,
   PointResult,
   ProviderCapabilities,
   ProviderError,
@@ -194,6 +195,11 @@ export const api = {
     const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
     p.set('include', include.join(','));
     return get<NavigationData & { errors?: string[] }>(`/api/navigation?${p}`, signal);
+  },
+
+  trafficSchemes(bbox: [number, number, number, number], signal?: AbortSignal) {
+    const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
+    return get<{ trafficSchemes: TrafficScheme[] }>(`/api/traffic-schemes?${p}`, signal);
   },
 
   routeAnalysis(request: RouteAnalysisRequest, signal?: AbortSignal) {

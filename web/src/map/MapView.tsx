@@ -253,7 +253,7 @@ export function MapView({
 
     map.touchZoomRotate.disableRotation();
 
-    // Atribuudirida (OSM, OpenSeaMap, MET jt) üleval paremal, mitte all.
+    // Atribuudirida (OSM, Transpordiamet, MET jt) üleval paremal, mitte all.
     // All paremas nurgas on nüüd nupuvirn ja punktiprognoosi paneel; kokku
     // oli seal kolm asja ühe koha peal. Litsentsid nõuavad nähtavust, mitte
     // kindlat nurka — kokkupakitult on see ⓘ, mis avaneb puudutusel.

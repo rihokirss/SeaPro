@@ -35,6 +35,7 @@ import {
 import { aisAtons } from '../navigation/aisAton.js';
 import { mergeHarbours, mergeNavigationAids } from '../navigation/merge.js';
 import { fetchFinnishNavigationAids } from '../navigation/vaylavirasto.js';
+import { fetchTrafficSchemes } from '../navigation/osmTraffic.js';
 import {
   coversPoint,
   enabledProviders,
@@ -482,6 +483,20 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     return { harbours };
   });
 
+  /** OSM-i liikluseraldusskeemid eraldi, et aeglane Overpass ei pidurdaks märke. */
+  app.get('/api/traffic-schemes', async (req, reply) => {
+    const q = req.query as Record<string, unknown>;
+    const parts = String(q.bbox ?? '').split(',').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+      return reply.code(400).send({ error: 'bbox peab olema "lõuna,lääs,põhi,ida"' });
+    }
+    const trafficSchemes = await fetchTrafficSchemes(
+      parts as [number, number, number, number],
+    );
+    reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    return { trafficSchemes };
+  });
+
   /** Hoiatused, vrakid, ametlikud laevateed ja navigatsioonimärgid. */
   app.get('/api/navigation', async (req, reply) => {
     const q = req.query as Record<string, unknown>;
@@ -529,6 +544,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       warnings: warningResult.status === 'fulfilled' ? warningResult.value : [],
       wrecks: wreckResult.status === 'fulfilled' ? wreckResult.value : [],
       fairways: wantOfficial ? official.fairways : [],
+      trafficSchemes: [],
       aids: wantOfficial
         ? mergedAids
         : mergedAids.filter((aid) => aid.sources.includes('ais')),
