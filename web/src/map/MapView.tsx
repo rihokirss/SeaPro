@@ -22,7 +22,12 @@ import { LAYER_ORDER } from './layerOrder';
 import { addPlaceLabels } from './layers/placeLabels';
 import type { Position } from '../lib/geolocation';
 import type { DepthRiskSegment, RouteWaypoint, TrackPoint } from '@seapro/shared';
-import { addRouteLayers, ROUTE_LINE_LAYER, ROUTE_WAYPOINT_LAYER, updateRouteLayers } from './layers/route';
+import {
+  addRouteLayers,
+  ROUTE_LINE_HIT_LAYER,
+  ROUTE_WAYPOINT_HIT_LAYER,
+  updateRouteLayers,
+} from './layers/route';
 
 export interface MapViewProps {
   center: [number, number];
@@ -35,10 +40,12 @@ export interface MapViewProps {
   routeSegments: DepthRiskSegment[];
   trackPoints: TrackPoint[];
   routeEditing: boolean;
+  selectedWaypointId: string | null;
   onReady(map: MapLibreMap): void;
   onMoveEnd(bbox: [number, number, number, number], zoom: number): void;
   onPick(lat: number, lon: number): void;
-  onRouteMove(index: number, lat: number, lon: number): void;
+  onRouteSelect(id: string | null): void;
+  onRouteMove(id: string, lat: number, lon: number): void;
   onRouteMoveStart(): void;
   onRouteInsert(index: number, lat: number, lon: number): void;
   onUserMove(): void;
@@ -187,9 +194,11 @@ export function MapView({
   routeSegments,
   trackPoints,
   routeEditing,
+  selectedWaypointId,
   onReady,
   onMoveEnd,
   onPick,
+  onRouteSelect,
   onRouteMove,
   onRouteMoveStart,
   onRouteInsert,
@@ -199,10 +208,12 @@ export function MapView({
   const mapRef = useRef<MapLibreMap | null>(null);
   const [styleReady, setStyleReady] = useState(false);
   // Hoiame callback'id ref'is, et kaarti ei ehitataks iga renderi peale uuesti.
-  const cb = useRef({ onReady, onMoveEnd, onPick, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove });
-  cb.current = { onReady, onMoveEnd, onPick, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove };
+  const cb = useRef({ onReady, onMoveEnd, onPick, onRouteSelect, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove });
+  cb.current = { onReady, onMoveEnd, onPick, onRouteSelect, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove };
   const routeEditingRef = useRef(routeEditing);
   routeEditingRef.current = routeEditing;
+  const selectedWaypointRef = useRef(selectedWaypointId);
+  selectedWaypointRef.current = selectedWaypointId;
 
   useEffect(() => {
     if (!container.current || mapRef.current) return;
@@ -345,25 +356,41 @@ export function MapView({
     map.on('moveend', () => emitMove(map));
     map.on('dragstart', () => cb.current.onUserMove());
 
-    let draggedWaypoint: number | null = null;
+    let waypointGesture: { id: string; startX: number; startY: number; dragging: boolean } | null = null;
+    let suppressRouteClick = false;
     const beginWaypointDrag = (e: maplibregl.MapLayerMouseEvent | maplibregl.MapLayerTouchEvent): void => {
       if (!routeEditingRef.current) return;
-      const index = Number(e.features?.[0]?.properties?.index);
-      if (!Number.isInteger(index)) return;
-      e.preventDefault(); cb.current.onRouteMoveStart(); draggedWaypoint = index; map.dragPan.disable();
+      const id = String(e.features?.[0]?.properties?.id ?? '');
+      if (!id) return;
+      e.preventDefault();
+      waypointGesture = { id, startX: e.point.x, startY: e.point.y, dragging: false };
+      map.dragPan.disable();
     };
-    map.on('mousedown', ROUTE_WAYPOINT_LAYER, beginWaypointDrag);
-    map.on('touchstart', ROUTE_WAYPOINT_LAYER, beginWaypointDrag);
+    map.on('mousedown', ROUTE_WAYPOINT_HIT_LAYER, beginWaypointDrag);
+    map.on('touchstart', ROUTE_WAYPOINT_HIT_LAYER, beginWaypointDrag);
     const moveWaypoint = (e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent): void => {
-      if (draggedWaypoint === null) return;
-      cb.current.onRouteMove(draggedWaypoint, e.lngLat.lat, e.lngLat.lng);
+      if (!waypointGesture) return;
+      if (!waypointGesture.dragging && Math.hypot(e.point.x - waypointGesture.startX, e.point.y - waypointGesture.startY) >= 6) {
+        waypointGesture.dragging = true;
+        cb.current.onRouteSelect(waypointGesture.id);
+        cb.current.onRouteMoveStart();
+      }
+      if (waypointGesture.dragging) cb.current.onRouteMove(waypointGesture.id, e.lngLat.lat, e.lngLat.lng);
     };
     map.on('mousemove', moveWaypoint);
     map.on('touchmove', moveWaypoint);
-    const endWaypointDrag = (): void => { if (draggedWaypoint !== null) { draggedWaypoint = null; map.dragPan.enable(); } };
+    const endWaypointDrag = (): void => {
+      if (!waypointGesture) return;
+      cb.current.onRouteSelect(waypointGesture.id);
+      waypointGesture = null;
+      suppressRouteClick = true;
+      map.dragPan.enable();
+      window.setTimeout(() => { suppressRouteClick = false; }, 0);
+    };
     map.on('mouseup', endWaypointDrag); map.on('touchend', endWaypointDrag);
-    map.on('click', ROUTE_LINE_LAYER, (e) => {
-      if (!routeEditingRef.current) return;
+    map.on('click', ROUTE_LINE_HIT_LAYER, (e) => {
+      if (!routeEditingRef.current || suppressRouteClick) return;
+      if (map.queryRenderedFeatures(e.point, { layers: [ROUTE_WAYPOINT_HIT_LAYER] }).length > 0) return;
       const index = Number(e.features?.[0]?.properties?.segmentIndex);
       if (Number.isInteger(index)) cb.current.onRouteInsert(index + 1, e.lngLat.lat, e.lngLat.lng);
     });
@@ -372,8 +399,13 @@ export function MapView({
       // Kui klikk tabas mõnda andmekihti (jaam, laev), tegeleb sellega
       // vastav kihi enda käsitleja — siin ei tohi punktipaneeli avada.
       if (routeEditingRef.current) {
-        const routeHit = map.queryRenderedFeatures(e.point, { layers: [ROUTE_WAYPOINT_LAYER, ROUTE_LINE_LAYER] });
-        if (routeHit.length === 0) cb.current.onPick(e.lngLat.lat, e.lngLat.lng);
+        if (suppressRouteClick) return;
+        const pointHit = map.queryRenderedFeatures(e.point, { layers: [ROUTE_WAYPOINT_HIT_LAYER] });
+        if (pointHit.length > 0) return;
+        const lineHit = map.queryRenderedFeatures(e.point, { layers: [ROUTE_LINE_HIT_LAYER] });
+        if (lineHit.length > 0) return;
+        if (selectedWaypointRef.current) cb.current.onRouteSelect(null);
+        else cb.current.onPick(e.lngLat.lat, e.lngLat.lng);
         return;
       }
       const hits = map.queryRenderedFeatures(e.point, {
@@ -521,9 +553,9 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleReady) return;
-    updateRouteLayers(map, routeWaypoints, routeSegments, trackPoints, routeEditing);
+    updateRouteLayers(map, routeWaypoints, routeSegments, trackPoints, routeEditing, selectedWaypointId);
     map.getCanvas().style.cursor = routeEditing ? 'crosshair' : '';
-  }, [routeWaypoints, routeSegments, trackPoints, routeEditing, styleReady]);
+  }, [routeWaypoints, routeSegments, trackPoints, routeEditing, selectedWaypointId, styleReady]);
 
   return <div ref={container} className="map-container" />;
 }

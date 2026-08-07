@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import type { Route, RouteAnalysis } from '@seapro/shared';
+import type { Route, RouteAnalysis, RouteWaypoint } from '@seapro/shared';
 import { degreesToCompass, routeDistanceNm } from '@seapro/shared';
 import { useI18n } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
@@ -12,6 +12,7 @@ interface Props {
   loading: boolean;
   error: string | null;
   editing: boolean;
+  selectedWaypointId: string | null;
   canUndo: boolean;
   canRedo: boolean;
   speedUnit: SpeedUnit;
@@ -25,7 +26,11 @@ interface Props {
   onCancelEdit(): void;
   onUndo(): void;
   onRedo(): void;
-  onDeleteLast(): void;
+  onSelectWaypoint(id: string | null): void;
+  onDeleteWaypoint(id: string): void;
+  onPreviewWaypoints(waypoints: RouteWaypoint[]): void;
+  onCommitReorder(previous: RouteWaypoint[]): void;
+  onFocusWaypoint(point: RouteWaypoint): void;
   onUseLocation(): void;
   onNavigate(): void;
 }
@@ -72,6 +77,12 @@ function WeatherSparkline({ analysis, field, color }: { analysis: RouteAnalysis;
   return <svg className="route-chart" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polyline points={points} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" /></svg>;
 }
 
+function TrashIcon() {
+  return <svg className="route-trash-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>;
+}
+
 export function RoutePanel(props: Props) {
   const { t, lang } = useI18n();
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>('half');
@@ -79,6 +90,7 @@ export function RoutePanel(props: Props) {
   const [viewportTick, setViewportTick] = useState(0);
   const wasOpen = useRef(false);
   const wasEditing = useRef(false);
+  const waypointList = useRef<HTMLDivElement>(null);
   const drag = useRef<{
     pointerId: number;
     startY: number;
@@ -87,6 +99,12 @@ export function RoutePanel(props: Props) {
     lastAt: number;
     velocity: number;
     moved: boolean;
+  } | null>(null);
+  const waypointDrag = useRef<{
+    pointerId: number;
+    startIndex: number;
+    currentIndex: number;
+    original: RouteWaypoint[];
   } | null>(null);
 
   useEffect(() => {
@@ -106,6 +124,11 @@ export function RoutePanel(props: Props) {
     wasOpen.current = props.open;
     wasEditing.current = props.editing;
   }, [props.open, props.editing]);
+
+  useEffect(() => {
+    if (!props.selectedWaypointId) return;
+    waypointList.current?.querySelector<HTMLElement>(`[data-waypoint-id="${CSS.escape(props.selectedWaypointId)}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [props.selectedWaypointId]);
 
   const heights = typeof window === 'undefined'
     ? { collapsed: 110, half: 400, expanded: 700 }
@@ -154,12 +177,53 @@ export function RoutePanel(props: Props) {
     window.setTimeout(() => { drag.current = null; }, 0);
   };
 
+  const selectWaypoint = (point: RouteWaypoint): void => {
+    props.onSelectWaypoint(point.id);
+    props.onFocusWaypoint(point);
+  };
+
+  const startWaypointDrag = (event: ReactPointerEvent<HTMLButtonElement>, index: number): void => {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    waypointDrag.current = { pointerId: event.pointerId, startIndex: index, currentIndex: index, original: [...props.route.waypoints] };
+    props.onSelectWaypoint(props.route.waypoints[index]?.id ?? null);
+  };
+
+  const moveWaypointRow = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+    const state = waypointDrag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const list = waypointList.current;
+    if (list) {
+      const bounds = list.getBoundingClientRect();
+      if (event.clientY < bounds.top + 36) list.scrollTop -= 14;
+      else if (event.clientY > bounds.bottom - 36) list.scrollTop += 14;
+    }
+    const row = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-waypoint-index]');
+    const targetIndex = Number(row?.dataset.waypointIndex);
+    if (!Number.isInteger(targetIndex) || targetIndex === state.currentIndex || targetIndex < 0 || targetIndex >= props.route.waypoints.length) return;
+    const next = [...props.route.waypoints];
+    const [moved] = next.splice(state.currentIndex, 1);
+    if (!moved) return;
+    next.splice(targetIndex, 0, moved);
+    state.currentIndex = targetIndex;
+    props.onPreviewWaypoints(next);
+  };
+
+  const finishWaypointDrag = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+    const state = waypointDrag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    waypointDrag.current = null;
+    if (state.currentIndex !== state.startIndex) props.onCommitReorder(state.original);
+  };
+
   if (!props.open) return null;
   const setNumber = (key: 'speedKnots' | 'draughtM' | 'underKeelClearanceM' | 'fuelLitresPerHour', raw: string) => {
     const value = Number(raw); if (Number.isFinite(value)) props.onChange({ ...props.route, [key]: value, updatedAt: new Date().toISOString() });
   };
   const fmt = (iso: string) => new Date(iso).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const distanceNm = routeDistanceNm(props.route.waypoints);
+  const selectedIndex = props.route.waypoints.findIndex((point) => point.id === props.selectedWaypointId);
+  const selectedWaypoint = selectedIndex >= 0 ? props.route.waypoints[selectedIndex]! : null;
   return (
     <aside
       className={`route-panel snap-${sheetSnap}${props.editing ? ' is-editing' : ''}${dragHeight !== null ? ' is-dragging' : ''}`}
@@ -195,14 +259,17 @@ export function RoutePanel(props: Props) {
       </header>
 
       <div className="route-mobile-compact" aria-label={t('route.edit')}>
-        <div className="route-mobile-compact__status"><strong>{t('route.pointCount', { n: props.route.waypoints.length })}</strong><span>{distanceNm.toFixed(1)} NM</span></div>
+        <div className="route-mobile-compact__status">
+          <strong>{selectedWaypoint ? t('route.selectedPoint', { n: selectedIndex + 1 }) : t('route.pointCount', { n: props.route.waypoints.length })}</strong>
+          <span>{selectedWaypoint ? `${selectedWaypoint.lat.toFixed(4)}, ${selectedWaypoint.lon.toFixed(4)}` : `${distanceNm.toFixed(1)} NM`}</span>
+        </div>
         {props.editing ? <>
           <button onClick={props.onUndo} disabled={!props.canUndo} aria-label={t('action.undo')}>↶</button>
           <button onClick={props.onRedo} disabled={!props.canRedo} aria-label={t('action.redo')}>↷</button>
-          <button onClick={props.onDeleteLast} disabled={!props.route.waypoints.length} aria-label={t('route.deleteLast')}>⌫</button>
+          <button className="route-delete-button" onClick={() => { if (selectedWaypoint) props.onDeleteWaypoint(selectedWaypoint.id); }} disabled={!selectedWaypoint} aria-label={t('route.deletePoint')}><TrashIcon /></button>
         </> : props.analysis ? <span className="route-mobile-compact__summary">{(props.analysis.durationSeconds / 3600).toFixed(1)} h · {props.analysis.estimatedFuelLitres.toFixed(1)} l</span> : null}
         <button onClick={() => setSheetSnap('half')} aria-label={t('route.details')}>⚙</button>
-        {props.editing ? <button className="primary" onClick={props.onFinishEdit} disabled={props.route.waypoints.length < 2}>{t('action.done')}</button> : null}
+        {props.editing ? <button className="primary" onClick={props.onFinishEdit} disabled={props.route.waypoints.length < 2} title={props.route.waypoints.length < 2 ? t('route.needTwoPoints') : undefined}>{t('action.done')}</button> : null}
       </div>
 
       <div className="route-panel__content">
@@ -226,11 +293,48 @@ export function RoutePanel(props: Props) {
       <div className="route-edit-actions">
         {props.editing ? <>
           <button onClick={props.onUndo} disabled={!props.canUndo}>↶</button><button onClick={props.onRedo} disabled={!props.canRedo}>↷</button>
-          <button onClick={props.onDeleteLast} disabled={!props.route.waypoints.length}>{t('route.deleteLast')}</button>
+          <button onClick={() => { if (selectedWaypoint) props.onDeleteWaypoint(selectedWaypoint.id); }} disabled={!selectedWaypoint}>{t('route.deletePoint')}</button>
           <button onClick={props.onUseLocation}>{t('route.useLocation')}</button>
-          <button onClick={props.onCancelEdit}>{t('action.cancel')}</button><button className="primary" onClick={props.onFinishEdit} disabled={props.route.waypoints.length < 2}>{t('action.done')}</button>
+          <button onClick={props.onCancelEdit}>{t('action.cancel')}</button><button className="primary" onClick={props.onFinishEdit} disabled={props.route.waypoints.length < 2} title={props.route.waypoints.length < 2 ? t('route.needTwoPoints') : undefined}>{t('action.done')}</button>
         </> : <button className="primary" onClick={props.onStartEdit}>{t('route.edit')}</button>}
       </div>
+      {props.editing && props.route.waypoints.length < 2 ? <p className="route-status is-error">{t('route.needTwoPoints')}</p> : null}
+      {props.editing ? <section className="route-waypoints" aria-labelledby="route-waypoints-title">
+        <div className="route-waypoints__heading">
+          <strong id="route-waypoints-title">{t('route.waypoints')}</strong>
+          <span>{t('route.reorderHint')}</span>
+        </div>
+        <div className="route-waypoints__list" ref={waypointList}>
+          {props.route.waypoints.map((point, index) => {
+            const selected = point.id === props.selectedWaypointId;
+            const role = index === 0 ? t('route.startPoint') : index === props.route.waypoints.length - 1 ? t('route.finishPoint') : t('route.waypoint', { n: index + 1 });
+            const badge = index === 0 ? 'A' : index === props.route.waypoints.length - 1 ? 'B' : String(index + 1);
+            return <div
+              key={point.id}
+              className={`route-waypoint-row${selected ? ' is-selected' : ''}`}
+              data-waypoint-index={index}
+              data-waypoint-id={point.id}
+            >
+              <button type="button" className="route-waypoint-row__main" onClick={() => selectWaypoint(point)} aria-pressed={selected}>
+                <span className={`route-waypoint-row__badge is-${index === 0 ? 'start' : index === props.route.waypoints.length - 1 ? 'finish' : 'middle'}`}>{badge}</span>
+                <span className="route-waypoint-row__text"><strong>{point.name || role}</strong><small>{point.lat.toFixed(5)}, {point.lon.toFixed(5)}</small></span>
+              </button>
+              <button type="button" className="route-waypoint-row__delete" onClick={() => props.onDeleteWaypoint(point.id)} aria-label={`${t('route.deletePoint')}: ${role}`}><TrashIcon /></button>
+              <button
+                type="button"
+                className="route-waypoint-row__handle"
+                onPointerDown={(event) => startWaypointDrag(event, index)}
+                onPointerMove={moveWaypointRow}
+                onPointerUp={finishWaypointDrag}
+                onPointerCancel={finishWaypointDrag}
+                onClick={(event) => event.stopPropagation()}
+                aria-label={`${t('route.reorderPoint')}: ${role}`}
+              >⠿</button>
+            </div>;
+          })}
+          {props.route.waypoints.length === 0 ? <p className="route-waypoints__empty">{t('route.noPoints')}</p> : null}
+        </div>
+      </section> : null}
       {props.editing ? <p className="route-hint">{t('route.editHint')}</p> : null}
       {props.loading ? <p className="route-status">{t('route.analysing')}</p> : null}
       {props.error ? <p className="route-status is-error">{props.error}</p> : null}

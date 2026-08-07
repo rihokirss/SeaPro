@@ -198,6 +198,31 @@
 .route-form__grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .route-form input { width: 100%; box-sizing: border-box; }
 .route-edit-actions { flex-wrap: wrap; margin-top: var(--s5); }
+.route-waypoints { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--line); }
+.route-waypoints__heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); }
+.route-waypoints__heading span { color: var(--text-dim); font-size: var(--t-cap); text-align: right; }
+.route-waypoints__list { display: grid; gap: var(--s2); max-height: min(320px, 36dvh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.route-waypoints__list::-webkit-scrollbar { width: 7px; }
+.route-waypoints__list::-webkit-scrollbar-track { background: transparent; }
+.route-waypoints__list::-webkit-scrollbar-thumb { background: var(--line-strong); border: 2px solid var(--surface-solid); border-radius: var(--r-pill); }
+.route-waypoint-row { display: grid; grid-template-columns: minmax(0, 1fr) 40px 44px; align-items: stretch; min-height: 56px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); }
+.route-waypoint-row.is-selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.route-panel .route-waypoint-row__main { min-width: 0; min-height: 54px; display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3); text-align: left; background: transparent; border: 0; border-radius: 0; }
+.route-waypoint-row__badge { width: 28px; height: 28px; flex: none; display: grid; place-items: center; color: #082f42; background: #f8f5e9; border: 2px solid #0b5678; border-radius: 50%; font-size: var(--t-cap); font-weight: var(--w-bold); }
+.route-waypoint-row__badge.is-start { background: #62c48d; }
+.route-waypoint-row__badge.is-finish { background: #ffad66; }
+.route-waypoint-row__text { min-width: 0; }
+.route-waypoint-row__text strong, .route-waypoint-row__text small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-waypoint-row__text small { margin-top: 2px; color: var(--text-dim); font-family: var(--num); font-size: var(--t-cap); }
+.route-panel .route-waypoint-row__delete, .route-panel .route-waypoint-row__handle { min-width: 0; min-height: 54px; padding: 0; background: transparent; border-width: 0 0 0 1px; border-color: var(--line); border-radius: 0; }
+.route-panel .route-waypoint-row__delete { color: var(--danger); }
+.route-panel .route-waypoint-row__delete:hover { background: rgba(255, 115, 88, .12); }
+.route-panel .route-waypoint-row__delete:active { background: rgba(255, 115, 88, .2); }
+.route-trash-icon { display: block; width: 22px; height: 22px; margin: auto; pointer-events: none; }
+.route-panel .route-delete-button { display: grid; place-items: center; }
+.route-panel .route-waypoint-row__handle { color: var(--text-dim); cursor: grab; touch-action: none; font-size: var(--t-xl); }
+.route-panel .route-waypoint-row__handle:active { cursor: grabbing; color: var(--text); }
+.route-waypoints__empty { margin: 0; padding: var(--s4); color: var(--text-dim); background: var(--surface-2); border-radius: var(--r-sm); font-size: var(--t-sm); }
 .route-hint, .route-status, .route-safety { color: var(--text-dim); font-size: var(--t-sm); line-height: 1.45; }
 .route-status.is-error { color: var(--danger); }
 .route-depth-alert { padding: var(--s3) var(--s4); color: var(--warn); background: rgba(232,179,85,.12); border-left: 3px solid var(--warn); font-size: var(--t-sm); }
@@ -266,12 +291,13 @@
     gap: var(--s2);
   }
   .route-mobile-compact__status { min-width: 0; flex: 1; padding-left: var(--s2); }
-  .route-mobile-compact__status strong, .route-mobile-compact__status span { display: block; white-space: nowrap; }
+  .route-mobile-compact__status strong, .route-mobile-compact__status span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .route-mobile-compact__status strong { font-size: var(--t-sm); }
   .route-mobile-compact__status span { color: var(--text-dim); font-family: var(--num); font-size: var(--t-cap); }
   .route-mobile-compact__summary { color: var(--text-dim); font-family: var(--num); font-size: var(--t-cap); white-space: nowrap; }
   .route-mobile-compact button { min-width: 38px; min-height: var(--touch); padding: 0 var(--s3); }
   .route-mobile-compact button.primary { min-width: 58px; }
+  .route-waypoints__list { max-height: 34dvh; }
   .nav-bar { top: auto; bottom: calc(var(--s3) + var(--safe-bottom)); width: calc(100vw - 2 * var(--s3)); box-sizing: border-box; overflow-x: auto; justify-content: flex-start; transform: translateX(-50%); }
   .nav-bar > div:nth-child(3), .nav-bar > div:nth-child(4) { display: none; }
 }

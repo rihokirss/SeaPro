@@ -415,6 +415,7 @@ export function App() {
   const [route, setRoute] = useState<Route>(newRoute);
   const [savedRoutes, setSavedRoutes] = useState<Route[]>([]);
   const [routeEditing, setRouteEditing] = useState(false);
+  const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
   const [routeAnalysis, setRouteAnalysis] = useState<RouteAnalysis | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -1016,13 +1017,55 @@ export function App() {
     setPointResult(null);
   }, [routeEditing, route.waypoints, commitWaypoints]);
 
-  const moveRouteWaypoint = useCallback((index: number, lat: number, lon: number) => {
-    setRoute((current) => ({ ...current, updatedAt: new Date().toISOString(), waypoints: current.waypoints.map((p, i) => i === index ? { ...p, lat, lon } : p) }));
+  const moveRouteWaypoint = useCallback((id: string, lat: number, lon: number) => {
+    setRoute((current) => ({ ...current, updatedAt: new Date().toISOString(), waypoints: current.waypoints.map((p) => p.id === id ? { ...p, lat, lon } : p) }));
   }, []);
 
   const insertRouteWaypoint = useCallback((index: number, lat: number, lon: number) => {
-    const next = [...route.waypoints]; next.splice(index, 0, { id: makeId(), lat, lon }); commitWaypoints(next);
+    const id = makeId();
+    const next = [...route.waypoints]; next.splice(index, 0, { id, lat, lon }); commitWaypoints(next);
+    setSelectedWaypointId(id);
   }, [route.waypoints, commitWaypoints]);
+
+  const deleteRouteWaypoint = useCallback((id: string) => {
+    const index = route.waypoints.findIndex((point) => point.id === id);
+    if (index < 0) return;
+    const next = route.waypoints.filter((point) => point.id !== id);
+    commitWaypoints(next);
+    setSelectedWaypointId(next[Math.max(0, index - 1)]?.id ?? null);
+  }, [route.waypoints, commitWaypoints]);
+
+  const previewRouteWaypoints = useCallback((waypoints: RouteWaypoint[]) => {
+    setRoute((current) => ({ ...current, waypoints }));
+  }, []);
+
+  const commitRouteReorder = useCallback((previous: RouteWaypoint[]) => {
+    setUndoRoutes((items) => [...items.slice(-49), previous]);
+    setRedoRoutes([]);
+    setRoute((current) => ({ ...current, updatedAt: new Date().toISOString() }));
+  }, []);
+
+  useEffect(() => {
+    if (selectedWaypointId && (!routeEditing || !route.waypoints.some((point) => point.id === selectedWaypointId))) {
+      setSelectedWaypointId(null);
+    }
+  }, [routeEditing, route.waypoints, selectedWaypointId]);
+
+  useEffect(() => {
+    if (!routeEditing) return;
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (event.key === 'Escape') {
+        setSelectedWaypointId(null);
+      } else if ((event.key === 'Delete' || event.key === 'Backspace') && selectedWaypointId) {
+        event.preventDefault();
+        deleteRouteWaypoint(selectedWaypointId);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [routeEditing, selectedWaypointId, deleteRouteWaypoint]);
 
   // Popupid loevad ühikut ja keelt renderdamise hetkel; hoiame neid ref'is,
   // et kaardi klikikäsitlejaid ei peaks iga seadistuse muutuse peale uuesti
@@ -1121,9 +1164,11 @@ export function App() {
           routeSegments={routeAnalysis?.depthSegments ?? []}
           trackPoints={trackPoints}
           routeEditing={routeEditing}
+          selectedWaypointId={selectedWaypointId}
           onReady={handleReady}
           onMoveEnd={handleMoveEnd}
           onPick={handlePick}
+          onRouteSelect={setSelectedWaypointId}
           onRouteMove={moveRouteWaypoint}
           onRouteMoveStart={() => { setUndoRoutes((items) => [...items.slice(-49), route.waypoints]); setRedoRoutes([]); }}
           onRouteInsert={insertRouteWaypoint}
@@ -1234,21 +1279,33 @@ export function App() {
           loading={routeLoading}
           error={routeError}
           editing={routeEditing}
+          selectedWaypointId={selectedWaypointId}
           canUndo={undoRoutes.length > 0}
           canRedo={redoRoutes.length > 0}
           speedUnit={speedUnit}
           onClose={() => setRouteOpen(false)}
           onChange={setRoute}
-          onNew={() => { setRoute(newRoute()); setRouteAnalysis(null); setUndoRoutes([]); setRedoRoutes([]); }}
-          onLoad={(next) => { setRoute(next); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(false); }}
-          onDelete={(id) => { routeStore.deleteRoute(id).then(() => routeStore.listRoutes()).then(setSavedRoutes).catch(() => {}); setRoute(newRoute()); setRouteAnalysis(null); }}
-          onStartEdit={() => { editStart.current = structuredClone(route); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(true); }}
-          onFinishEdit={() => { setRouteEditing(false); editStart.current = null; setRoute((current) => ({ ...current, updatedAt: new Date().toISOString() })); }}
-          onCancelEdit={() => { if (editStart.current) setRoute(editStart.current); setRouteEditing(false); setUndoRoutes([]); setRedoRoutes([]); }}
+          onNew={() => { setRoute(newRoute()); setRouteAnalysis(null); setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); }}
+          onLoad={(next) => { setRoute(next); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(false); setSelectedWaypointId(null); }}
+          onDelete={(id) => { routeStore.deleteRoute(id).then(() => routeStore.listRoutes()).then(setSavedRoutes).catch(() => {}); setRoute(newRoute()); setRouteAnalysis(null); setSelectedWaypointId(null); }}
+          onStartEdit={() => { editStart.current = structuredClone(route); setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); setRouteEditing(true); }}
+          onFinishEdit={() => { setRouteEditing(false); setSelectedWaypointId(null); editStart.current = null; setRoute((current) => ({ ...current, updatedAt: new Date().toISOString() })); }}
+          onCancelEdit={() => { if (editStart.current) setRoute(editStart.current); setRouteEditing(false); setSelectedWaypointId(null); setUndoRoutes([]); setRedoRoutes([]); }}
           onUndo={() => setUndoRoutes((history) => { const previous = history.at(-1); if (!previous) return history; setRedoRoutes((redo) => [route.waypoints, ...redo]); setRoute((current) => ({ ...current, waypoints: previous, updatedAt: new Date().toISOString() })); return history.slice(0, -1); })}
           onRedo={() => setRedoRoutes((history) => { const next = history[0]; if (!next) return history; setUndoRoutes((undo) => [...undo, route.waypoints]); setRoute((current) => ({ ...current, waypoints: next, updatedAt: new Date().toISOString() })); return history.slice(1); })}
-          onDeleteLast={() => { if (route.waypoints.length) commitWaypoints(route.waypoints.slice(0, -1)); }}
-          onUseLocation={() => { if (geo.position) commitWaypoints([...route.waypoints, { id: makeId(), lat: geo.position.lat, lon: geo.position.lon }]); else geo.request((position) => commitWaypoints([...route.waypoints, { id: makeId(), lat: position.lat, lon: position.lon }])); }}
+          onSelectWaypoint={setSelectedWaypointId}
+          onDeleteWaypoint={deleteRouteWaypoint}
+          onPreviewWaypoints={previewRouteWaypoints}
+          onCommitReorder={commitRouteReorder}
+          onFocusWaypoint={(point) => goTo(point.lat, point.lon, Math.max(mapRef.current?.getZoom() ?? 11, 11))}
+          onUseLocation={() => {
+            const appendPosition = (position: { lat: number; lon: number }): void => {
+              commitWaypoints([...route.waypoints, { id: makeId(), lat: position.lat, lon: position.lon }]);
+              setSelectedWaypointId(null);
+            };
+            if (geo.position) appendPosition(geo.position);
+            else geo.request(appendPosition);
+          }}
           onNavigate={startNavigation}
         />
 
