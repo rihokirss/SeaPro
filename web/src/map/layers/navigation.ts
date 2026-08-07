@@ -215,9 +215,18 @@ function ensureLayers(map: MapLibreMap): void {
         // lühikesed TSS-lõigud täiesti nooleta.
         'symbol-placement': 'line-center',
         'icon-image': TRAFFIC_DIRECTION_ICON,
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 7, 0.75, 11, 1, 15, 1.3],
+        // Ülevaates väike ja hõre, lähisuumis merekaardi moodi suur ning paks.
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          7, 0.32,
+          10, 0.5,
+          13, 0.75,
+          16, 1,
+        ],
         'icon-rotation-alignment': 'map',
         'icon-keep-upright': false,
+        // Kõik rajanooled peavad alles jääma ka tihedas skeemis; suuruse
+        // suumiskaala hoiab ülevaatepildi piisavalt hõredana.
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
       },

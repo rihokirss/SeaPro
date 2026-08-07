@@ -11,7 +11,6 @@ import { fetchJson } from '../http.js';
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.osm.ch/api/interpreter',
 ];
 
 const TTL_SECONDS = 24 * 3600;
@@ -87,7 +86,9 @@ export async function fetchTrafficSchemes(
     Math.ceil((north + latMargin) / step) * step,
     Math.ceil((east + lonMargin) / step) * step,
   ] as const;
-  const key = `overpass:traffic:v4:${snapped.join(',')}`;
+  // v5 eemaldab piirkondliku osm.ch peegli tagastatud ekslikult tühjad
+  // Läänemere kirjed varasemast vahemälust.
+  const key = `overpass:traffic:v5:${snapped.join(',')}`;
   const { value } = await cache.get(key, TTL_SECONDS, () => queryOverpass(snapped));
   return value;
 }

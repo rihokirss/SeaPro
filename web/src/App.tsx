@@ -916,7 +916,15 @@ export function App() {
     if (!layers.trafficSchemes || !view) return;
     const ac = new AbortController();
     api.trafficSchemes(view.bbox, ac.signal).then(({ trafficSchemes }) => {
-      setNavigationData((current) => ({ ...current, trafficSchemes }));
+      // Overpassi bbox-vastused on paanid, mitte kogu maailma hetkeseis.
+      // Liidame uue paani juba laaditutega: suumimine või naaber-bbox ei tohi
+      // varem nähtud skeeme osalise/tühja vastusega kaardilt kustutada.
+      setNavigationData((current) => {
+        if (trafficSchemes.length === 0) return current;
+        const merged = new Map(current.trafficSchemes.map((scheme) => [scheme.id, scheme]));
+        for (const scheme of trafficSchemes) merged.set(scheme.id, scheme);
+        return { ...current, trafficSchemes: [...merged.values()] };
+      });
     }).catch(() => {
       // Overpass on koormatud; viimane edukas skeem jääb kaardile alles.
     });
