@@ -711,9 +711,36 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     addText(rows, 'MMSI', p.mmsi);
     const light = String(p.lightColour ?? '').trim();
     if (light || p.lightActive === true) {
-      rows.push(row(t('navigation.light'), escapeHtml(light || 'AIS'), ''));
+      const sourceNames = String(p.sources ?? '');
+      rows.push(row(
+        t('navigation.light'),
+        escapeHtml(light || (sourceNames.includes('vaylavirasto')
+          ? t('navigation.lightActive')
+          : 'AIS')),
+        '',
+      ));
     }
     addText(rows, t('navigation.owner'), p.owner);
+    addText(rows, t('navigation.aidNumber'), p.atonCode);
+    addText(rows, t('navigation.location'), p.location);
+    addText(rows, t('navigation.fairwayName'), p.fairwayName);
+    addMultilineText(rows, t('navigation.lightDetails'), p.lightDetails);
+    addMultilineText(rows, t('navigation.lightSectors'), p.lightSectors);
+    const updatedAt = String(p.updatedAt ?? '').trim();
+    if (updatedAt) {
+      const updated = new Date(updatedAt);
+      if (Number.isFinite(updated.getTime())) {
+        rows.push(row(
+          t('navigation.updatedAt'),
+          escapeHtml(new Intl.DateTimeFormat(ctx.lang === 'et' ? 'et-EE' : 'en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          }).format(updated)),
+          '',
+        ));
+      }
+    }
     const registryUrl = String(p.registryUrl ?? '').trim();
     if (registryUrl) {
       rows.push(row(
@@ -731,6 +758,10 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     addText(rows, t('navigation.fairway'), p.fairwayType);
   }
 
+  const source = kind === 'aid'
+    ? navigationAidSource(String(p.sources ?? '').trim())
+    : 'Transpordiamet · Nutimeri';
+
   return `
     <div class="popup">
       <div class="popup__head">
@@ -740,8 +771,16 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       ${notice ? `<div class="popup__age popup__age--stale">${escapeHtml(notice)}</div>` : ''}
       ${message ? `<div class="popup__message">${message}</div>` : ''}
       ${rows.length ? `<table class="popup__table">${rows.join('')}</table>` : ''}
-      <div class="popup__source">Transpordiamet · Nutimeri</div>
+      <div class="popup__source">${escapeHtml(source)}</div>
     </div>`;
+}
+
+function navigationAidSource(sources: string): string {
+  const labels: string[] = [];
+  if (sources.includes('registry')) labels.push('Transpordiamet · Nutimeri');
+  if (sources.includes('vaylavirasto')) labels.push('Väylävirasto');
+  if (sources.includes('ais')) labels.push('AIS');
+  return labels.join(' + ') || 'AIS';
 }
 
 function localized(et: unknown, en: unknown, ctx: PopupContext): string {
@@ -768,6 +807,11 @@ function addMetric(rows: string[], label: string, value: unknown, unit: string):
 function addText(rows: string[], label: string, value: unknown): void {
   const text = String(value ?? '').trim();
   if (text) rows.push(row(label, escapeHtml(text), ''));
+}
+
+function addMultilineText(rows: string[], label: string, value: unknown): void {
+  const text = String(value ?? '').trim();
+  if (text) rows.push(row(label, multiline(text), ''));
 }
 
 function formatDateRange(from: string, to: string, lang: string): string {

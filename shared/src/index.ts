@@ -446,10 +446,17 @@ export interface NavigationAid {
   lightActive?: boolean;
   lightColour?: string;
   owner?: string;
+  /** Registri vabatekstiline asukohakirjeldus. */
+  location?: string;
+  /** Laevatee nimi, millega märk on registris seotud. */
+  fairwayName?: string;
+  /** Registri tule ja sektorite detailid. */
+  lightDetails?: string;
+  lightSectors?: string;
   activeFrom?: string;
   activeTill?: string;
   updatedAt?: string;
-  sources: Array<'registry' | 'ais'>;
+  sources: Array<'registry' | 'vaylavirasto' | 'ais'>;
 }
 
 export interface Fairway {

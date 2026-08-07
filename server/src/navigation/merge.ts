@@ -43,7 +43,7 @@ export function mergeNavigationAids(
       offPosition: incoming.offPosition ?? base.offPosition,
       mmsi: incoming.mmsi ?? base.mmsi,
       updatedAt: incoming.updatedAt ?? base.updatedAt,
-      sources: ['registry', 'ais'],
+      sources: [...new Set([...base.sources, 'ais' as const])],
     };
   }
   return out;

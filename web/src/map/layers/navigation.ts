@@ -13,6 +13,7 @@ export const WARNING_LINES_LAYER = 'navigation-warning-lines';
 export const WARNING_POINTS_LAYER = 'navigation-warning-points';
 export const WRECKS_LAYER = 'wrecks';
 export const WRECK_LABELS_LAYER = 'wreck-labels';
+export const NAVIGATION_AID_HIT_LAYER = 'navigation-aid-hit';
 export const NAVIGATION_AIDS_LAYER = 'navigation-aids';
 export const NAVIGATION_AID_ALERTS_LAYER = 'navigation-aid-alerts';
 export const NAVIGATION_AID_LABELS_LAYER = 'navigation-aid-labels';
@@ -22,7 +23,7 @@ export const NAVIGATION_CLICK_LAYERS = [
   WARNING_LINE_HIT_LAYER,
   WARNING_AREAS_LAYER,
   WRECKS_LAYER,
-  NAVIGATION_AIDS_LAYER,
+  NAVIGATION_AID_HIT_LAYER,
   FAIRWAYS_LAYER,
 ];
 
@@ -85,6 +86,7 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
         category,
         icon: `navigation-${fixedAidIconCategory(category, aid.markColours)}`,
         sources: aid.sources.join(','),
+        official: aid.sources.some((source) => source !== 'ais'),
         virtual: aid.virtual ?? false,
         offPosition: aid.offPosition ?? false,
         mmsi: aid.mmsi ?? null,
@@ -254,6 +256,28 @@ function ensureLayers(map: MapLibreMap): void {
     }, insertBefore(map, NAVIGATION_AID_ALERTS_LAYER));
   }
 
+  if (!map.getLayer(NAVIGATION_AID_HIT_LAYER)) {
+    // Rasterkaardil oleva tingmärgi keskpunkt ja registri koordinaat võivad
+    // mõne piksli võrra erineda. Eraldi läbipaistev tabamisala teeb kliki
+    // andeksandvaks, ilma et joonistaks kaardile veel ühe nähtava märgi.
+    map.addLayer({
+      id: NAVIGATION_AID_HIT_LAYER,
+      type: 'circle',
+      source: SOURCE_ID,
+      filter: ['==', ['get', 'featureKind'], 'aid'],
+      minzoom: 10,
+      paint: {
+        // Nähtava tingmärgi `icon-anchor` on bottom: geograafiline punkt on
+        // märgi jalas, märk ise ulatub sellest üles. Nihutame tabamisala sama
+        // moodi üles, muidu oleks klikk aktiivne jalas, mitte märgi kehal.
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 15, 14, 18, 18, 21],
+        'circle-translate': [0, -16],
+        'circle-translate-anchor': 'viewport',
+        'circle-color': 'rgba(0,0,0,0.01)',
+      },
+    }, insertBefore(map, NAVIGATION_AID_HIT_LAYER));
+  }
+
   if (!map.getLayer(NAVIGATION_AIDS_LAYER)) {
     map.addLayer({
       id: NAVIGATION_AIDS_LAYER,
@@ -314,23 +338,26 @@ export function setNavigationVisibility(map: MapLibreMap, visibility: Navigation
   // võib märgid sisse tuua ka siis, kui reaalaja AIS-märgid on väljas.
   setVisible(
     map,
-    [NAVIGATION_AID_ALERTS_LAYER, NAVIGATION_AIDS_LAYER, NAVIGATION_AID_LABELS_LAYER],
+    [NAVIGATION_AID_HIT_LAYER, NAVIGATION_AID_ALERTS_LAYER, NAVIGATION_AIDS_LAYER],
     visibility.aids || visibility.official,
   );
+  // Nimi on kõigil navigatsioonimärkidel popupis. Kaardile eraldi tekstikihti
+  // ei kuva, sõltumata riigist või registriallikast.
+  setVisible(map, [NAVIGATION_AID_LABELS_LAYER], false);
   const kindFilter: FilterSpecification = ['==', ['get', 'featureKind'], 'aid'];
   const sourceFilter: FilterSpecification | null = visibility.aids && visibility.official
     ? null
     : visibility.aids
       ? ['in', 'ais', ['get', 'sources']]
-      : ['in', 'registry', ['get', 'sources']];
+      : ['==', ['get', 'official'], true];
   const visibleAidFilter: FilterSpecification = sourceFilter
     ? ['all', kindFilter, sourceFilter]
     : kindFilter;
   if (map.getLayer(NAVIGATION_AIDS_LAYER)) {
     map.setFilter(NAVIGATION_AIDS_LAYER, visibleAidFilter);
   }
-  if (map.getLayer(NAVIGATION_AID_LABELS_LAYER)) {
-    map.setFilter(NAVIGATION_AID_LABELS_LAYER, visibleAidFilter);
+  if (map.getLayer(NAVIGATION_AID_HIT_LAYER)) {
+    map.setFilter(NAVIGATION_AID_HIT_LAYER, visibleAidFilter);
   }
   if (map.getLayer(NAVIGATION_AID_ALERTS_LAYER)) {
     const offPositionFilter: FilterSpecification = ['==', ['get', 'offPosition'], true];

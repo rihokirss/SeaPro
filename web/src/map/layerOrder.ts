@@ -29,6 +29,7 @@ export const LAYER_ORDER = [
   'navigation-warning-points',
   'wrecks',
   'wreck-labels',
+  'navigation-aid-hit',
   'navigation-aid-alerts',
   'navigation-aids',
   'navigation-aid-labels',

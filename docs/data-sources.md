@@ -356,11 +356,18 @@ server ei tõmba ega saada väljalülitatud kihte.
 | AIS navigatsioonimärgid | `AIS-aton-stream-out/StreamServer/subscribe` | püsiv WebSocket; klient küsib serveri registrit iga 30 s |
 | Vrakid | `HIS/HIS_avalik/MapServer`, kiht 7 | 24 h vahemälu |
 | Ametlikud laevateed ja püsi-, ujuv- ning hooajalised märgid | `Nutimeri/pohiandmed/MapServer`, kihid 0–3 | 24 h vahemälu |
+| Soome ametlikud navigatsioonimärgid | Väylävirasto WFS, `vesivaylatiedot:turvalaitteet_uusi` | nähtava ala GeoJSON; 24 h vahemälu |
 
 AIS AToN ühendatakse koordinaadi järgi sama füüsilise registrimärgiga; virtuaalne
 AIS-märk jääb alati eraldi. Ametlikud laevateed ja märgid võivad ENC merekaardi
 sisu dubleerida, mistõttu nende kiht on vaikimisi väljas. Hoiatused ja reaalaja
 AIS-märgid on vaikimisi sees.
+
+Soome WFS-i MultiPoint-objektid normaliseeritakse samasse `NavigationAid`
+mudelisse nagu Nutimeri märgid. `navigointilajikoodi` 1–9 tõlgitakse IALA
+lateraal-, kardinaal-, üksikohu-, ohutu vee ja erimärkideks, mistõttu klient
+kasutab mõlema riigi jaoks samu ikoone ja popupisüsteemi. Väga laias vaates
+WFS-i ei küsita, sest märgikiht ilmub kaardile alles lähisuumis.
 
 Sama Nutimeri teenuse sadamakiht 4 rikastab `/api/harbours` OSM-i kirjeid.
 Esmane ühendusvõti on normaliseeritud UN/LOCODE (`EE RST` = `EERST`), seejärel

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { categoryFromAtonType, categoryFromRegistry } from '../src/navigation/categories.js';
+import {
+  categoryFromAtonType,
+  categoryFromFinnishNavigationCode,
+  categoryFromRegistry,
+} from '../src/navigation/categories.js';
 
 describe('navigatsioonimärkide liigitus', () => {
   it('tõlgib AIS Message 21 standardtüübid', () => {
@@ -14,6 +18,19 @@ describe('navigatsioonimärkide liigitus', () => {
     expect(categoryFromAtonType(8)).toBe('leading-rear');
     expect(categoryFromAtonType(4)).toBeUndefined();
     expect(categoryFromAtonType(31)).toBeUndefined();
+  });
+
+  it('tõlgib Väylävirasto IALA navigatsiooniliigi koodid', () => {
+    expect(categoryFromFinnishNavigationCode(1)).toBe('lateral-port');
+    expect(categoryFromFinnishNavigationCode(2)).toBe('lateral-starboard');
+    expect(categoryFromFinnishNavigationCode(3)).toBe('cardinal-north');
+    expect(categoryFromFinnishNavigationCode(4)).toBe('cardinal-south');
+    expect(categoryFromFinnishNavigationCode(5)).toBe('cardinal-west');
+    expect(categoryFromFinnishNavigationCode(6)).toBe('cardinal-east');
+    expect(categoryFromFinnishNavigationCode(7)).toBe('isolated-danger');
+    expect(categoryFromFinnishNavigationCode(8)).toBe('safe-water');
+    expect(categoryFromFinnishNavigationCode(9)).toBe('special');
+    expect(categoryFromFinnishNavigationCode(99)).toBeUndefined();
   });
 
   it('eristab Nutimeri ametliku nime järgi kardinaalid ja lateraalmärgid', () => {

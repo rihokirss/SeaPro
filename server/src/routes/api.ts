@@ -34,6 +34,7 @@ import {
 } from '../navigation/arcgis.js';
 import { aisAtons } from '../navigation/aisAton.js';
 import { mergeHarbours, mergeNavigationAids } from '../navigation/merge.js';
+import { fetchFinnishNavigationAids } from '../navigation/vaylavirasto.js';
 import {
   coversPoint,
   enabledProviders,
@@ -499,7 +500,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const wantWrecks = requested.has('wrecks');
     const wantOfficial = requested.has('official');
     const wantAisAids = requested.has('aids');
-    const [warningResult, wreckResult, officialResult] = await Promise.allSettled([
+    const [warningResult, wreckResult, officialResult, finnishAidResult] = await Promise.allSettled([
       wantWarnings ? fetchNavigationWarnings(bbox) : Promise.resolve([]),
       wantWrecks ? fetchWrecks(bbox) : Promise.resolve([]),
       // AIS-märk vajab registri vastet ka siis, kui ametlik kiht pole nähtav:
@@ -507,6 +508,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       wantOfficial || wantAisAids
         ? fetchOfficialNavigation(bbox)
         : Promise.resolve({ aids: [], fairways: [] }),
+      wantOfficial || wantAisAids
+        ? fetchFinnishNavigationAids(bbox)
+        : Promise.resolve([]),
     ]);
     const official = officialResult.status === 'fulfilled'
       ? officialResult.value
@@ -514,7 +518,10 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
 
     reply.header('Cache-Control', 'no-store');
     const mergedAids = mergeNavigationAids(
-      official.aids,
+      [
+        ...official.aids,
+        ...(finnishAidResult.status === 'fulfilled' ? finnishAidResult.value : []),
+      ],
       wantAisAids ? aisAtons.query(bbox) : [],
     );
 
@@ -525,9 +532,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       aids: wantOfficial
         ? mergedAids
         : mergedAids.filter((aid) => aid.sources.includes('ais')),
-      errors: [warningResult, wreckResult, officialResult]
+      errors: [warningResult, wreckResult, officialResult, finnishAidResult]
         .map((result, index) => result.status === 'rejected'
-          ? ['warnings', 'wrecks', 'official'][index]
+          ? ['warnings', 'wrecks', 'official', 'finnish-aids'][index]
           : null)
         .filter(Boolean),
     };

@@ -20,6 +20,23 @@ export function categoryFromAtonType(type: number | undefined): AidCategory | un
   return direct[type];
 }
 
+/** Väylävirasto `navigointilajikoodi` -> IALA märgiliik. */
+export function categoryFromFinnishNavigationCode(code: number | undefined): AidCategory | undefined {
+  if (code === undefined) return undefined;
+  const categories: Partial<Record<number, AidCategory>> = {
+    1: 'lateral-port',
+    2: 'lateral-starboard',
+    3: 'cardinal-north',
+    4: 'cardinal-south',
+    5: 'cardinal-west',
+    6: 'cardinal-east',
+    7: 'isolated-danger',
+    8: 'safe-water',
+    9: 'special',
+  };
+  return categories[code];
+}
+
 /**
  * Nutimeri registris pole eraldi IALA liigi välja; ametlik eestikeelne nimi,
  * märgi klass ja tule värv kannavad sama info. Nime kontroll on enne värvi,
