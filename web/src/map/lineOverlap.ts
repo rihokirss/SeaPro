@@ -6,8 +6,9 @@ type Interval = [number, number];
 type Segment = [Coordinate, Coordinate];
 
 const EARTH_METRES_PER_DEGREE = 111_320;
-const PARALLEL_COSINE = Math.cos(20 * Math.PI / 180);
-const MIN_VISIBLE_METRES = 2;
+const PARALLEL_COSINE = Math.cos(10 * Math.PI / 180);
+const OVERLAP_TOLERANCE_METRES = 50;
+const MIN_OVERLAP_FRAGMENT_METRES = 30;
 
 /**
  * Eemaldab ametlikust laevateest ainult need lõigud, mille kohal on juba
@@ -17,7 +18,7 @@ const MIN_VISIBLE_METRES = 2;
 export function fairwayVisibleGeometry(
   geometry: LineGeometry,
   trafficSchemes: TrafficScheme[],
-  toleranceM = 25,
+  toleranceM = OVERLAP_TOLERANCE_METRES,
 ): LineGeometry | null {
   return subtractTrafficSegments(geometry, visibleTrafficSegments(trafficSchemes), toleranceM);
 }
@@ -26,7 +27,7 @@ export function fairwayVisibleGeometry(
 export function fairwayVisibleGeometries(
   fairways: Fairway[],
   trafficSchemes: TrafficScheme[],
-  toleranceM = 25,
+  toleranceM = OVERLAP_TOLERANCE_METRES,
 ): Map<string, LineGeometry | null> {
   const trafficSegments = visibleTrafficSegments(trafficSchemes);
   return new Map(fairways.map((fairway) => [
@@ -102,7 +103,10 @@ function subtractOverlaps(
     for (const [from, to] of visible) {
       const partStart = interpolate(start, end, from);
       const partEnd = interpolate(start, end, to);
-      if (distanceMetres(partStart, partEnd) < MIN_VISIBLE_METRES) continue;
+      // Positsioonierinevus võib kattuvuse otsa jätta mõnemeetrise kriipsu.
+      // Täiesti unikaalset lühikest segmenti ei tohi samal ajal ära kaotada.
+      if (removed.length > 0
+        && distanceMetres(partStart, partEnd) < MIN_OVERLAP_FRAGMENT_METRES) continue;
 
       if (current && from === 0 && sameCoordinate(current.at(-1), partStart)) {
         current.push(partEnd);
@@ -180,7 +184,7 @@ function overlapInterval(
 
   // Kergelt lahknevad jooned võivad olla lähestikku ainult osa ulatuses.
   // Kaugus sirglõigust on selle intervalli peal kumer funktsioon: leiame
-  // lähima koha ning binaarotsinguga täpsed 25 m koridori sisenemis-/väljumisotsad.
+  // lähima koha ning binaarotsinguga täpsed koridori sisenemis-/väljumisotsad.
   let searchFrom = from;
   let searchTo = to;
   for (let iteration = 0; iteration < 36; iteration++) {

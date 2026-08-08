@@ -364,7 +364,7 @@ sisu dubleerida, mistõttu nende kiht on vaikimisi väljas. Hoiatused ja reaalaj
 AIS-märgid on vaikimisi sees.
 
 OpenSeaMapi liiklusskeemide ja Transpordiameti laevateede kattuvad joonelõigud
-kuvatakse ainult üks kord. Kuni 25 m kaugusel ja kuni 20° suunaerinevusega
+kuvatakse ainult üks kord. Kuni 50 m kaugusel ja kuni 10° suunaerinevusega
 lõigatakse nähtavast registrijoonest maha ainult tegelik kattuv osa; registri
 unikaalsed lõigud jäävad alles. Täielik registrigeomeetria säilib eraldi
 läbipaistvas klikikihis. Kui liiklusskeemid välja lülitada, kuvatakse taas kogu
