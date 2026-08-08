@@ -307,7 +307,11 @@ function ensureLayers(map: MapLibreMap): void {
       filter: ['==', ['get', 'featureKind'], 'fairway'],
       minzoom: 9,
       paint: {
-        'line-color': 'rgba(169,58,180,0.01)',
+        // MapLibre'i hit-test kasutab line-width'i ega arvesta line-opacity't,
+        // seega saab tabamisala olla päriselt nähtamatu. 1% alfaga 28 px joon
+        // jäi valevärvide peal teise laevateena aimatavaks.
+        'line-color': NAVIGATION_LINE_COLOUR,
+        'line-opacity': 0,
         'line-width': 28,
       },
     }, insertBefore(map, FAIRWAY_HIT_LAYER));
