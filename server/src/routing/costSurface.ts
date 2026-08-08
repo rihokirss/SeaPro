@@ -1,8 +1,8 @@
 import type { BBox } from '@seapro/shared';
 import type { GridCoordinate, GridPoint, RouteRisk, RoutingCell, RoutingGrid } from './engineTypes.js';
 import { ROUTING_COST_MULTIPLIERS } from './engineTypes.js';
-import { isWithinRoutingServicePosition } from './coverage.js';
-import { RoutingDepthState, routingDepthAt, type RoutingDepthRaster } from './depthRaster.js';
+import { serviceAreaRowSampler } from './coverage.js';
+import { createDepthRowSampler, DEPTH_SAMPLE_LAND, type RoutingDepthRaster } from './depthRaster.js';
 import { pointInRoutingGeometry, routingGeometryBbox } from './sourceGeometry.js';
 import type {
   Position,
@@ -15,7 +15,7 @@ import type {
   RoutingVectorData,
   RoutingWarning,
 } from './sourceTypes.js';
-import { routingWaterAt, type RoutingWaterMask } from './waterMask.js';
+import { createRoutingWaterSampler, routingWaterAt, type RoutingWaterMask } from './waterMask.js';
 
 const METRES_PER_LATITUDE_DEGREE = 111_320;
 const DEFAULT_MAX_CELLS = 600_000;
@@ -182,8 +182,20 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
   // madalavee proov blokeerib kogu lahtri; ühe proovi puudumine muudab lahtri
   // tundmatuks. Nii ei kao kitsas saar või madalik lahtrikeskmete vahele.
   const baseStartedAt = performance.now();
+  const waterSampler = createRoutingWaterSampler(input.water);
   for (let y = 0; y < projection.height; y++) {
     if ((y & 7) === 0) checkpoint();
+    // Rea kolm proovilaiuskraadi on kõigil lahtritel samad: veemaski,
+    // sügavusrastri ja teenindusmaski rea-samplerid tehakse üks kord rea
+    // kohta, mitte iga lahtri iga proovi kohta. Tulemus on proovihaaval sama.
+    const rowSamplers = CELL_SAMPLE_OFFSETS.map((dy) => {
+      const lat = projectionNorth - (y + dy + 0.5) * projection.latStep;
+      return {
+        water: waterSampler.rowAt(lat),
+        depth: createDepthRowSampler(input.depth, lat),
+        service: serviceAreaRowSampler(lat),
+      };
+    });
     for (let x = 0; x < projection.width; x++) {
       const index = cellIndex(projection, x, y);
       let waterLand = false;
@@ -193,20 +205,17 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
       let outsideOfficialCoverage = false;
       let minimumDepthM = Number.POSITIVE_INFINITY;
 
-      for (const dy of CELL_SAMPLE_OFFSETS) {
-        const lat = projectionNorth - (y + dy + 0.5) * projection.latStep;
+      for (const row of rowSamplers) {
         for (const dx of CELL_SAMPLE_OFFSETS) {
           const lon = projectionWest + (x + dx + 0.5) * projection.lonStep;
-          const water = routingWaterAt(input.water, lon, lat);
-          const depth = routingDepthAt(input.depth, lon, lat);
+          const water = row.water(lon);
           waterLand ||= water === false;
           waterUnknown ||= water === null;
-          depthLand ||= depth.state === RoutingDepthState.Land;
-          depthUnknown ||= depth.state === RoutingDepthState.NoData || depth.depthM === null;
-          outsideOfficialCoverage ||= !isWithinRoutingServicePosition(lon, lat);
-          if (depth.state === RoutingDepthState.Water && depth.depthM !== null) {
-            minimumDepthM = Math.min(minimumDepthM, depth.depthM);
-          }
+          const depthSample = row.depth(lon);
+          if (depthSample === DEPTH_SAMPLE_LAND) depthLand = true;
+          if (depthSample < 0) depthUnknown = true;
+          else minimumDepthM = Math.min(minimumDepthM, depthSample);
+          outsideOfficialCoverage ||= !row.service(lon);
         }
       }
 

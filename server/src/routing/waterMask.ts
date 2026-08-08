@@ -173,3 +173,106 @@ export function routingWaterAt(mask: RoutingWaterMask, lon: number, lat: number)
   if (!tile) return null;
   return tile.polygons.some((polygon) => pointInPolygon([lon, lat], polygon));
 }
+
+interface PreparedRing {
+  xs: Float64Array;
+  ys: Float64Array;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+interface PreparedPolygon {
+  outer: PreparedRing;
+  holes: PreparedRing[];
+}
+
+/**
+ * Kulupinna baasklassifikatsioon küsib veemaski miljoneid kordi. Sampler
+ * valmistab paani polügoonid ette (lamedad koordinaadid + ringi bbox) ja
+ * hoiab rea sees viimase paani käepärast, et iga proov ei maksaks
+ * stringivõtit, Map-otsingut ega vahemassiive. Tulemus on sama mis
+ * `routingWaterAt`-il: sama ray-cast avaldis samadel ujukomaväärtustel;
+ * bbox-i eelkontroll on täpne, sest bbox'ist väljas annab ray-cast alati
+ * paarisarvu lõikeid ehk "väljas".
+ */
+export interface RoutingWaterSampler {
+  rowAt(lat: number): (lon: number) => boolean | null;
+}
+
+export function createRoutingWaterSampler(mask: RoutingWaterMask): RoutingWaterSampler {
+  const prepared = new Map<string, PreparedPolygon[] | null>();
+
+  const preparedTile = (key: string): PreparedPolygon[] | null => {
+    const cached = prepared.get(key);
+    if (cached !== undefined) return cached;
+    const tile = mask.tiles.get(key);
+    const polygons = tile
+      ? tile.polygons.map((polygon) => ({
+        outer: prepareRing(polygon[0] ?? []),
+        holes: polygon.slice(1).map(prepareRing),
+      }))
+      : null;
+    prepared.set(key, polygons);
+    return polygons;
+  };
+
+  return {
+    rowAt(lat) {
+      const tileRow = tileY(lat, mask.zoom);
+      let lastTileColumn = Number.NaN;
+      let polygons: PreparedPolygon[] | null = null;
+      return (lon) => {
+        const tileColumn = tileX(lon, mask.zoom);
+        if (tileColumn !== lastTileColumn) {
+          lastTileColumn = tileColumn;
+          polygons = preparedTile(`${tileColumn}:${tileRow}`);
+        }
+        if (!polygons) return null;
+        for (const polygon of polygons) {
+          if (!ringContains(polygon.outer, lon, lat)) continue;
+          let inHole = false;
+          for (const hole of polygon.holes) {
+            if (ringContains(hole, lon, lat)) {
+              inHole = true;
+              break;
+            }
+          }
+          if (!inHole) return true;
+        }
+        return false;
+      };
+    },
+  };
+}
+
+function prepareRing(ring: Position[]): PreparedRing {
+  const xs = new Float64Array(ring.length);
+  const ys = new Float64Array(ring.length);
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < ring.length; index++) {
+    const [x, y] = ring[index]!;
+    xs[index] = x;
+    ys[index] = y;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { xs, ys, minX, minY, maxX, maxY };
+}
+
+function ringContains(ring: PreparedRing, lon: number, lat: number): boolean {
+  if (lon < ring.minX || lon > ring.maxX || lat < ring.minY || lat > ring.maxY) return false;
+  const { xs, ys } = ring;
+  let inside = false;
+  for (let i = 0, j = xs.length - 1; i < xs.length; j = i++) {
+    if ((ys[i]! > lat) !== (ys[j]! > lat)
+      && lon < (xs[j]! - xs[i]!) * (lat - ys[i]!) / (ys[j]! - ys[i]!) + xs[i]!) inside = !inside;
+  }
+  return inside;
+}

@@ -114,6 +114,38 @@ export async function fetchRoutingDepthRaster(
   };
 }
 
+export const DEPTH_SAMPLE_NODATA = -1;
+export const DEPTH_SAMPLE_LAND = -2;
+export const DEPTH_SAMPLE_WATER_UNKNOWN = -3;
+
+/**
+ * Rea-kaupa sügavusproovid ilma objektiallokatsioonita: positiivne väärtus
+ * on vee sügavus meetrites, negatiivsed konstandid eristavad NoData, maad ja
+ * teadmata sügavusega vett. Sama lahtrivalik ja samad avaldised mis
+ * `routingDepthAt`-il, seega sama tulemus.
+ */
+export function createDepthRowSampler(
+  raster: RoutingDepthRaster,
+  lat: number,
+): (lon: number) => number {
+  const [west, south, east, north] = raster.bbox;
+  if (lat < south || lat > north) return () => DEPTH_SAMPLE_NODATA;
+  const y = Math.max(0, Math.min(raster.height - 1,
+    Math.floor((north - lat) / (north - south) * raster.height)));
+  const rowStart = y * raster.width;
+  const { width, states, depths } = raster;
+  return (lon) => {
+    if (lon < west || lon > east) return DEPTH_SAMPLE_NODATA;
+    const x = Math.max(0, Math.min(width - 1,
+      Math.floor((lon - west) / (east - west) * width)));
+    const state = states[rowStart + x];
+    if (state === RoutingDepthState.Land) return DEPTH_SAMPLE_LAND;
+    if (state !== RoutingDepthState.Water) return DEPTH_SAMPLE_NODATA;
+    const depth = depths[rowStart + x]!;
+    return Number.isFinite(depth) ? depth : DEPTH_SAMPLE_WATER_UNKNOWN;
+  };
+}
+
 export function routingDepthAt(
   raster: RoutingDepthRaster,
   lon: number,

@@ -59,6 +59,40 @@ export function isWithinRoutingServicePosition(lon: number, lat: number): boolea
   return SERVICE_AREAS.some((ring) => pointInRing(lon, lat, ring));
 }
 
+/**
+ * Rea-kaupa teenindusmaski kontroll: proovilaiuskraadi kohta arvutame ringide
+ * lõikepunktid üks kord ja iga proov maksab mõne võrdluse. Sama half-open
+ * ray-cast nagu `pointInRing` (paaritu arv lõikeid punktist paremal = sees),
+ * ring-ringilt eraldi, sest teenindusalad kattuvad osaliselt.
+ */
+export function serviceAreaRowSampler(lat: number): (lon: number) => boolean {
+  if (!Number.isFinite(lat) || lat < ROUTING_SERVICE_BBOX[0] || lat > ROUTING_SERVICE_BBOX[2]) {
+    return () => false;
+  }
+  const crossingsPerRing = SERVICE_AREAS.map((ring) => {
+    const crossings: number[] = [];
+    for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+      const a = ring[index]!;
+      const b = ring[previous]!;
+      if ((a[1] > lat) !== (b[1] > lat)) {
+        crossings.push((b[0] - a[0]) * (lat - a[1]) / (b[1] - a[1]) + a[0]);
+      }
+    }
+    return crossings;
+  }).filter((crossings) => crossings.length > 0);
+  return (lon) => {
+    if (lon < ROUTING_SERVICE_BBOX[1] || lon > ROUTING_SERVICE_BBOX[3]) return false;
+    for (const crossings of crossingsPerRing) {
+      let count = 0;
+      for (const crossing of crossings) {
+        if (lon < crossing) count++;
+      }
+      if ((count & 1) === 1) return true;
+    }
+    return false;
+  };
+}
+
 function pointInRing(lon: number, lat: number, ring: readonly Position[]): boolean {
   let inside = false;
   for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
