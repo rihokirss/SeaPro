@@ -435,6 +435,59 @@ describe('route planner snapshot integration', () => {
     expect(result.endpoints.end.distanceM).toBeLessThan(100);
   });
 
+  it('drops a derived harbour access with a blocked gate instead of failing the route', async () => {
+    const request = routeRequest();
+    const harbour: RoutingHarbour = {
+      id: 'transpordiamet-his:harbour:test',
+      kind: 'harbour',
+      geometry: { type: 'Point', coordinates: [request.end.lon, request.end.lat] },
+      name: 'Testisadam',
+      maxDraughtM: 3,
+      official: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const gateAid = (id: string, lon: number, role: 'lateral-port' | 'lateral-starboard'): RoutingHazard => ({
+      id,
+      kind: 'physical_aid',
+      geometry: { type: 'Point', coordinates: [lon, 59.0088] },
+      name: `Testisadam ${role === 'lateral-port' ? '2' : '1'}`,
+      confidence: 'high',
+      navigationRole: role,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    });
+    // Võõras kivi täpselt väravakeskmes blokeerib tuletatud kanali tugipunkti.
+    const rock: RoutingHazard = {
+      id: 'rock-at-gate',
+      kind: 'rock',
+      geometry: { type: 'Point', coordinates: [24.021, 59.0088] },
+      name: 'Kivi',
+      confidence: 'high',
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const result = await planRoute(request, {
+      snapshot: snapshotFor({
+        depthM: 8,
+        harbours: [harbour],
+        hazards: [gateAid('aid-port', 24.0205, 'lateral-port'), gateAid('aid-starboard', 24.0215, 'lateral-starboard'), rock],
+      }),
+      bbox: BBOX,
+    });
+    expect(result.status).toBe('advisory');
+    if (result.status === 'no_route') throw new Error('Expected a route');
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'harbour_access_not_navigable',
+      severity: 'warning',
+      details: expect.objectContaining({ endpoint: 'end' }),
+    }));
+    expect(result.issues.some((issue) => issue.code === 'harbour_access_inferred')).toBe(false);
+  });
+
   it('keeps the harbour limit issue in a no_route response for context', async () => {
     const request = routeRequest();
     const harbour: RoutingHarbour = {

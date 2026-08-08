@@ -159,8 +159,20 @@ export async function planRoute(
   // tuletatud ligipääsu ei sunnita marsruudile; otspunkt kleebitakse siis
   // lähimasse sama avamere komponendi lahtrisse.
   const snapStartedAt = performance.now();
-  const startAccess = connectedHarbourAccess(surface, derivedStartAccess);
-  const endAccess = connectedHarbourAccess(surface, derivedEndAccess);
+  const startAccess = navigableHarbourAccess(surface, connectedHarbourAccess(surface, derivedStartAccess));
+  const endAccess = navigableHarbourAccess(surface, connectedHarbourAccess(surface, derivedEndAccess));
+  // Tuletatud kanali tugipunkt võib sattuda blokeeritud lahtrisse (nt
+  // geomeetriline väravapaar võõra märgi puhvri kõrval). Siis ei sunni me
+  // kanalit marsruudile ega blokeeri kogu tulemust, vaid kleebime otspunkti
+  // tavalise veepunktina ja ütleme põhjuse hoiatusega.
+  const accessDropIssues: RoutePlanIssue[] = [
+    ...(derivedStartAccess && connectedHarbourAccess(surface, derivedStartAccess) && !startAccess
+      ? [{ code: 'harbour_access_not_navigable', severity: 'warning' as const, details: { endpoint: 'start' } }]
+      : []),
+    ...(derivedEndAccess && connectedHarbourAccess(surface, derivedEndAccess) && !endAccess
+      ? [{ code: 'harbour_access_not_navigable', severity: 'warning' as const, details: { endpoint: 'end' } }]
+      : []),
+  ];
   const start = snapRouteEndpoint(surface, request.start, startAccess);
   let end = snapRouteEndpoint(surface, request.end, endAccess);
   instrumentation?.phase('endpoint_snap', performance.now() - snapStartedAt);
@@ -172,7 +184,7 @@ export async function planRoute(
         code: !start && !end ? 'endpoints_not_navigable' : !start ? 'start_not_navigable' : 'end_not_navigable',
         severity: 'critical',
         details: { maxSnapDistanceM: MAX_ENDPOINT_SNAP_M },
-      }, ...limitIssues],
+      }, ...limitIssues, ...accessDropIssues],
     };
   }
 
@@ -181,7 +193,7 @@ export async function planRoute(
     return {
       status: 'no_route',
       sources,
-      issues: [{ code: 'harbour_access_not_navigable', severity: 'critical' }, ...limitIssues],
+      issues: [{ code: 'harbour_access_not_navigable', severity: 'critical' }, ...limitIssues, ...accessDropIssues],
     };
   }
   let activeSurface = surface;
@@ -204,7 +216,7 @@ export async function planRoute(
         return {
           status: 'no_route',
           sources,
-          issues: [{ code: 'harbour_access_not_navigable', severity: 'critical' }, ...limitIssues],
+          issues: [{ code: 'harbour_access_not_navigable', severity: 'critical' }, ...limitIssues, ...accessDropIssues],
         };
       }
       result = await findPathThrough(activeSurface, requiredAnchors, deadline, instrumentation);
@@ -213,7 +225,7 @@ export async function planRoute(
   }
   if (result.status === 'not_found') {
     if (result.reason === 'aborted') throw abortError();
-    return noRouteForSearchFailure(result, sources, limitIssues);
+    return noRouteForSearchFailure(result, sources, [...limitIssues, ...accessDropIssues]);
   }
 
   // Võre on teadlikult jämedam kui lõplik 10 m kontroll. Kui viimane leiab
@@ -248,7 +260,7 @@ export async function planRoute(
     if (result.status === 'not_found') {
       if (result.reason === 'aborted') throw abortError();
       if (result.reason === 'timeout' || result.reason === 'node_limit') {
-        return noRouteForSearchFailure(result, sources, limitIssues);
+        return noRouteForSearchFailure(result, sources, [...limitIssues, ...accessDropIssues]);
       }
       break;
     }
@@ -262,19 +274,20 @@ export async function planRoute(
         code: 'fine_revalidation_blocked',
         severity: 'critical',
         details: { reason: prepared?.reason ?? 'land' },
-      }, ...limitIssues],
+      }, ...limitIssues, ...accessDropIssues],
     };
   }
   if (prepared.status === 'invalid') {
     return {
       status: 'no_route',
       sources,
-      issues: [{ code: prepared.code, severity: 'critical' }, ...limitIssues],
+      issues: [{ code: prepared.code, severity: 'critical' }, ...limitIssues, ...accessDropIssues],
     };
   }
   const { coordinates, segments, navigationPath } = prepared;
   const issues = dedupeIssues([
     ...limitIssues,
+    ...accessDropIssues,
     ...sourceIssues(sources),
     ...harbourAccessIssues(startAccess, endAccess),
     ...endpointIssues(start.distanceM, end.distanceM),
@@ -408,6 +421,28 @@ function connectedHarbourAccess(
   const outerPoint = gridPointAt(surface, access.waypoints.at(-1)!);
   if (surface.cellAt(outerPoint.x, outerPoint.y).blocked) return null;
   return endpointEscapePredicate(surface)(outerPoint) ? access : null;
+}
+
+/**
+ * Tuletatud kanal on kasutatav ainult siis, kui kõik selle tugipunktid
+ * (peale sadamapunkti enda) on läbitavates lahtrites. Muidu jääb kanal
+ * kõrvale ja otspunkt käitub tavalise veepunktina; vastasel juhul teeks
+ * `requiredHarbourAnchors` kogu tulemusest no_route.
+ */
+function navigableHarbourAccess(
+  surface: RoutingCostSurface,
+  access: HarbourAccess | null,
+): HarbourAccess | null {
+  if (!access) return null;
+  for (const position of access.waypoints.slice(1)) {
+    const coordinate = surface.toGrid({ lon: position[0], lat: position[1] });
+    const point = { x: Math.round(coordinate.x), y: Math.round(coordinate.y) };
+    if (point.x < 0 || point.x >= surface.width || point.y < 0 || point.y >= surface.height) {
+      return null;
+    }
+    if (surface.cellAt(point.x, point.y).blocked) return null;
+  }
+  return access;
 }
 
 /** Finds the nearest endpoint cell in the same navigable component as `seed`. */
