@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  denseContourFeatures,
   depthContourUrl,
   depthCoverageUrl,
   depthSampleGrid,
@@ -64,5 +65,55 @@ describe('EMODnet depth contours', () => {
       [1, 0.75],
       [1, 1],
     ]);
+  });
+
+  it('eemaldab rastri raami äärde tekkivad artefaktjooned, kuid jätab rannajoone', () => {
+    const width = 40;
+    const height = 30;
+    // Kõikjal 100 m vett, keskel 130 m auk. WCS-vastuse moodi NoData-krae
+    // ümber kogu ala ning väike maalaik (NaN) vasakus ääres.
+    const depths = new Array<number>(width * height).fill(100);
+    for (let x = 0; x < width; x++) {
+      depths[x] = Number.NaN;
+      depths[(height - 1) * width + x] = Number.NaN;
+    }
+    for (let y = 0; y < height; y++) {
+      depths[y * width] = Number.NaN;
+      depths[y * width + width - 1] = Number.NaN;
+    }
+    for (let y = 5; y < 25; y++) {
+      for (let x = 1; x < 5; x++) depths[y * width + x] = Number.NaN;
+    }
+    for (let y = 12; y < 18; y++) {
+      for (let x = 16; x < 24; x++) depths[y * width + x] = 130;
+    }
+    const bbox: [number, number, number, number] = [23, 59, 24, 59.5];
+    const features = denseContourFeatures(depths, width, height, bbox);
+    expect(features.length).toBeGreaterThan(0);
+
+    const cellLon = (bbox[2] - bbox[0]) / width;
+    const cellLat = (bbox[3] - bbox[1]) / height;
+    // 2,5 lahtrit katab NoData-krae ja raamitolerantsi; maalaigu rannajoon
+    // (4,5 lahtrit servast) jääb sellest selgelt väljapoole.
+    const nearEdge = (point: number[]): boolean =>
+      point[0]! <= bbox[0] + 2.5 * cellLon || point[0]! >= bbox[2] - 2.5 * cellLon
+      || point[1]! <= bbox[1] + 2.5 * cellLat || point[1]! >= bbox[3] - 2.5 * cellLat;
+
+    // Ükski joon ei tohi joosta tervenisti piki laadimisala serva: seal
+    // paistaks avamerel sirge, suvalise sügavussildiga „isobaat".
+    for (const feature of features) {
+      for (const line of feature.geometry.coordinates) {
+        expect(line.every((point) => nearEdge(point))).toBe(false);
+      }
+    }
+
+    // Sügavama augu ümber jäävad päris suletud jooned alles.
+    expect(features.some((feature) => feature.properties.elevation === 130)).toBe(true);
+
+    // Maalaigu (NaN) piirile kuhjuv joon on sisuliselt rannajoon ja peab säilima.
+    const coastLon = bbox[0] + 5 * cellLon;
+    const coastal = features.some((feature) => feature.geometry.coordinates.some((line) =>
+      line.some((point) => Math.abs(point[0]! - coastLon) <= cellLon)));
+    expect(coastal).toBe(true);
   });
 });

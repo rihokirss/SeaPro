@@ -59,7 +59,7 @@ export interface DepthSampleCollection {
   features: DepthSampleFeature[];
 }
 
-interface DepthContourFeature {
+export interface DepthContourFeature {
   type: 'Feature';
   geometry: { type: 'MultiLineString'; coordinates: number[][][] };
   properties: { elevation: number; generated: true };
@@ -70,11 +70,15 @@ export interface DepthContourCollection {
   features: DepthContourFeature[];
 }
 
-/** Kleebib ja laiendab ala DTM-i võrgule, et nihutamine tabaks sama cache'i. */
+/**
+ * Kleebib ja laiendab ala DTM-i võrgule, et nihutamine tabaks sama cache'i.
+ * Varu on vaateaknast tükk maad laiem, sest kaart hoiab vana ala jooni kuni
+ * uue vastuse saabumiseni: väike paan ei tohi tuua laadimisala serva vaatesse.
+ */
 export function snapDepthContourBbox(
   [west, south, east, north]: DepthContourBbox,
 ): DepthContourBbox {
-  const margin = 3 * DTM_RESOLUTION;
+  const margin = 12 * DTM_RESOLUTION;
   const floor = (value: number): number => Math.floor(value / DTM_RESOLUTION) * DTM_RESOLUTION;
   const ceil = (value: number): number => Math.ceil(value / DTM_RESOLUTION) * DTM_RESOLUTION;
   return [
@@ -105,10 +109,21 @@ export function depthCoverageUrl(
   return `${EMODNET_WCS}?${params}`;
 }
 
+// d3-contour sulgeb iga läve piirkonna ka rastri raami ääres: sinna tekib
+// sirge „isobaat" iga läve kohta kuni poole piksli võrra raamist seespool.
+// Täpne servavõrdlus neid ei tabanud ja paanimisel paistis avamerel suvalise
+// sildiga sirgjoon (nt „35 m" 130 m süviku kohal). Ühe piksli tolerants
+// eemaldab raamijooned; maa/NoData piirile (rannajoonele) kuhjuv joon jääb.
+const EDGE_TOLERANCE_PX = 1;
+
 function splitContourRing(ring: number[][], width: number, height: number): number[][][] {
+  const nearLow = (value: number | undefined): boolean =>
+    value !== undefined && value <= EDGE_TOLERANCE_PX;
+  const nearHigh = (value: number | undefined, limit: number): boolean =>
+    value !== undefined && value >= limit - EDGE_TOLERANCE_PX;
   const onOuterEdge = (a: number[], b: number[]): boolean =>
-    (a[0] === 0 && b[0] === 0) || (a[0] === width && b[0] === width)
-    || (a[1] === 0 && b[1] === 0) || (a[1] === height && b[1] === height);
+    (nearLow(a[0]) && nearLow(b[0])) || (nearHigh(a[0], width) && nearHigh(b[0], width))
+    || (nearLow(a[1]) && nearLow(b[1])) || (nearHigh(a[1], height) && nearHigh(b[1], height));
   const segments = ring.slice(0, -1).map((point, index) => [point, ring[index + 1]!] as const);
   const firstEdge = segments.findIndex(([a, b]) => onOuterEdge(a, b));
   if (firstEdge < 0) return ring.length >= 3 ? [ring] : [];
@@ -160,12 +175,93 @@ export function smoothContourLine(line: number[][], passes = 2): number[][] {
   return current;
 }
 
+/**
+ * Genereerib pikslivõrest samasügavusjooned. Eraldi funktsioon, et
+ * raami-artefaktide eemaldust saaks testida ilma võrgu ja cache'ita.
+ * `depths` on meetrites vee all, maa/NoData on NaN.
+ */
+export function denseContourFeatures(
+  depths: number[],
+  width: number,
+  height: number,
+  [minLon, minLat, maxLon, maxLat]: DepthContourBbox,
+): DepthContourFeature[] {
+  // WCS kleebib ala oma võrgule ja servaribad võivad jääda NoData-ks. Kärbime
+  // tühjad servaread/-veerud enne kontuurimist: muidu jookseb iga läve joon
+  // andmete/NoData kraepiiril, sisemal kui raamifilter ulatub, ja kaardile
+  // ilmub avamerre sirge suvalise sildiga „isobaat".
+  let minX = width;
+  let maxX = -1;
+  let minY = height;
+  let maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!Number.isFinite(depths[y * width + x]!)) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < minX) return [];
+
+  let values = depths;
+  let gridWidth = width;
+  let gridHeight = height;
+  let west = minLon;
+  let east = maxLon;
+  let north = maxLat;
+  let south = minLat;
+  if (maxX - minX + 1 !== width || maxY - minY + 1 !== height) {
+    gridWidth = maxX - minX + 1;
+    gridHeight = maxY - minY + 1;
+    values = new Array<number>(gridWidth * gridHeight);
+    for (let y = 0; y < gridHeight; y++) {
+      for (let x = 0; x < gridWidth; x++) {
+        values[y * gridWidth + x] = depths[(y + minY) * width + (x + minX)]!;
+      }
+    }
+    const lonStep = (maxLon - minLon) / width;
+    const latStep = (maxLat - minLat) / height;
+    west = minLon + minX * lonStep;
+    east = minLon + (maxX + 1) * lonStep;
+    north = maxLat - minY * latStep;
+    south = maxLat - (maxY + 1) * latStep;
+  }
+
+  const maxDepth = values.reduce((max, depth) => Number.isFinite(depth) ? Math.max(max, depth) : max, 0);
+  const thresholds = [1, 2, 3, 4];
+  for (let depth = 5; depth <= Math.ceil(maxDepth / 5) * 5; depth += 5) thresholds.push(depth);
+
+  return contours()
+    .size([gridWidth, gridHeight])
+    .thresholds(thresholds)(values)
+    .map((contour) => {
+      const pixelLines = contour.coordinates.flatMap((polygon) =>
+        polygon.flatMap((ring) => splitContourRing(ring, gridWidth, gridHeight)));
+      const coordinates = pixelLines
+        .filter((line) => line.length >= 2)
+        .map((line) => smoothContourLine(line).map(([x, y]) => [
+          west + (x! / gridWidth) * (east - west),
+          north - (y! / gridHeight) * (north - south),
+        ]));
+      return {
+        type: 'Feature' as const,
+        geometry: { type: 'MultiLineString' as const, coordinates },
+        properties: { elevation: Number(contour.value), generated: true as const },
+      };
+    })
+    .filter((feature) => feature.geometry.coordinates.length > 0);
+}
+
 /** Genereerib DTM-ist 1–5 m meetrise sammuga, edasi 5 m intervalliga jooned. */
 export async function fetchDenseDepthContours(
   requestedBbox: DepthContourBbox,
 ): Promise<DepthContourCollection> {
   const bbox = snapDepthContourBbox(requestedBbox);
-  const cacheKey = `emodnet:dense-contours:v2:${bbox.join(':')}`;
+  // v3: v2 sisaldas raami-artefaktjooni; igavene stale-kiht ei tohi neid
+  // pärast parandust edasi teenindada.
+  const cacheKey = `emodnet:dense-contours:v3:${bbox.join(':')}`;
   const { value } = await cache.get(cacheKey, 10 * 86400, async () => {
     const response = await request(depthCoverageUrl(bbox), {
       headers: { Accept: 'image/tiff' },
@@ -179,35 +275,12 @@ export async function fetchDenseDepthContours(
     const raster = await image.readRasters({ interleave: true });
     const depths = Array.from(raster as ArrayLike<number>, (elevation) =>
       Number.isFinite(elevation) && elevation < 0 ? -elevation : Number.NaN);
-    const maxDepth = depths.reduce((max, depth) => Number.isFinite(depth) ? Math.max(max, depth) : max, 0);
-    const thresholds = [1, 2, 3, 4];
-    for (let depth = 5; depth <= Math.ceil(maxDepth / 5) * 5; depth += 5) thresholds.push(depth);
-
-    const [minLon, minLat, maxLon, maxLat] = image.getBoundingBox() as [
-      number,
-      number,
-      number,
-      number,
-    ];
-    const features: DepthContourFeature[] = contours()
-      .size([width, height])
-      .thresholds(thresholds)(depths)
-      .map((contour) => {
-        const pixelLines = contour.coordinates.flatMap((polygon) =>
-          polygon.flatMap((ring) => splitContourRing(ring, width, height)));
-        const coordinates = pixelLines
-          .filter((line) => line.length >= 2)
-          .map((line) => smoothContourLine(line).map(([x, y]) => [
-            minLon + (x! / width) * (maxLon - minLon),
-            maxLat - (y! / height) * (maxLat - minLat),
-          ]));
-        return {
-          type: 'Feature' as const,
-          geometry: { type: 'MultiLineString' as const, coordinates },
-          properties: { elevation: Number(contour.value), generated: true as const },
-        };
-      })
-      .filter((feature) => feature.geometry.coordinates.length > 0);
+    const features = denseContourFeatures(
+      depths,
+      width,
+      height,
+      image.getBoundingBox() as DepthContourBbox,
+    );
     return { type: 'FeatureCollection' as const, features };
   });
   return value;
