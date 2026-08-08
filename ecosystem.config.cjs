@@ -31,8 +31,10 @@ module.exports = {
       max_restarts: 50,
       min_uptime: 30_000,
 
-      // Vahemälu hoitakse mälus; 22 MB cache.json + prognoosid mahuvad hõlpsalt.
-      max_memory_restart: '1G',
+      // Vahemälu hoitakse mälus ja automaatmarsruudi arvutus (sügavusraster,
+      // veemask, kulupind) lisab ajutise mitmesaja MB tipu baasi otsa: 1G
+      // limiit tappis planeerimise poole päringu pealt ("Empty reply").
+      max_memory_restart: '2G',
 
       merge_logs: true,
       time: true,
