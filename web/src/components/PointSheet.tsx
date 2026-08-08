@@ -6,6 +6,7 @@ import { useI18n } from '../i18n';
 import { formatValue, unitLabel, windColor, type SpeedUnit } from '../lib/units';
 import { formatDay, formatTime } from '../lib/time';
 import { ForecastChart } from './ForecastChart';
+import { ForecastHeatmap } from './ForecastHeatmap';
 
 interface Props {
   open: boolean;
@@ -25,24 +26,6 @@ interface Props {
   expanded: boolean;
   onExpandedChange(v: boolean): void;
 }
-
-/** Read tabelis, selles järjekorras. Puuduvad muutujad jäetakse vahele. */
-const ROWS: Variable[] = [
-  'wind_speed',
-  'wind_gust',
-  'wind_dir',
-  'wave_height',
-  'wave_period',
-  'wave_dir',
-  'sea_temp',
-  'air_temp',
-  'pressure',
-  'precipitation',
-  'cloud_cover',
-  'visibility',
-  'sea_level',
-  'current_speed',
-];
 
 /** Kiirnäidud paneeli ülaosas — mida kaatrimees vaatab esimesena. */
 const READOUTS: Variable[] = ['wind_speed', 'wind_gust', 'wave_height', 'air_temp'];
@@ -199,23 +182,15 @@ export function PointSheet({
 }: Props) {
   const { t, lang } = useI18n();
   const [chartVar, setChartVar] = useState<Variable>('wind_speed');
-  const [tab, setTab] = useState<'chart' | 'table'>('chart');
+  const [tab, setTab] = useState<'chart' | 'heatmap'>('chart');
 
   const columns = useMemo(() => {
     if (!result) return [];
     return result.series.map((s, i) => ({
       idx: i,
-      label:
-        s.modelId && s.modelId !== 'best_match'
-          ? `${s.providerId}\n${s.modelId}`
-          : s.providerId,
       step: findStep(result, i, selectedTime),
     }));
   }, [result, selectedTime]);
-
-  const visibleRows = useMemo(() => {
-    return ROWS.filter((v) => columns.some((c) => c.step?.values[v] != null));
-  }, [columns]);
 
   const chartableHere = useMemo(() => {
     if (!result) return [];
@@ -380,10 +355,10 @@ export function PointSheet({
               </button>
               <button
                 type="button"
-                className={`tab${tab === 'table' ? ' is-active' : ''}`}
-                onClick={() => setTab('table')}
+                className={`tab${tab === 'heatmap' ? ' is-active' : ''}`}
+                onClick={() => setTab('heatmap')}
               >
-                {t('point.table')}
+                {t('point.heatmap')}
               </button>
             </div>
 
@@ -410,51 +385,12 @@ export function PointSheet({
                 />
               </>
             ) : (
-              <div className="table-scroll">
-                <table className="compare">
-                  <thead>
-                    <tr>
-                      <th />
-                      {columns.map((c) => (
-                        <th key={c.idx}>
-                          {c.label.split('\n').map((line, i) => (
-                            <span key={i} className={i === 1 ? 'sub' : ''}>
-                              {line}
-                            </span>
-                          ))}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleRows.map((v) => (
-                      <tr key={v}>
-                        <th scope="row">
-                          {t(`var.${v}`)}
-                          <small>{unitLabel(v, speedUnit)}</small>
-                        </th>
-                        {columns.map((c) => {
-                          const raw = c.step?.values[v];
-                          const isWind = v === 'wind_speed' || v === 'wind_gust';
-                          return (
-                            <td
-                              key={c.idx}
-                              style={
-                                isWind && raw != null
-                                  ? { borderLeft: `2px solid ${windColor(raw)}` }
-                                  : undefined
-                              }
-                            >
-                              {formatValue(v, raw, speedUnit)}
-                              {v === 'wind_dir' && raw != null ? null : null}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ForecastHeatmap
+                series={result.series}
+                speedUnit={speedUnit}
+                selectedTime={selectedTime}
+                onSelectTime={onSelectTime}
+              />
             )}
           </>
         ) : null}

@@ -141,6 +141,7 @@
   "point.noData": "Selle punkti kohta andmed puuduvad",
   "point.compare": "Allikate võrdlus",
   "point.table": "Tabel",
+  "point.heatmap": "Tabel",
   "point.chart": "Graafik",
   "station.updated": "Uuendatud",
   "station.age.minutes": "{n} min tagasi",

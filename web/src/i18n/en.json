@@ -141,6 +141,7 @@
   "point.noData": "No data for this point",
   "point.compare": "Source comparison",
   "point.table": "Table",
+  "point.heatmap": "Table",
   "point.chart": "Chart",
   "station.updated": "Updated",
   "station.age.minutes": "{n} min ago",

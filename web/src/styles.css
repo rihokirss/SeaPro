@@ -1463,6 +1463,203 @@ button.sheet__grip::before {
 }
 
 /* ==========================================================================
+   Open-Meteo heatmap
+   ========================================================================== */
+
+.heatmap {
+  min-width: 0;
+}
+
+.heatmap__source {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+  color: var(--text-dim);
+  font-size: var(--t-sm);
+}
+
+.heatmap__source strong {
+  color: var(--text);
+  font-size: var(--t-md);
+}
+
+.heatmap__source span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heatmap__scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.heatmap__table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap__table th,
+.heatmap__table td {
+  padding: 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.heatmap__table tr > :last-child {
+  border-right: 0;
+}
+
+.heatmap__table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.heatmap__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  width: 44px;
+  min-width: 44px;
+  height: 34px;
+  color: var(--text-faint);
+  background: var(--surface-solid);
+  font-weight: var(--w-reg);
+  text-align: center;
+}
+
+.heatmap__table thead th.is-selected {
+  color: var(--brass);
+  box-shadow:
+    inset 2px 0 var(--brass),
+    inset -2px 0 var(--brass),
+    inset 0 2px var(--brass);
+}
+
+.heatmap__date,
+.heatmap__time {
+  display: block;
+  white-space: nowrap;
+}
+
+.heatmap__date {
+  font-size: 9px;
+  font-weight: var(--w-bold);
+  text-transform: uppercase;
+}
+
+.heatmap__time {
+  margin-top: 1px;
+  font-family: var(--num);
+  font-size: var(--t-micro);
+}
+
+.heatmap__table .heatmap__corner,
+.heatmap__table tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  width: 108px;
+  min-width: 108px;
+  max-width: 108px;
+  padding: 0 var(--s2);
+  color: var(--text-dim);
+  background: var(--surface-solid);
+  text-align: left;
+}
+
+.heatmap__table .heatmap__corner {
+  z-index: 4;
+  font-size: var(--t-micro);
+  font-weight: var(--w-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.heatmap__table tbody th span,
+.heatmap__table tbody th small {
+  display: inline;
+  white-space: nowrap;
+}
+
+.heatmap__table tbody th span {
+  font-size: var(--t-cap);
+  font-weight: var(--w-bold);
+}
+
+.heatmap__table tbody th small {
+  margin-left: var(--s1);
+  color: var(--text-faint);
+  font-family: var(--num);
+  font-size: var(--t-micro);
+  font-weight: var(--w-reg);
+}
+
+.heatmap__cell {
+  width: 44px;
+  min-width: 44px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 0;
+  border-radius: 0;
+  font-family: var(--num);
+  font-size: var(--t-cap);
+  font-weight: var(--w-bold);
+  cursor: pointer;
+}
+
+.heatmap__cell:hover {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+
+.heatmap__table td.is-selected {
+  position: relative;
+}
+
+.heatmap__table td.is-selected::before,
+.heatmap__table td.is-selected::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: var(--brass);
+  pointer-events: none;
+}
+
+.heatmap__table td.is-selected::before {
+  left: 0;
+}
+
+.heatmap__table td.is-selected::after {
+  right: 0;
+}
+
+.heatmap__table tbody tr:last-child td.is-selected .heatmap__cell {
+  box-shadow: inset 0 -2px var(--brass);
+}
+
+.heatmap__arrow {
+  display: inline-block;
+  font-size: var(--t-base);
+  transform-origin: center;
+}
+
+/* ==========================================================================
    Võrdlustabel
    ========================================================================== */
 
@@ -2173,143 +2370,143 @@ button.sheet__grip::before {
   pointer-events: none;
 }
 
-/* Mobiili esimene vaade: logo all paiknev ruudukujuline 2 × 3 näidik. */
+/* Väike esimene vaade: ruudukujuline 2 × 3 näidik nii mobiilis kui desktopis. */
 @media (max-width: 879px) {
   .sheet__coords {
     display: none;
   }
+}
 
-  .sheet.is-peek > .sheet__grip,
-  .sheet__peek-desktop {
-    display: none;
-  }
+.sheet.is-peek > .sheet__grip,
+.sheet__peek-desktop {
+  display: none;
+}
 
-  .sheet__peek-row,
-  .sheet__peek,
-  .sheet__peek-mobile {
-    width: 100%;
-    height: 100%;
-  }
+.sheet__peek-row,
+.sheet__peek,
+.sheet__peek-mobile {
+  width: 100%;
+  height: 100%;
+}
 
-  .sheet__peek-row {
-    position: relative;
-  }
+.sheet__peek-row {
+  position: relative;
+}
 
-  .sheet__peek {
-    display: block;
-    min-height: 0;
-    padding: var(--s5);
-    padding-top: 42px;
-  }
+.sheet__peek {
+  display: block;
+  min-height: 0;
+  padding: var(--s5);
+  padding-top: 42px;
+}
 
-  .sheet__peek-mobile {
-    position: relative;
-    display: block;
-  }
+.sheet__peek-mobile {
+  position: relative;
+  display: block;
+}
 
-  .sheet__peek-title {
-    position: absolute;
-    top: -30px;
-    left: 0;
-    color: var(--text-dim);
-    font-size: var(--t-micro);
-    font-weight: var(--w-bold);
-    letter-spacing: var(--track-caps);
-    text-transform: uppercase;
-  }
+.sheet__peek-title {
+  position: absolute;
+  top: -30px;
+  left: 0;
+  color: var(--text-dim);
+  font-size: var(--t-micro);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
 
-  .sheet__peek-expand-hint {
-    position: absolute;
-    top: -34px;
-    right: 34px;
-    display: flex;
-    align-items: center;
-    gap: var(--s1);
-    max-width: 112px;
-    min-height: 28px;
-    overflow: hidden;
-    color: var(--accent);
-    font-size: var(--t-micro);
-    font-weight: var(--w-bold);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.sheet__peek-expand-hint {
+  position: absolute;
+  top: -34px;
+  right: 34px;
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  max-width: 112px;
+  min-height: 28px;
+  overflow: hidden;
+  color: var(--accent);
+  font-size: var(--t-micro);
+  font-weight: var(--w-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .sheet__peek-expand-hint svg {
-    flex: none;
-    stroke-width: 2.5;
-  }
+.sheet__peek-expand-hint svg {
+  flex: none;
+  stroke-width: 2.5;
+}
 
-  .sheet__peek-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(3, 1fr);
-    gap: var(--s2);
-    height: 100%;
-  }
+.sheet__peek-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, 1fr);
+  gap: var(--s2);
+  height: 100%;
+}
 
-  .sheet__peek-metric {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: var(--s2) var(--s3);
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    border-radius: var(--r-sm);
-  }
+.sheet__peek-metric {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--s2) var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
 
-  .sheet__peek-label {
-    overflow: hidden;
-    color: var(--text-faint);
-    font-size: var(--t-micro);
-    font-weight: var(--w-bold);
-    line-height: 1.15;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.sheet__peek-label {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--t-micro);
+  font-weight: var(--w-bold);
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .sheet__peek-value {
-    display: flex;
-    align-items: baseline;
-    gap: var(--s1);
-    margin-top: var(--s1);
-    color: var(--text);
-    font-family: var(--num);
-    font-size: var(--t-lg);
-    font-weight: var(--w-bold);
-    line-height: 1;
-    white-space: nowrap;
-  }
+.sheet__peek-value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s1);
+  margin-top: var(--s1);
+  color: var(--text);
+  font-family: var(--num);
+  font-size: var(--t-lg);
+  font-weight: var(--w-bold);
+  line-height: 1;
+  white-space: nowrap;
+}
 
-  .sheet__peek-unit {
-    color: var(--text-faint);
-    font-size: var(--t-micro);
-    font-weight: var(--w-reg);
-  }
+.sheet__peek-unit {
+  color: var(--text-faint);
+  font-size: var(--t-micro);
+  font-weight: var(--w-reg);
+}
 
-  .sheet__peek-arrow {
-    display: inline-block;
-    color: var(--accent);
-    font-size: var(--t-num);
-    transform-origin: center;
-  }
+.sheet__peek-arrow {
+  display: inline-block;
+  color: var(--accent);
+  font-size: var(--t-num);
+  transform-origin: center;
+}
 
-  .sheet__peek-mobile > .sheet__peek-loading {
-    display: grid;
-    place-items: center;
-    height: 100%;
-    margin: 0;
-    white-space: normal;
-  }
+.sheet__peek-mobile > .sheet__peek-loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  margin: 0;
+  white-space: normal;
+}
 
-  .sheet.is-peek .sheet__peek-close {
-    position: absolute;
-    top: 0;
-    right: 0;
-    z-index: 1;
-    margin: 0;
-  }
+.sheet.is-peek .sheet__peek-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  margin: 0;
 }
 
 /* ==========================================================================
@@ -2317,9 +2514,13 @@ button.sheet__grip::before {
    ========================================================================== */
 
 @media (min-width: 880px) {
+  .app {
+    --desktop-point-sheet-w: 460px;
+  }
+
   .timebar {
     left: var(--s6);
-    right: 432px;
+    right: calc(var(--desktop-point-sheet-w) + 32px);
     bottom: var(--s6);
   }
 
@@ -2334,11 +2535,17 @@ button.sheet__grip::before {
     right: var(--s6);
     bottom: var(--s6);
     top: auto;
-    width: 400px;
+    width: var(--desktop-point-sheet-w);
     max-height: calc(100vh - 150px);
     border-radius: var(--r-lg);
     border: 1px solid var(--line-strong);
     transform: translateY(0) translateX(calc(100% + var(--s7)));
+  }
+
+  .sheet.is-peek {
+    width: 220px;
+    height: 220px;
+    max-height: none;
   }
 
   .sheet.is-open {
@@ -2351,6 +2558,10 @@ button.sheet__grip::before {
 
   .sheet__head {
     padding-top: var(--s5);
+  }
+
+  .sheet.is-expanded .readout-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .maplibregl-ctrl-bottom-left {
@@ -2866,14 +3077,13 @@ button.sheet__grip::before {
      muidu jääks ta paneeli alla kättesaamatuks. Vasakul on aga ajariba parem
      ots (mudeli nimi), seega tuleb ka kõrgemale tõsta. */
   .mapctl.is-shifted {
-    right: calc(456px + var(--safe-right));
+    right: calc(var(--desktop-point-sheet-w) + 56px + var(--safe-right));
     bottom: calc(var(--timebar-h) + var(--safe-bottom));
   }
 
-  /* Kokkupandud riba istub samas nurgas, aga on madal — piisab, kui virn
-     tõuseb sellest kõrgemale. Külgnihe oleks siin asjatu hüpe. */
+  /* Väike ruutkaart istub samas nurgas — tõsta nupuvirn sellest kõrgemale. */
   .mapctl.is-raised {
-    bottom: calc(var(--s6) + 84px + var(--safe-bottom));
+    bottom: calc(var(--s6) + 236px + var(--safe-bottom));
   }
 
   /* Paneel avaneb nupust ülespoole ja peab mahtuma ekraanile ka siis, kui
