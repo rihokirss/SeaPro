@@ -38,6 +38,16 @@ interface StoredPosition {
   receivedAt: number;
 }
 
+interface TimedDirection {
+  value: number;
+  reportedAt: number;
+}
+
+interface VesselDirection {
+  cog?: TimedDirection;
+  heading?: TimedDirection;
+}
+
 /**
  * Kui kaua hoiame positsiooni mälus pärast selle SAABUMIST.
  * Kaitseb registrit kasvamast, kui allikas lakkab laeva mainimast.
@@ -55,16 +65,32 @@ const MAX_RECEIVED_AGE_MS = 20 * 60 * 1000;
  */
 const MAX_POSITION_AGE_MS = 30 * 60 * 1000;
 
+/**
+ * Kui värskeimal positsioonil suund puudub, kasutame lühikest aega mõne teise
+ * AIS-allika viimast teadaolevat COG-i või heading'ut. Suund võib manööverdades
+ * kiiresti muutuda, mistõttu ei tohi seda hoida sama kaua kui positsiooni.
+ */
+const MAX_DIRECTION_AGE_MS = 2 * 60 * 1000;
+
+/** Sellest aeglasemal laeval ei kirjelda COG usaldusväärselt laeva suunda. */
+const MIN_COG_SPEED_KNOTS = 0.5;
+
 /** Metaandmeid hoiame kauem — laeva nimi ei vanane. */
 const MAX_META_AGE_MS = 24 * 3600 * 1000;
 
 export class VesselRegistry {
   #positions = new Map<number, StoredPosition>();
   #meta = new Map<number, VesselMeta>();
+  #directions = new Map<number, VesselDirection>();
 
   upsertPosition(vessel: Vessel): void {
     const existing = this.#positions.get(vessel.mmsi);
     const incoming = new Date(vessel.timestamp).getTime();
+
+    // Suunavälju hoiame positsioonist eraldi. Teise provideri sõnum võib
+    // võrguviivituse tõttu saabuda pärast uuemat positsiooni; selle positsiooni
+    // jätame kõrvale, kuid värske suunainfo võib endiselt kasulik olla.
+    this.#upsertDirection(vessel, incoming);
 
     if (existing) {
       const current = new Date(existing.vessel.timestamp).getTime();
@@ -115,8 +141,9 @@ export class VesselRegistry {
       const reported = new Date(vessel.timestamp).getTime();
       if (Number.isFinite(reported) && reported < positionCutoff) continue;
 
+      const withDirection = this.#withFallbackDirection(vessel, now);
       const meta = this.#meta.get(vessel.mmsi);
-      out.push(meta ? { ...vessel, ...stripUndefined(meta) } : vessel);
+      out.push(meta ? { ...withDirection, ...stripUndefined(meta) } : withDirection);
     }
 
     return out;
@@ -128,6 +155,14 @@ export class VesselRegistry {
     for (const [mmsi, entry] of this.#positions) {
       if (entry.receivedAt < posCutoff) this.#positions.delete(mmsi);
     }
+    const directionCutoff = Date.now() - MAX_DIRECTION_AGE_MS;
+    for (const [mmsi, direction] of this.#directions) {
+      if (direction.cog && direction.cog.reportedAt < directionCutoff) delete direction.cog;
+      if (direction.heading && direction.heading.reportedAt < directionCutoff) {
+        delete direction.heading;
+      }
+      if (!direction.cog && !direction.heading) this.#directions.delete(mmsi);
+    }
     const metaCutoff = Date.now() - MAX_META_AGE_MS;
     for (const [mmsi, meta] of this.#meta) {
       if (meta.updatedAt < metaCutoff) this.#meta.delete(mmsi);
@@ -136,6 +171,61 @@ export class VesselRegistry {
 
   get stats(): { positions: number; meta: number } {
     return { positions: this.#positions.size, meta: this.#meta.size };
+  }
+
+  #upsertDirection(vessel: Vessel, reportedAt: number): void {
+    if (!Number.isFinite(reportedAt)) return;
+    if (vessel.cog === undefined && vessel.heading === undefined) return;
+
+    const direction = this.#directions.get(vessel.mmsi) ?? {};
+    if (
+      vessel.cog !== undefined &&
+      (!direction.cog || reportedAt >= direction.cog.reportedAt)
+    ) {
+      direction.cog = { value: vessel.cog, reportedAt };
+    }
+    if (
+      vessel.heading !== undefined &&
+      (!direction.heading || reportedAt >= direction.heading.reportedAt)
+    ) {
+      direction.heading = { value: vessel.heading, reportedAt };
+    }
+    this.#directions.set(vessel.mmsi, direction);
+  }
+
+  #withFallbackDirection(vessel: Vessel, now: number): Vessel {
+    const direction = this.#directions.get(vessel.mmsi);
+    const cutoff = now - MAX_DIRECTION_AGE_MS;
+    const cog = direction?.cog?.reportedAt !== undefined && direction.cog.reportedAt >= cutoff
+      ? direction.cog
+      : undefined;
+    const heading =
+      direction?.heading?.reportedAt !== undefined && direction.heading.reportedAt >= cutoff
+        ? direction.heading
+        : undefined;
+
+    // Seisva laeva COG on sageli viimane liikumissuund või GPS-müra, mitte
+    // vööri suund. Kasutame siis üksnes päris heading'ut (ka teise provideri
+    // kuni kahe minuti vanust väärtust) ja eemaldame eksitava COG-i.
+    if (vessel.sog !== undefined && vessel.sog < MIN_COG_SPEED_KNOTS) {
+      const { cog: _cog, ...withoutCog } = vessel;
+      if (vessel.heading !== undefined) return withoutCog;
+      return heading ? { ...withoutCog, heading: heading.value } : withoutCog;
+    }
+
+    // Liikuva laeva värskeima positsiooni enda suund on vahemälust parem.
+    if (vessel.cog !== undefined || vessel.heading !== undefined) return vessel;
+    if (!cog && !heading) return vessel;
+
+    // Kui väljad pärinevad eri teadetest, kasutame uuemat. Muidu võiks
+    // frontend eelistada vanemat heading'ut värskemale COG-ile.
+    if (heading && (!cog || heading.reportedAt > cog.reportedAt)) {
+      return { ...vessel, heading: heading.value };
+    }
+    if (cog && (!heading || cog.reportedAt > heading.reportedAt)) {
+      return { ...vessel, cog: cog.value };
+    }
+    return { ...vessel, cog: cog?.value, heading: heading?.value };
   }
 }
 

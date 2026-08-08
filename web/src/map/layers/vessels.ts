@@ -113,7 +113,7 @@ export function updateVessels(map: MapLibreMap, list: Vessel[], zoom: number): v
 
     // Ainult päris mõõtmetega laevad saavad kere — oletatud 12 m kere
     // valetaks suurust ja seda pole kuidagi näha.
-    if (dims.known && lengthPx >= MIN_HULL_LENGTH_PX) {
+    if (dims.known && lengthPx >= MIN_HULL_LENGTH_PX && hasHeading) {
       hulls.push({
         type: 'Feature',
         geometry: { type: 'Polygon', coordinates: [hullPolygon(v, dims)] },

@@ -279,6 +279,16 @@ lipuriiki, tüüpi, sihtkohta, ETA-t, süvist ega mõõtmeid. Nii võib sama lae
 värske asukoht tulla Transpordiametilt ja täielikum staatiline kirjeldus
 Digitrafficult või aisstreamist. Ühe allika kadumine jätab teised tööle.
 
+Kui värskeimal positsioonil puuduvad nii COG kui ka heading, täidetakse suund
+teise provideri kuni kahe minuti vanusest teatest. Värskeima positsiooni enda
+suund on alati eelistatud ja vanemat suunda üle kahe minuti ei näidata, sest
+manööverdava laeva puhul muutuks see kiiresti eksitavaks.
+
+Alla 0,5 sõlme liikudes COG-i laeva suunana ei kasutata: paigal olles on see
+sageli viimane liikumissuund või GPS-müra. Sellisel juhul eelistatakse ka teise
+provideri värsket heading'ut; kui heading puudub, näidatakse suunata punkti,
+mitte juhuslikus suunas või vaikimisi põhja pööratud laevakeret.
+
 ### Transpordiamet Nutimeri — `ais/transpordiamet.ts`
 
 | | |
