@@ -53,12 +53,15 @@ export interface PathSearchSuccess {
   /** Cost in grid-cell units, including cell multipliers. */
   readonly totalCost: number;
   readonly expandedNodes: number;
+  /** Heap insertions during the search; a cheap probe for benchmarks. */
+  readonly heapPushes?: number;
 }
 
 export interface PathSearchFailure {
   readonly status: 'not_found';
   readonly reason: SearchFailureReason;
   readonly expandedNodes: number;
+  readonly heapPushes?: number;
 }
 
 export type PathSearchResult = PathSearchSuccess | PathSearchFailure;

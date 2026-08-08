@@ -114,6 +114,8 @@ export const config = {
   routingMaxConcurrentPlans: num('ROUTING_MAX_CONCURRENT_PLANS', 2),
   routingSearchTimeoutMs: num('ROUTING_SEARCH_TIMEOUT_MS', 45_000),
   routingSearchMaxNodes: num('ROUTING_SEARCH_MAX_NODES', 1_000_000),
+  /** Logib iga marsruudiplaani faasiajad; benchmarki ja profiilimise jaoks. */
+  routingTimingsLog: bool('ROUTING_TIMINGS_LOG', false),
 } as const;
 
 export function warnAboutConfig(log: (msg: string) => void): void {

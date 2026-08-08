@@ -87,6 +87,7 @@ interface SearchContext {
   readonly clock: () => number;
   readonly startedAt: number;
   expandedNodes: number;
+  heapPushes: number;
   lastYieldAt: number;
 }
 
@@ -171,7 +172,13 @@ async function runSearch(
     return failure('no_route', context);
   }
   if (samePoint(start, goal)) {
-    return { status: 'found', path: [{ ...start }], totalCost: 0, expandedNodes: context.expandedNodes };
+    return {
+      status: 'found',
+      path: [{ ...start }],
+      totalCost: 0,
+      expandedNodes: context.expandedNodes,
+      heapPushes: context.heapPushes,
+    };
   }
 
   const size = grid.width * grid.height;
@@ -187,6 +194,7 @@ async function runSearch(
   const startH = octileDistance(start, goal) * options.minimumCostMultiplier;
   scores[startId] = 0;
   open.push({ id: startId, point: start, g: 0, h: startH, f: startH, sequence: sequence++ });
+  context.heapPushes++;
 
   while (open.size > 0) {
     const stop = stopReason(context);
@@ -199,6 +207,7 @@ async function runSearch(
         path: reconstructPath(grid, parents, current.id),
         totalCost: current.g,
         expandedNodes: context.expandedNodes,
+        heapPushes: context.heapPushes,
       };
     }
     if (context.expandedNodes >= context.maxExpandedNodes) return failure('node_limit', context);
@@ -217,6 +226,7 @@ async function runSearch(
       closed[nextId] = 0;
       const h = octileDistance(neighbour.point, goal) * options.minimumCostMultiplier;
       open.push({ id: nextId, point: neighbour.point, g: tentative, h, f: tentative + h, sequence: sequence++ });
+      context.heapPushes++;
     }
 
     if (context.yieldEvery > 0
@@ -248,6 +258,7 @@ function createContext(options: PathSearchOptions): SearchContext {
     clock,
     startedAt,
     expandedNodes: 0,
+    heapPushes: 0,
     lastYieldAt: 0,
   };
 }
@@ -259,7 +270,7 @@ function stopReason(context: SearchContext): SearchFailureReason | null {
 }
 
 function failure(reason: SearchFailureReason, context: SearchContext): PathSearchFailure {
-  return { status: 'not_found', reason, expandedNodes: context.expandedNodes };
+  return { status: 'not_found', reason, expandedNodes: context.expandedNodes, heapPushes: context.heapPushes };
 }
 
 function resolveMinimumCost(grid: RoutingGrid, override?: number): number {

@@ -642,9 +642,18 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       reply.header('Cache-Control', 'no-store');
-      // `no_route` on valiidne planeerimistulemus (mitte transpordiviga), seega
-      // tagastame selle 200-ga ja klient saab põhjused samast union-tüübist.
-      return await planRoute(body as RoutePlanRequest, { signal: requestAbort.signal });
+      const routeTimings: Array<Record<string, unknown>> = [];
+      const instrumentation = config.routingTimingsLog
+        ? { phase: (name: string, ms: number, meta?: Record<string, number>) =>
+            routeTimings.push({ name, ms: Math.round(ms * 10) / 10, ...meta }) }
+        : undefined;
+      try {
+        // `no_route` on valiidne planeerimistulemus (mitte transpordiviga), seega
+        // tagastame selle 200-ga ja klient saab põhjused samast union-tüübist.
+        return await planRoute(body as RoutePlanRequest, { signal: requestAbort.signal, instrumentation });
+      } finally {
+        if (instrumentation) req.log.info({ routeTimings }, 'route-plan timings');
+      }
     } catch (error) {
       if (error instanceof RoutingPlanTimeoutError
         || (typeof error === 'object' && error !== null

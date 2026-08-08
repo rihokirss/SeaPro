@@ -126,6 +126,8 @@ export interface BuildRoutingCostSurfaceInput {
   minCellSizeM?: number;
   /** Täpsed sadamavärava punktid, millega asendatakse vastava võreraku väljundkeskpunkt. */
   positionOverrides?: readonly Position[];
+  /** Faasimõõtmine benchmarki jaoks: baasklassifikatsioon vs vektorkihid. */
+  onPhase?: (name: 'base_classification' | 'vector_passes', ms: number) => void;
 }
 
 /**
@@ -179,6 +181,7 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
   // Kontrollime keskpunkti ja kaheksat lahtriserva lähedast punkti. Üks maa- või
   // madalavee proov blokeerib kogu lahtri; ühe proovi puudumine muudab lahtri
   // tundmatuks. Nii ei kao kitsas saar või madalik lahtrikeskmete vahele.
+  const baseStartedAt = performance.now();
   for (let y = 0; y < projection.height; y++) {
     if ((y & 7) === 0) checkpoint();
     for (let x = 0; x < projection.width; x++) {
@@ -241,6 +244,9 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
     }
   }
 
+  input.onPhase?.('base_classification', performance.now() - baseStartedAt);
+  const vectorStartedAt = performance.now();
+
   // Eelistused enne kõvasid piiranguid. OSM-i koridor ei tohi ühtki blokki avada.
   for (const corridor of input.vectors.corridors) {
     checkpoint();
@@ -270,6 +276,7 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
     checkpoint();
     applyWarning(warning);
   }
+  input.onPhase?.('vector_passes', performance.now() - vectorStartedAt);
 
   // A* loeb samu rakke miljoneid kordi. Hoia iga tegelikult esineva
   // (blokeering, põhjusmask, hind) kombinatsiooni kohta üks muutumatu objekt,
