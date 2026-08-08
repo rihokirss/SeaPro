@@ -8,8 +8,9 @@ import type {
   TimeSeries,
   Variable,
   RouteAnalysisRequest,
+  RoutePlanRequest,
 } from '@seapro/shared';
-import { VARIABLES } from '@seapro/shared';
+import { VARIABLES, distanceMetres } from '@seapro/shared';
 import { cache } from '../cache.js';
 import { config } from '../config.js';
 import { HttpError } from '../http.js';
@@ -43,6 +44,12 @@ import {
   listCapabilities,
 } from '../providers/registry.js';
 import { analyseRoute } from '../routeAnalysis.js';
+import { isWithinRoutingServiceArea } from '../routing/coverage.js';
+import {
+  planRoute,
+  RoutingDataUnavailableError,
+  RoutingPlanTimeoutError,
+} from '../routing/planner.js';
 
 const VARIABLE_SET = new Set<string>(VARIABLES);
 
@@ -70,6 +77,10 @@ function parseCoord(raw: unknown, name: string, min: number, max: number): numbe
 
 function pointInBbox(lat: number, lon: number, [south, west, north, east]: BBox): boolean {
   return lat >= south && lat <= north && lon >= west && lon <= east;
+}
+
+function hasExplicitTimezone(value: unknown): value is string {
+  return typeof value === 'string' && /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
 }
 
 /** Lõikab kasutaja ala lubatud ristkülikusse; `null`, kui ühisosa puudub. */
@@ -556,6 +567,117 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
+  let activeRoutePlans = 0;
+
+  /** Staatiline automaatmarsruut A ja B vahel, koos allika- ja riskijäljega. */
+  app.post('/api/route-plan', async (req, reply) => {
+    const body = req.body as Partial<RoutePlanRequest> | null;
+    const validPoint = (point: unknown): point is { lat: number; lon: number } => {
+      if (!point || typeof point !== 'object') return false;
+      const candidate = point as { lat?: unknown; lon?: unknown };
+      return Number.isFinite(candidate.lat) && Number.isFinite(candidate.lon)
+        && Number(candidate.lat) >= -90 && Number(candidate.lat) <= 90
+        && Number(candidate.lon) >= -180 && Number(candidate.lon) <= 180;
+    };
+    const values = [
+      body?.speedKnots,
+      body?.draughtM,
+      body?.underKeelClearanceM,
+      body?.beamM,
+      body?.airDraughtM,
+    ];
+    const departureMs = hasExplicitTimezone(body?.departureTime)
+      ? new Date(body.departureTime).getTime()
+      : Number.NaN;
+    if (!body || !validPoint(body.start) || !validPoint(body.end)
+      || !Number.isFinite(departureMs)
+      || values.some((value) => !Number.isFinite(value))
+      || Number(body.speedKnots) <= 0 || Number(body.speedKnots) > 100
+      || Number(body.draughtM) < 0 || Number(body.draughtM) > 30
+      || Number(body.underKeelClearanceM) < 0 || Number(body.underKeelClearanceM) > 20
+      || Number(body.beamM) <= 0 || Number(body.beamM) > 100
+      || Number(body.airDraughtM) <= 0 || Number(body.airDraughtM) > 100) {
+      return reply.code(400).send({ error: 'Vigased marsruudi või laeva parameetrid' });
+    }
+    if (!pointInBbox(body.start.lat, body.start.lon, config.routingBbox)
+      || !pointInBbox(body.end.lat, body.end.lon, config.routingBbox)
+      || !isWithinRoutingServiceArea(body.start)
+      || !isWithinRoutingServiceArea(body.end)) {
+      return reply.code(400).send({ error: 'outside_routing_coverage' });
+    }
+    const distanceNm = distanceMetres(body.start, body.end) / 1852;
+    if (distanceNm < 0.01 || distanceNm > config.routingMaxDistanceNm) {
+      return reply.code(400).send({
+        error: `Algus- ja lõpp-punkti kaugus peab olema 0.01–${config.routingMaxDistanceNm} NM`,
+      });
+    }
+
+    const concurrencyLimit = Math.max(1, Math.floor(config.routingMaxConcurrentPlans));
+    if (activeRoutePlans >= concurrencyLimit) {
+      reply.header('Retry-After', '1');
+      return reply.code(503).send({ error: 'route_plan_busy', retryAfterSeconds: 1 });
+    }
+
+    const requestAbort = new AbortController();
+    const abortRequest = (): void => {
+      if (!requestAbort.signal.aborted) requestAbort.abort();
+    };
+    const onRequestClose = (): void => {
+      if (req.raw.aborted || !req.raw.complete) abortRequest();
+    };
+    const onResponseClose = (): void => {
+      if (!reply.raw.writableEnded) abortRequest();
+    };
+    // Fastify 5.11 `req.signal` kuulab IncomingMessage'i `close` sündmust.
+    // Node 24 saadab selle POST-i puhul ka siis, kui päringu keha jõudis
+    // edukalt lõpuni, mistõttu pikk handler katkestati kohe pärast body
+    // parsimist (`request_aborted`). Eristame siin päris katkestust ise:
+    // - `aborted` / mittetäielik request enne body lõppu;
+    // - sulgunud response-socket pärast täieliku body vastuvõtmist.
+    // Nii ei tõlgendata tavalist request-streami lõppu kliendi lahkumiseks.
+    req.raw.once('aborted', abortRequest);
+    req.raw.once('close', onRequestClose);
+    reply.raw.once('close', onResponseClose);
+    activeRoutePlans++;
+
+    try {
+      reply.header('Cache-Control', 'no-store');
+      // `no_route` on valiidne planeerimistulemus (mitte transpordiviga), seega
+      // tagastame selle 200-ga ja klient saab põhjused samast union-tüübist.
+      return await planRoute(body as RoutePlanRequest, { signal: requestAbort.signal });
+    } catch (error) {
+      if (error instanceof RoutingPlanTimeoutError
+        || (typeof error === 'object' && error !== null
+          && (error as { name?: unknown }).name === 'RoutingPlanTimeoutError')) {
+        return reply.code(504).send({ error: 'route_plan_timeout' });
+      }
+      if (error instanceof RoutingDataUnavailableError
+        || (typeof error === 'object' && error !== null
+          && (error as { name?: unknown }).name === 'RoutingDataUnavailableError')) {
+        const sourceIds = error instanceof RoutingDataUnavailableError
+          ? error.sourceIds
+          : (error as Error & { sourceIds?: string[] }).sourceIds ?? [];
+        return reply.code(503).send({
+          error: 'data_unavailable',
+          sourceIds,
+        });
+      }
+      if (requestAbort.signal.aborted
+        && typeof error === 'object' && error !== null
+        && (error as { name?: unknown }).name === 'AbortError') {
+        return reply.raw.destroyed
+          ? reply
+          : reply.code(499).send({ error: 'request_aborted' });
+      }
+      throw error;
+    } finally {
+      activeRoutePlans--;
+      req.raw.off('aborted', abortRequest);
+      req.raw.off('close', onRequestClose);
+      reply.raw.off('close', onResponseClose);
+    }
+  });
+
   /** Marsruudi ilma-, aja-, kütuse- ja EMODneti sügavusanalüüs. */
   app.post('/api/route-analysis', async (req, reply) => {
     const body = req.body as Partial<RouteAnalysisRequest> | null;
@@ -568,8 +690,23 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         && Number(point.lat) >= -90 && Number(point.lat) <= 90
         && Number(point.lon) >= -180 && Number(point.lon) <= 180;
     };
+    const path = body?.path;
+    const validPath = path === undefined || (
+      path?.type === 'LineString'
+      && Array.isArray(path.coordinates)
+      && path.coordinates.length >= 2
+      && path.coordinates.length <= 2000
+      && path.coordinates.every((coordinate) =>
+        Array.isArray(coordinate)
+        && coordinate.length === 2
+        && Number.isFinite(coordinate[0])
+        && Number.isFinite(coordinate[1])
+        && coordinate[0] >= -180 && coordinate[0] <= 180
+        && coordinate[1] >= -90 && coordinate[1] <= 90)
+    );
     const values = [body?.speedKnots, body?.draughtM, body?.underKeelClearanceM, body?.fuelLitresPerHour];
     if (!Array.isArray(waypoints) || waypoints.length < 2 || waypoints.length > 100
+      || !validPath
       || !waypoints.every(validPoint) || !Number.isFinite(startMs)
       || values.some((value) => !Number.isFinite(value))
       || Number(body!.speedKnots) <= 0 || Number(body!.speedKnots) > 100

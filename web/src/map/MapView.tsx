@@ -22,9 +22,10 @@ import { LAYER_ORDER } from './layerOrder';
 import { POPUP_CLICK_LAYERS } from './popups';
 import { addPlaceLabels } from './layers/placeLabels';
 import type { Position } from '../lib/geolocation';
-import type { DepthRiskSegment, RouteWaypoint, TrackPoint } from '@seapro/shared';
+import type { DepthRiskSegment, RoutePlan, RouteWaypoint, TrackPoint } from '@seapro/shared';
 import {
   addRouteLayers,
+  ROUTE_LINE_LAYER,
   ROUTE_LINE_HIT_LAYER,
   ROUTE_WAYPOINT_HIT_LAYER,
   updateRouteLayers,
@@ -40,8 +41,10 @@ export interface MapViewProps {
   selectedPoint: { lat: number; lon: number } | null;
   routeWaypoints: RouteWaypoint[];
   routeSegments: DepthRiskSegment[];
+  routePlan: RoutePlan | null;
   trackPoints: TrackPoint[];
   routeEditing: boolean;
+  routeEndpointPicking: boolean;
   selectedWaypointId: string | null;
   onReady(map: MapLibreMap): void;
   onMoveEnd(bbox: [number, number, number, number], zoom: number): void;
@@ -50,6 +53,7 @@ export interface MapViewProps {
   onRouteMove(id: string, lat: number, lon: number): void;
   onRouteMoveStart(): void;
   onRouteInsert(index: number, lat: number, lon: number): void;
+  onRouteSegmentSelect(index: number): void;
   onUserMove(): void;
 }
 
@@ -75,6 +79,23 @@ const EQUATOR_M_PER_PX = 156543.03392;
 function accuracyRadiusUnit(accuracyM: number, lat: number): number {
   const metersPerPxAtZoom0 = EQUATOR_M_PER_PX * Math.cos((lat * Math.PI) / 180);
   return accuracyM / metersPerPxAtZoom0;
+}
+
+function nearestPlanSegment(plan: RoutePlan, lat: number, lon: number): number {
+  const lonScale = Math.cos(lat * Math.PI / 180);
+  const px = lon * lonScale;
+  let bestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  plan.segments.forEach((segment, index) => {
+    const ax = segment.from[0] * lonScale; const ay = segment.from[1];
+    const bx = segment.to[0] * lonScale; const by = segment.to[1];
+    const dx = bx - ax; const dy = by - ay;
+    const length2 = dx * dx + dy * dy;
+    const fraction = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (lat - ay) * dy) / length2));
+    const distance = Math.hypot(px - (ax + fraction * dx), lat - (ay + fraction * dy));
+    if (distance < bestDistance) { bestDistance = distance; bestIndex = index; }
+  });
+  return bestIndex;
 }
 
 function addRaster(map: MapLibreMap, def: RasterLayerDef, beforeId?: string): void {
@@ -195,8 +216,10 @@ export function MapView({
   selectedPoint,
   routeWaypoints,
   routeSegments,
+  routePlan,
   trackPoints,
   routeEditing,
+  routeEndpointPicking,
   selectedWaypointId,
   onReady,
   onMoveEnd,
@@ -205,6 +228,7 @@ export function MapView({
   onRouteMove,
   onRouteMoveStart,
   onRouteInsert,
+  onRouteSegmentSelect,
   onUserMove,
 }: MapViewProps): React.ReactElement {
   const container = useRef<HTMLDivElement>(null);
@@ -212,10 +236,14 @@ export function MapView({
   const selectedPointMarker = useRef<maplibregl.Marker | null>(null);
   const [styleReady, setStyleReady] = useState(false);
   // Hoiame callback'id ref'is, et kaarti ei ehitataks iga renderi peale uuesti.
-  const cb = useRef({ onReady, onMoveEnd, onPick, onRouteSelect, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove });
-  cb.current = { onReady, onMoveEnd, onPick, onRouteSelect, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove };
+  const cb = useRef({ onReady, onMoveEnd, onPick, onRouteSelect, onRouteMove, onRouteMoveStart, onRouteInsert, onRouteSegmentSelect, onUserMove });
+  cb.current = { onReady, onMoveEnd, onPick, onRouteSelect, onRouteMove, onRouteMoveStart, onRouteInsert, onRouteSegmentSelect, onUserMove };
   const routeEditingRef = useRef(routeEditing);
   routeEditingRef.current = routeEditing;
+  const routeEndpointPickingRef = useRef(routeEndpointPicking);
+  routeEndpointPickingRef.current = routeEndpointPicking;
+  const routePlanRef = useRef(routePlan);
+  routePlanRef.current = routePlan;
   const selectedWaypointRef = useRef(selectedWaypointId);
   selectedWaypointRef.current = selectedWaypointId;
 
@@ -397,13 +425,28 @@ export function MapView({
     };
     map.on('mouseup', endWaypointDrag); map.on('touchend', endWaypointDrag);
     map.on('click', ROUTE_LINE_HIT_LAYER, (e) => {
-      if (!routeEditingRef.current || suppressRouteClick) return;
-      if (map.queryRenderedFeatures(e.point, { layers: [ROUTE_WAYPOINT_HIT_LAYER] }).length > 0) return;
-      const index = Number(e.features?.[0]?.properties?.segmentIndex);
-      if (Number.isInteger(index)) cb.current.onRouteInsert(index + 1, e.lngLat.lat, e.lngLat.lng);
+      if (suppressRouteClick || routeEndpointPickingRef.current) return;
+      if (routeEditingRef.current) {
+        if (map.queryRenderedFeatures(e.point, { layers: [ROUTE_WAYPOINT_HIT_LAYER] }).length > 0) return;
+        const index = Number(e.features?.[0]?.properties?.segmentIndex);
+        if (Number.isInteger(index)) cb.current.onRouteInsert(index + 1, e.lngLat.lat, e.lngLat.lng);
+        return;
+      }
+      if (!routePlanRef.current) return;
+      const visible = map.queryRenderedFeatures(e.point, { layers: [ROUTE_LINE_LAYER] });
+      const segment = visible.find((feature) => Number(feature.properties?.segmentIndex) >= 0);
+      const visibleIndex = Number(segment?.properties?.segmentIndex);
+      const index = Number.isInteger(visibleIndex) && visibleIndex >= 0
+        ? visibleIndex
+        : nearestPlanSegment(routePlanRef.current, e.lngLat.lat, e.lngLat.lng);
+      if (Number.isInteger(index) && index >= 0) cb.current.onRouteSegmentSelect(index);
     });
 
     map.on('click', (e) => {
+      if (routeEndpointPickingRef.current) {
+        cb.current.onPick(e.lngLat.lat, e.lngLat.lng);
+        return;
+      }
       // Kui klikk tabas mõnda andmekihti (jaam, laev), tegeleb sellega
       // vastav kihi enda käsitleja — siin ei tohi punktipaneeli avada.
       if (routeEditingRef.current) {
@@ -416,6 +459,7 @@ export function MapView({
         else cb.current.onPick(e.lngLat.lat, e.lngLat.lng);
         return;
       }
+      if (routePlanRef.current && map.queryRenderedFeatures(e.point, { layers: [ROUTE_LINE_HIT_LAYER] }).length > 0) return;
       const padding = window.matchMedia('(pointer: coarse)').matches ? 12 : 3;
       // Punktiprognoosi blokeerivad ainult päriselt klikitavad objektid.
       // LAYER_ORDER sisaldab ka kohanimesid, tuulenooli ja muid visuaalseid
@@ -591,9 +635,9 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleReady) return;
-    updateRouteLayers(map, routeWaypoints, routeSegments, trackPoints, routeEditing, selectedWaypointId);
-    map.getCanvas().style.cursor = routeEditing ? 'crosshair' : '';
-  }, [routeWaypoints, routeSegments, trackPoints, routeEditing, selectedWaypointId, styleReady]);
+    updateRouteLayers(map, routeWaypoints, routeSegments, routePlan, trackPoints, routeEditing, selectedWaypointId);
+    map.getCanvas().style.cursor = routeEditing || routeEndpointPicking ? 'crosshair' : '';
+  }, [routeWaypoints, routeSegments, routePlan, trackPoints, routeEditing, routeEndpointPicking, selectedWaypointId, styleReady]);
 
   return <div ref={container} className="map-container" />;
 }

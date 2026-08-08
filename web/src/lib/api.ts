@@ -14,6 +14,8 @@ import type {
   Vessel,
   RouteAnalysis,
   RouteAnalysisRequest,
+  RoutePlanRequest,
+  RoutePlanResponse,
 } from '@seapro/shared';
 import { getSessionId } from './session';
 
@@ -204,5 +206,9 @@ export const api = {
 
   routeAnalysis(request: RouteAnalysisRequest, signal?: AbortSignal) {
     return post<RouteAnalysis>('/api/route-analysis', request, signal);
+  },
+
+  routePlan(request: RoutePlanRequest, signal?: AbortSignal) {
+    return post<RoutePlanResponse>('/api/route-plan', request, signal);
   },
 };

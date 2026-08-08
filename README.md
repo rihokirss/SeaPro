@@ -17,6 +17,9 @@ Lähtekood ja arendus: [github.com/rihokirss/SeaPro](https://github.com/rihokirs
 - Eesti ja Soome ranniku mõõtejaamad ning lainepoid;
 - reaalajalähedased AIS-laevade asukohad;
 - navigatsioonimärgid, faarvaatrid, hoiatused ja vrakid;
+- automaatne A–B meremarsruut Eesti ja Soome vetes, arvestades sügavust,
+  kive, takistusi, vrakke, laeva gabariite, ametlikke faarvaatreid,
+  soovituslikke teid ja liiklusskeeme;
 - asukoha- ja sadamaotsing;
 - eesti- ja ingliskeelne kasutajaliides;
 - paigaldatav PWA ning viimaste prognooside võrguühenduseta vahemälu.
@@ -141,6 +144,28 @@ SeaPro pakub sellele nii heledat kui tumedat merekasutuseks kohandatud stiili.
 - EMODneti batümeetria;
 - kohanimed, mida saab tihedama kaardipildi jaoks eraldi peita.
 
+### Automaatmarsruut
+
+Marsruudipaneelis saab valida A- ja B-punkti kaardilt, otsingust või GPS-ist
+ning sisestada süvise, kiilualuse varu, laeva laiuse ja kõrguse veeliinist.
+Server koostab ühe andmesnapshot'i, leiab sellel A*-otsinguga läbitava tee ning
+tagastab tegeliku joone, navigeerimise kontrollpunktid, riskilõigud ja kasutatud
+allikate värskuse.
+
+Teadaolev maa, ebapiisav sügavus, puhverdatud kivi/takistus/vrakk, ametlik
+liikluskeeld või liiga madal/kitsas läbipääs on kõva tõke. Puuduliku katvusega
+vesi ei muutu vaikimisi ohutuks: seda võib kasutada ainult suure kuluga,
+marsruut märgitakse nõuandvaks ja enne navigeerimist tuleb kinnitada ametliku
+merekaardi kontroll. OpenSeaMapi soovituslik tee võib teadaolevalt sobivas
+vees marsruuti eelistada, kuid ei saa sügavus- ega ohuinfot üle kirjutada.
+TSS-i läbimine jääb v1-s alati nõuandvaks, sest positsioonipõhine otsing ei
+tõenda veel iga lõigu kohalikku sõidusuunda.
+
+Automaatmarsruut on planeerimisabi, mitte sertifitseeritud ECDIS ega asenda
+ajakohast ametlikku merekaarti, mereteateid, kohapealset veetaset või kipri
+otsust. Tehniline prioriteedijärjekord ja API on kirjeldatud
+[`docs/routing.md`](docs/routing.md).
+
 ### Liiklus ja kohad
 
 - AIS-laevad tüübi, kursi ja võimalusel tegelike mõõtmetega;
@@ -205,6 +230,7 @@ selgitused asuvad dokumentides:
 
 - [API võtmed ja turvalisus](docs/api-keys.md)
 - [andmeallikad, ühikud ja päringulimiidid](docs/data-sources.md)
+- [automaatmarsruudi andmekihid, ohutusreeglid ja API](docs/routing.md)
 - [tootmiskeskkonda paigaldamine](deploy/README.md)
 
 Rakendus kasutab mitut välist andme- ja kaarditeenust. Nende andmetele,

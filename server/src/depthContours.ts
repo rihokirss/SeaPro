@@ -85,18 +85,22 @@ export function snapDepthContourBbox(
   ];
 }
 
-export function depthCoverageUrl([west, south, east, north]: DepthContourBbox): string {
+export function depthCoverageUrl(
+  [west, south, east, north]: DepthContourBbox,
+  options: { resolution?: number; coverage?: 'emodnet:mean' | 'emodnet:mean_atlas_land' } = {},
+): string {
+  const resolution = options.resolution ?? DTM_RESOLUTION;
   const params = new URLSearchParams({
     service: 'WCS',
     version: '1.0.0',
     request: 'GetCoverage',
-    coverage: 'emodnet:mean',
+    coverage: options.coverage ?? 'emodnet:mean',
     crs: 'EPSG:4326',
     bbox: `${west},${south},${east},${north}`,
     format: 'GeoTIFF',
     interpolation: 'bilinear',
-    resx: String(DTM_RESOLUTION),
-    resy: String(DTM_RESOLUTION),
+    resx: String(resolution),
+    resy: String(resolution),
   });
   return `${EMODNET_WCS}?${params}`;
 }

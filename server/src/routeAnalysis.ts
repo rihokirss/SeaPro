@@ -40,14 +40,16 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 }
 
 export async function analyseRoute(request: RouteAnalysisRequest): Promise<RouteAnalysis> {
-  const samples = sampleRoute(request);
-  const distanceNm = routeDistanceNm(request.waypoints);
+  const pathPoints = request.path?.coordinates.map(([lon, lat]) => ({ lat, lon }))
+    ?? request.waypoints;
+  const samples = sampleRoute({ ...request, waypoints: pathPoints });
+  const distanceNm = routeDistanceNm(pathPoints);
   const durationSeconds = distanceNm / request.speedKnots * 3600;
   const requiredDepthM = request.draughtM + request.underKeelClearanceM;
   const warnings: string[] = [];
   let weatherRateLimited = false;
 
-  const depthPromise = analyseRouteDepth(request.waypoints, requiredDepthM)
+  const depthPromise = analyseRouteDepth(pathPoints, requiredDepthM)
     .catch(() => { warnings.push('depth_unavailable'); return [] as RouteAnalysis['depthSegments']; });
 
   const provider = getProvider('open-meteo');
@@ -78,7 +80,7 @@ export async function analyseRoute(request: RouteAnalysisRequest): Promise<Route
   const depthSegments = await depthPromise;
   if (weatherRateLimited) warnings.push('weather_rate_limited');
   else if (weather.some((item) => item === null)) warnings.push('weather_partial');
-  const lats = request.waypoints.map((p) => p.lat); const lons = request.waypoints.map((p) => p.lon);
+  const lats = pathPoints.map((p) => p.lat); const lons = pathPoints.map((p) => p.lon);
   const bbox: [number, number, number, number] = [Math.min(...lats), Math.min(...lons), Math.max(...lats), Math.max(...lons)];
   const restrictions: RouteAnalysis['restrictions'] = [];
   if (bbox[2] >= 57 && bbox[0] <= 60.5 && bbox[3] >= 20 && bbox[1] <= 29) {
@@ -94,7 +96,7 @@ export async function analyseRoute(request: RouteAnalysisRequest): Promise<Route
       const close = lines.some((line) => line.slice(1).some((p, i) => samples.some((sample) => crossTrackDistanceMetres(sample, { lon: line[i]![0], lat: line[i]![1] }, { lon: p[0], lat: p[1] }) <= Math.max(100, (fairway.widthM ?? 0) / 2))));
       if (close) restrictions.push({ kind: 'fairway', name: fairway.name, maxDraughtM: limit });
     }
-    const endpoints = [request.waypoints[0]!, request.waypoints.at(-1)!];
+    const endpoints = [pathPoints[0]!, pathPoints.at(-1)!];
     for (const harbour of harbours) if (harbour.maxDraught != null && harbour.maxDraught < request.draughtM && endpoints.some((p) => distanceMetres(p, harbour) < 1000)) {
       restrictions.push({ kind: 'harbour', name: harbour.name, maxDraughtM: harbour.maxDraught });
     }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, Pencil, Route, Star, Trash2 } from 'lucide-react';
+import { Menu, Pencil, Route, ShipWheel, Star, Trash2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import type { GeoState } from '../lib/geolocation';
 import type { useFavorites } from '../lib/favorites';
@@ -12,6 +12,7 @@ interface Props {
   onGoTo(lat: number, lon: number, zoom?: number): void;
   bbox?: [number, number, number, number];
   onOpenRoutes(): void;
+  onOpenVesselSettings(): void;
 }
 
 /** Kompassiroos — logo asemel. Puhas SVG, ei vaja fonti ega pildifaili. */
@@ -29,7 +30,7 @@ function CompassRose() {
   );
 }
 
-export function TopBar({ onOpenLayers, onOpenRoutes, geo, favorites, onGoTo, bbox }: Props) {
+export function TopBar({ onOpenLayers, onOpenRoutes, onOpenVesselSettings, geo, favorites, onGoTo, bbox }: Props) {
   const { t } = useI18n();
   const [favOpen, setFavOpen] = useState(false);
 
@@ -68,6 +69,16 @@ export function TopBar({ onOpenLayers, onOpenRoutes, geo, favorites, onGoTo, bbo
       <div className="topbar__actions">
         <button type="button" className="icon-btn icon-btn--brass" onClick={onOpenRoutes} title={t('route.title')} aria-label={t('route.title')}>
           <Route size={20} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="icon-btn icon-btn--brass"
+          onClick={onOpenVesselSettings}
+          title={t('route.vessel.configure')}
+          aria-label={t('route.vessel.configure')}
+          aria-haspopup="dialog"
+        >
+          <ShipWheel size={20} aria-hidden="true" />
         </button>
         <div className="topbar__fav">
           <button

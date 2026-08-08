@@ -1,0 +1,80 @@
+{
+  "aids": {
+    "features": [
+      {
+        "id": 1,
+        "geometry": { "type": "Point", "coordinates": [24.601, 59.451] },
+        "properties": { "id": 370, "nimi": "Suurupi teljepoi", "tyyp_nimi": "Poi", "m_korgus": 3.5 }
+      }
+    ]
+  },
+  "obstructions": {
+    "features": [
+      {
+        "id": 2,
+        "geometry": { "type": "Point", "coordinates": [22.691825, 59.058562] },
+        "properties": {
+          "id": 533416,
+          "mooteala_id": 2567,
+          "sygavus": 1.79,
+          "korgus": 0.69,
+          "suurus": 5.04,
+          "watlev_id": 3,
+          "catobs_id": 6,
+          "mooteala_nimi": "lehtma_s"
+        }
+      }
+    ]
+  },
+  "rocks": {
+    "features": [
+      {
+        "id": 3,
+        "geometry": { "type": "Point", "coordinates": [23.280961, 57.780995] },
+        "properties": { "id": 1294532, "mooteala_id": 7939, "sygavus": 3.54, "korgus": -3.54, "watlev_id": 3 }
+      }
+    ]
+  },
+  "wrecks": {
+    "features": [
+      {
+        "id": 4,
+        "geometry": { "type": "Point", "coordinates": [24.72, 59.5] },
+        "properties": { "id": 42, "laevanimi": "Testlaev", "vraki_sygavus": 4.2, "vraki_pikkus": 18, "vraki_laius": 5, "mooteala_id": 10 }
+      }
+    ]
+  },
+  "fairways": {
+    "features": [
+      {
+        "id": 5,
+        "geometry": { "type": "LineString", "coordinates": [[23.36, 58.87], [23.39, 58.91]] },
+        "properties": { "id": 316, "nimi": "Kuivarahu", "width": 30, "depth": 3.4, "ship_draught": 2.8 }
+      }
+    ]
+  },
+  "surveys": {
+    "features": [
+      {
+        "id": 6,
+        "geometry": { "type": "Polygon", "coordinates": [[[22.87, 57.87], [22.92, 57.87], [22.92, 57.91], [22.87, 57.87]]] },
+        "properties": { "id": 3476, "nimi": "ruhnu_j", "iho_s44_kat_id": 1, "staatus_id": 5, "aeg": "2011-01-28", "sisestusaeg": "2026-08-03" }
+      }
+    ]
+  },
+  "harbours": {
+    "features": [
+      {
+        "id": 7,
+        "geometry": { "type": "Point", "coordinates": [24.4876, 59.4557] },
+        "properties": {
+          "id": 381,
+          "nimi": "TILGU SADAM",
+          "max_laev_pik": 11,
+          "max_laev_lai": 3,
+          "max_laev_syv": 0.7
+        }
+      }
+    ]
+  }
+}

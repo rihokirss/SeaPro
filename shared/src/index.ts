@@ -587,6 +587,64 @@ export interface RouteWaypoint {
   name?: string;
 }
 
+/** GeoJSON-i joon, mille koordinaadid on alati [pikkuskraad, laiuskraad]. */
+export interface RouteLineString {
+  type: 'LineString';
+  coordinates: [number, number][];
+}
+
+export type RoutePlanStatus = 'route' | 'advisory';
+export type RoutePlanAssessment = 'clear' | 'caution' | 'unknown';
+export type RoutePlanIssueSeverity = 'info' | 'warning' | 'critical';
+
+/** Üks planeerija avastatud asjaolu; `code` on tõlgitav masinloetav võti. */
+export interface RoutePlanIssue {
+  code: string;
+  severity: RoutePlanIssueSeverity;
+  message?: string;
+  sourceIds?: string[];
+  details?: Record<string, string | number | boolean | null>;
+}
+
+export interface RoutePlanSource {
+  id: string;
+  fetchedAt: string;
+  ageSeconds: number;
+  stale: boolean;
+  coverage: 'complete' | 'partial' | 'missing';
+  error?: string;
+}
+
+export interface RoutePlanSegment {
+  from: [number, number];
+  to: [number, number];
+  assessment: RoutePlanAssessment;
+  reasons: string[];
+  sourceIds: string[];
+  minDepthM: number | null;
+  requiredDepthM: number;
+}
+
+export interface RoutePlanEndpoint {
+  requested: Pick<RouteWaypoint, 'lat' | 'lon'>;
+  snapped: Pick<RouteWaypoint, 'lat' | 'lon'>;
+  distanceM: number;
+}
+
+/** Salvestatav automaatmarsruut. Kontrollpunktid jäävad `Route.waypoints` sisse. */
+export interface RoutePlan {
+  status: RoutePlanStatus;
+  geometry: RouteLineString;
+  navigationWaypoints: RouteWaypoint[];
+  segments: RoutePlanSegment[];
+  endpoints: { start: RoutePlanEndpoint; end: RoutePlanEndpoint };
+  distanceNm: number;
+  generatedAt: string;
+  snapshotId: string;
+  sources: RoutePlanSource[];
+  issues: RoutePlanIssue[];
+}
+
 export interface Route {
   id: string;
   name: string;
@@ -596,10 +654,35 @@ export interface Route {
   speedKnots: number;
   draughtM: number;
   underKeelClearanceM: number;
+  /** Laeva suurim laius. Automaatmarsruudi puhul kohustuslik. */
+  beamM?: number;
+  /** Kõrgus veeliinist. Automaatmarsruudi puhul kohustuslik. */
+  airDraughtM?: number;
   fuelLitresPerHour: number;
+  /** Puudub käsitsi loodud või pärast käsitsi muutmist tühistatud marsruudil. */
+  plan?: RoutePlan;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface RoutePlanRequest {
+  start: Pick<RouteWaypoint, 'lat' | 'lon'>;
+  end: Pick<RouteWaypoint, 'lat' | 'lon'>;
+  departureTime: string;
+  speedKnots: number;
+  draughtM: number;
+  underKeelClearanceM: number;
+  beamM: number;
+  airDraughtM: number;
+}
+
+export type RoutePlanResponse =
+  | ({ status: RoutePlanStatus } & RoutePlan)
+  | {
+      status: 'no_route';
+      issues: RoutePlanIssue[];
+      sources: RoutePlanSource[];
+    };
 
 export type DepthRisk = 'safe' | 'caution' | 'danger' | 'unknown';
 
@@ -639,6 +722,8 @@ export interface RouteAnalysis {
 
 export interface RouteAnalysisRequest {
   waypoints: Array<Pick<RouteWaypoint, 'lat' | 'lon'>>;
+  /** Automaatmarsruudi tegelik joon; puudumisel kasutatakse `waypoints` väärtust. */
+  path?: RouteLineString;
   startTime: string;
   speedKnots: number;
   draughtM: number;

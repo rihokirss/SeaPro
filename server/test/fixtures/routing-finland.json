@@ -1,0 +1,110 @@
+{
+  "fairwayAreas": {
+    "features": [
+      {
+        "id": "vaylaalueet_uusi.181202",
+        "geometry": { "type": "MultiPolygon", "coordinates": [[[[27.14, 60.49], [27.20, 60.49], [27.20, 60.50], [27.14, 60.49]]]] },
+        "properties": {
+          "id": 181202,
+          "tyyppi": "Navigointialue",
+          "mitoitussyvays": 4,
+          "haraussyvyys": 4.8,
+          "vertaustaso": "MW2005",
+          "suunta": 83,
+          "liikennointisuunta": "Kaksisuuntainen liikenne",
+          "jnro": "5740",
+          "vaylan_nimi": "[5740: Ravamatalan väylä](vaylat:jnro=5740)"
+        }
+      }
+    ]
+  },
+  "navigationLines": {
+    "features": [
+      {
+        "id": "navigointilinjat_uusi.103381",
+        "geometry": { "type": "LineString", "coordinates": [[26.7263, 62.7588], [26.7269, 62.7587]] },
+        "properties": { "navigointilinjaid": 103381, "tyyppi": "Pakollinen kaarre", "mitoitussyvays": 1.8, "haraussyvyys": 2.7, "jnro": "8770" }
+      }
+    ]
+  },
+  "restrictions": {
+    "features": [
+      {
+        "id": "rajoitusalue_a_uusi.248610",
+        "geometry": { "type": "Polygon", "coordinates": [[[24.0, 60.0], [24.1, 60.0], [24.1, 60.1], [24.0, 60.0]]] },
+        "properties": { "id": 248610, "rajoitustyyppi": "Nopeusrajoitus, Aallokon aiheuttamisen kielto", "rajoitustyypit": "01, 02", "suuruus": "18", "alkupaivamaara": "2021-06-01Z", "nimisijainti": "Biskopsö strömmen" }
+      },
+      {
+        "id": "rajoitusalue_a_uusi.999999",
+        "geometry": { "type": "Polygon", "coordinates": [[[25.0, 60.0], [25.1, 60.0], [25.1, 60.1], [25.0, 60.0]]] },
+        "properties": { "id": 999999, "rajoitustyyppi": "Aluksen kulku moottorivoimaa käyttäen kielletty", "alkupaivamaara": "2030-01-01Z" }
+      }
+    ]
+  },
+  "structures": {
+    "features": [
+      {
+        "id": "sulkukanavat_uusi.232726",
+        "geometry": { "type": "Polygon", "coordinates": [[[28.31, 61.06], [28.32, 61.06], [28.32, 61.07], [28.31, 61.06]]] },
+        "properties": { "id": 232726, "nimi": "Mustola", "kanavaaluetyyppi": "Avattava silta", "alusleveys": 12.6, "aluspituus": 82.5, "alussyvyys": 4.4, "aluskorkeus": 24.5, "kayttoselite": "Kaukokäyttö" }
+      },
+      {
+        "id": "sulkukanavat_uusi.216915",
+        "geometry": { "type": "Polygon", "coordinates": [[[29.76, 62.59], [29.77, 62.59], [29.77, 62.60], [29.76, 62.59]]] },
+        "properties": { "id": 216915, "nimi": "Joensuu", "kanavaaluetyyppi": "Sulku", "alusleveys": 11.8, "aluspituus": 160, "alussyvyys": 2.4, "aluskorkeus": 12 }
+      }
+    ]
+  },
+  "bridges": {
+    "features": [
+      {
+        "id": "silta.35822",
+        "geometry": { "type": "Point", "coordinates": [27.2898, 61.6871] },
+        "properties": {
+          "id": 35822,
+          "nimi": "Savilahden silta",
+          "tila": "kaytossa",
+          "alittav_vayla_korkraj_vesiv": "8.5",
+          "korkeusrajoitus": "4.4",
+          "kayttotarkoitukset_nimi": "Vesistösilta"
+        }
+      },
+      {
+        "id": "silta.road-only",
+        "geometry": { "type": "Point", "coordinates": [27.30, 61.69] },
+        "properties": {
+          "id": "road-only",
+          "nimi": "Maantiesilta",
+          "korkeusrajoitus": "3.2"
+        }
+      }
+    ]
+  },
+  "faultsCommercial": {
+    "features": [
+      {
+        "id": "fault.-1",
+        "geometry": { "type": "Point", "coordinates": [24.91, 60.10] },
+        "properties": { "vikaid": "-1", "turvalaitenumero": "21168", "turvalaitenimifi": "Katajaluoto", "vikatyyppien": "Light unlit", "kirjausaika": "2026-08-06T17:02:25Z" }
+      }
+    ]
+  },
+  "faultsShallow": {
+    "features": [
+      {
+        "id": "fault.-2",
+        "geometry": { "type": "Point", "coordinates": [26.42, 60.41] },
+        "properties": { "vikaid": "-2", "turvalaitenumero": "1685", "turvalaitenimifi": "Bjånnässundet", "vikatyyppien": "Destroyed/Missing" }
+      }
+    ]
+  },
+  "aids": {
+    "features": [
+      {
+        "id": "turvalaitteet_uusi.805",
+        "geometry": { "type": "MultiPoint", "coordinates": [[24.9834, 60.1153]] },
+        "properties": { "id": 805, "turvalaitenumero": "12996", "nimifi": "Lågharun", "turvalaitetyyppifi": "Poiju" }
+      }
+    ]
+  }
+}

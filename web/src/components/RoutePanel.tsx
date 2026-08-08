@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { GripVertical, Play, Redo2, Settings2, Trash2, Undo2, X } from 'lucide-react';
-import type { Route, RouteAnalysis, RouteWaypoint } from '@seapro/shared';
+import { AlertTriangle, Check, Crosshair, GripVertical, Home, LocateFixed, Play, Redo2, Settings2, Trash2, Undo2, X } from 'lucide-react';
+import type { Route, RouteAnalysis, RoutePlan, RouteWaypoint } from '@seapro/shared';
 import { degreesToCompass, routeDistanceNm } from '@seapro/shared';
 import { useI18n } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
+import type { VesselProfile } from '../lib/vesselProfile';
+import { SearchPicker } from './SearchPicker';
 
 const LocalizedDateTimePicker = lazy(async () => {
   const module = await import('./LocalizedDateTimePicker');
@@ -17,11 +19,17 @@ interface Props {
   analysis: RouteAnalysis | null;
   loading: boolean;
   error: string | null;
+  planPreview: RoutePlan | null;
+  planLoading: boolean;
+  planError: string | null;
+  endpointPicking: 'start' | 'end' | null;
+  selectedPlanSegmentIndex: number | null;
   editing: boolean;
   selectedWaypointId: string | null;
   canUndo: boolean;
   canRedo: boolean;
   speedUnit: SpeedUnit;
+  vesselProfile: VesselProfile;
   onClose(): void;
   onChange(route: Route): void;
   onNew(): void;
@@ -38,6 +46,12 @@ interface Props {
   onCommitReorder(previous: RouteWaypoint[]): void;
   onFocusWaypoint(point: RouteWaypoint): void;
   onUseLocation(): void;
+  onSetEndpoint(kind: 'start' | 'end', point: Pick<RouteWaypoint, 'lat' | 'lon' | 'name'>): void;
+  onPickEndpoint(kind: 'start' | 'end' | null): void;
+  onUseEndpointLocation(kind: 'start' | 'end'): void;
+  onCalculatePlan(): void;
+  onAcceptPlan(): void;
+  onCancelPlan(): void;
   onNavigate(): void;
 }
 
@@ -78,14 +92,54 @@ function WeatherSparkline({ analysis, field, color }: { analysis: RouteAnalysis;
   return <svg className="route-chart" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polyline points={points} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" /></svg>;
 }
 
+function unknownDistanceNm(plan: RoutePlan | undefined): number {
+  if (!plan) return 0;
+  return plan.segments.filter((segment) => segment.assessment === 'unknown').reduce((sum, segment) => sum + routeDistanceNm([
+    { lon: segment.from[0], lat: segment.from[1] },
+    { lon: segment.to[0], lat: segment.to[1] },
+  ]), 0);
+}
+
+function advisoryDistanceNm(plan: RoutePlan | undefined): number {
+  if (!plan) return 0;
+  return plan.segments.filter((segment) => segment.assessment !== 'clear').reduce((sum, segment) => sum + routeDistanceNm([
+    { lon: segment.from[0], lat: segment.from[1] },
+    { lon: segment.to[0], lat: segment.to[1] },
+  ]), 0);
+}
+
+function sourceAgeSeconds(source: RoutePlan['sources'][number], nowMs: number): number {
+  const fetchedMs = new Date(source.fetchedAt).getTime();
+  const wallClockAge = Number.isFinite(fetchedMs) ? Math.max(0, (nowMs - fetchedMs) / 1000) : 0;
+  return Math.max(source.ageSeconds, wallClockAge);
+}
+
+function sourceNeedsAttention(source: RoutePlan['sources'][number], nowMs: number): boolean {
+  const maxAgeSeconds = source.id === 'transpordiamet-warnings'
+    ? 5 * 60
+    : source.id === 'emodnet-depth' ? 30 * 24 * 3600 : 24 * 3600;
+  return source.stale || source.coverage !== 'complete'
+    || sourceAgeSeconds(source, nowMs) > maxAgeSeconds;
+}
+
+function planSourcesNeedAttention(plan: RoutePlan | undefined, nowMs: number): boolean {
+  return plan?.sources.some((source) => sourceNeedsAttention(source, nowMs)) ?? false;
+}
+
 export function RoutePanel(props: Props) {
   const { t, lang } = useI18n();
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>('half');
   const [dragHeight, setDragHeight] = useState<number | null>(null);
   const [viewportTick, setViewportTick] = useState(0);
+  const [endpointKind, setEndpointKind] = useState<'start' | 'end'>('start');
+  const [confirmNavigation, setConfirmNavigation] = useState(false);
+  const [sourceClock, setSourceClock] = useState(() => Date.now());
   const wasOpen = useRef(false);
   const wasEditing = useRef(false);
+  const wasEndpointPicking = useRef<'start' | 'end' | null>(null);
   const waypointList = useRef<HTMLDivElement>(null);
+  const segmentDetail = useRef<HTMLDivElement>(null);
+  const navigationConfirm = useRef<HTMLDivElement>(null);
   const drag = useRef<{
     pointerId: number;
     startY: number;
@@ -124,6 +178,42 @@ export function RoutePanel(props: Props) {
     if (!props.selectedWaypointId) return;
     waypointList.current?.querySelector<HTMLElement>(`[data-waypoint-id="${CSS.escape(props.selectedWaypointId)}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [props.selectedWaypointId]);
+
+  useEffect(() => {
+    if (props.selectedPlanSegmentIndex == null || !props.open) return;
+    setSheetSnap('expanded');
+    window.requestAnimationFrame(() => segmentDetail.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }, [props.selectedPlanSegmentIndex, props.open]);
+
+  useEffect(() => {
+    setConfirmNavigation(false);
+  }, [props.route.plan?.snapshotId, props.route.waypoints, props.route.startTime]);
+
+  useEffect(() => {
+    if (props.route.waypoints.length === 0) setEndpointKind('start');
+  }, [props.route.waypoints.length]);
+
+  useEffect(() => {
+    if (props.open && wasEndpointPicking.current && !props.endpointPicking) setSheetSnap('half');
+    wasEndpointPicking.current = props.endpointPicking;
+  }, [props.endpointPicking, props.open]);
+
+  useEffect(() => {
+    if (!props.open) return;
+    setSourceClock(Date.now());
+    const timer = window.setInterval(() => setSourceClock(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [props.open]);
+
+  useEffect(() => {
+    if (!confirmNavigation) return;
+    setSheetSnap('expanded');
+    const frame = window.requestAnimationFrame(() => {
+      navigationConfirm.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      navigationConfirm.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [confirmNavigation]);
 
   const heights = typeof window === 'undefined'
     ? { collapsed: 110, half: 400, expanded: 700 }
@@ -212,13 +302,35 @@ export function RoutePanel(props: Props) {
   };
 
   if (!props.open) return null;
-  const setNumber = (key: 'speedKnots' | 'draughtM' | 'underKeelClearanceM' | 'fuelLitresPerHour', raw: string) => {
-    const value = Number(raw); if (Number.isFinite(value)) props.onChange({ ...props.route, [key]: value, updatedAt: new Date().toISOString() });
-  };
   const fmt = (iso: string) => new Date(iso).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  const distanceNm = routeDistanceNm(props.route.waypoints);
   const selectedIndex = props.route.waypoints.findIndex((point) => point.id === props.selectedWaypointId);
   const selectedWaypoint = selectedIndex >= 0 ? props.route.waypoints[selectedIndex]! : null;
+  const acceptedPlan = props.route.plan;
+  const shownPlan = props.planPreview ?? acceptedPlan;
+  const distanceNm = shownPlan?.distanceNm ?? routeDistanceNm(props.route.waypoints);
+  const acceptedPlanNeedsAttention = planSourcesNeedAttention(acceptedPlan, sourceClock);
+  const shownPlanNeedsAttention = planSourcesNeedAttention(shownPlan, sourceClock);
+  const acceptedPlanStatus = acceptedPlan?.status === 'advisory' || acceptedPlanNeedsAttention
+    ? 'advisory'
+    : 'route';
+  const shownPlanStatus = shownPlan?.status === 'advisory' || shownPlanNeedsAttention
+    ? 'advisory'
+    : 'route';
+  const selectedPlanSegment = props.selectedPlanSegmentIndex == null ? undefined : shownPlan?.segments[props.selectedPlanSegmentIndex];
+  const needsNavigationConfirmation = acceptedPlan?.status === 'advisory'
+    || acceptedPlan?.segments.some((segment) => segment.assessment === 'unknown') === true
+    || acceptedPlanNeedsAttention;
+  const canCalculatePlan = props.route.waypoints.length >= 2
+    && (props.route.beamM ?? 0) > 0
+    && (props.route.airDraughtM ?? 0) > 0
+    && props.route.speedKnots > 0
+    && props.route.draughtM >= 0
+    && props.route.underKeelClearanceM >= 0
+    && !props.planLoading;
+  const requestNavigation = (): void => {
+    if (needsNavigationConfirmation) setConfirmNavigation(true);
+    else props.onNavigate();
+  };
   return (
     <aside
       className={`route-panel snap-${sheetSnap}${props.editing ? ' is-editing' : ''}${dragHeight !== null ? ' is-dragging' : ''}`}
@@ -237,20 +349,22 @@ export function RoutePanel(props: Props) {
           aria-label={t('route.resizePanel')}
         >
           <span className="route-panel__grip" aria-hidden="true" />
-          <span className="route-panel__titles"><strong>{t('route.title')}</strong><small>{props.route.name}</small></span>
+          <span className="route-panel__titles"><strong>{t('route.title')}</strong><small>{props.endpointPicking ? t('route.auto.mapPickHint', { point: props.endpointPicking === 'start' ? 'A' : 'B' }) : props.route.name}</small></span>
         </button>
         {!props.editing && props.route.waypoints.length >= 2 ? (
           <button
             type="button"
             className="route-panel__navigate primary"
-            onClick={props.onNavigate}
-            disabled={props.loading || !props.analysis}
-            title={props.loading ? t('route.analysing') : t('route.navigate')}
+            onClick={requestNavigation}
+            disabled={props.loading || props.planLoading || !props.analysis || Boolean(props.planPreview)}
+            title={props.planPreview
+              ? t('route.auto.acceptBeforeNavigation')
+              : props.planLoading ? t('route.auto.calculating') : props.loading ? t('route.analysing') : t('route.navigate')}
           >
-            <Play size={16} fill="currentColor" aria-hidden="true" /> {props.loading ? t('route.analysingShort') : t('route.navigate')}
+            <Play size={16} fill="currentColor" aria-hidden="true" /> {props.loading || props.planLoading ? t('route.analysingShort') : t('route.navigate')}
           </button>
         ) : null}
-        <button className="icon-btn" onClick={() => { if (props.editing) props.onCancelEdit(); props.onClose(); }} aria-label={t('action.close')}><X size={21} aria-hidden="true" /></button>
+        <button className="icon-btn" onClick={() => { setConfirmNavigation(false); if (props.editing) props.onCancelEdit(); props.onClose(); }} aria-label={t('action.close')}><X size={21} aria-hidden="true" /></button>
       </header>
 
       <div className="route-mobile-compact" aria-label={t('route.edit')}>
@@ -280,21 +394,119 @@ export function RoutePanel(props: Props) {
         <label>{t('route.startTime')}<Suspense fallback={<input className="route-date-input" value={new Date(props.route.startTime).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB')} readOnly aria-busy="true" />}>
           <LocalizedDateTimePicker value={props.route.startTime} onChange={(startTime) => props.onChange({ ...props.route, startTime, updatedAt: new Date().toISOString() })} />
         </Suspense></label>
-        <div className="route-form__grid">
-          <label>{t('route.speed')}<input type="number" min="0.1" step="0.1" value={props.route.speedKnots} onChange={(e) => setNumber('speedKnots', e.target.value)} /></label>
-          <label>{t('route.fuelRate')}<input type="number" min="0" step="0.1" value={props.route.fuelLitresPerHour} onChange={(e) => setNumber('fuelLitresPerHour', e.target.value)} /></label>
-          <label>{t('route.draught')}<input type="number" min="0" step="0.1" value={props.route.draughtM} onChange={(e) => setNumber('draughtM', e.target.value)} /></label>
-          <label>{t('route.clearance')}<input type="number" min="0" step="0.1" value={props.route.underKeelClearanceM} onChange={(e) => setNumber('underKeelClearanceM', e.target.value)} /></label>
-        </div>
       </div>
+      {!props.editing ? <section className="route-auto" aria-labelledby="route-auto-title">
+        <div className="route-auto__heading">
+          <div><strong id="route-auto-title">{t('route.auto.title')}</strong><span>{t('route.auto.subtitle')}</span></div>
+          {acceptedPlan ? <span className={`route-plan-badge is-${acceptedPlanStatus}`}>{acceptedPlanStatus === 'advisory' ? <AlertTriangle size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />} {t(`route.auto.status.${acceptedPlanStatus}`)}</span> : null}
+        </div>
+
+        <div className="route-endpoint-tabs" role="group" aria-label={t('route.auto.chooseEndpoint')}>
+          {(['start', 'end'] as const).map((kind) => {
+            const point = kind === 'start' ? props.route.waypoints[0] : props.route.waypoints.length >= 2 ? props.route.waypoints.at(-1) : undefined;
+            const disabled = kind === 'end' && props.route.waypoints.length === 0;
+            return <button
+              key={kind}
+              type="button"
+              className={endpointKind === kind ? 'is-active' : ''}
+              disabled={disabled}
+              onClick={() => setEndpointKind(kind)}
+              aria-pressed={endpointKind === kind}
+            >
+              <span className={`route-waypoint-row__badge is-${kind === 'start' ? 'start' : 'finish'}`}>{kind === 'start' ? 'A' : 'B'}</span>
+              <span><strong>{t(kind === 'start' ? 'route.startPoint' : 'route.finishPoint')}</strong><small>{point ? point.name || `${point.lat.toFixed(4)}, ${point.lon.toFixed(4)}` : t('route.auto.notSelected')}</small></span>
+            </button>;
+          })}
+        </div>
+
+        <div className={`route-endpoint-actions${props.vesselProfile.homeHarbour ? ' has-home' : ''}`}>
+          <button
+            type="button"
+            className={props.endpointPicking === endpointKind ? 'is-active' : ''}
+            onClick={() => {
+              const next = props.endpointPicking === endpointKind ? null : endpointKind;
+              props.onPickEndpoint(next);
+              if (next) setSheetSnap('collapsed');
+            }}
+          ><Crosshair size={18} aria-hidden="true" /> {props.endpointPicking === endpointKind ? t('route.auto.cancelMapPick') : t('route.auto.pickMap')}</button>
+          <button type="button" onClick={() => props.onUseEndpointLocation(endpointKind)}><LocateFixed size={18} aria-hidden="true" /> {t('route.auto.useGps')}</button>
+          {props.vesselProfile.homeHarbour ? <button type="button" onClick={() => props.onSetEndpoint(endpointKind, props.vesselProfile.homeHarbour!)}><Home size={18} aria-hidden="true" /> {t('route.auto.useHomeHarbour')}</button> : null}
+        </div>
+        {props.endpointPicking ? <p className="route-status route-map-pick" role="status">{t('route.auto.mapPickHint', { point: props.endpointPicking === 'start' ? 'A' : 'B' })}</p> : null}
+        <SearchPicker placeholder={t('route.auto.searchPlaceholder')} onChoose={(result) => props.onSetEndpoint(endpointKind, result)} />
+        {props.route.waypoints.length > 2 ? <p className="route-status">{t('route.auto.endpointOnlyHint')}</p> : null}
+        {(props.route.beamM ?? 0) <= 0 || (props.route.airDraughtM ?? 0) <= 0 ? <p className="route-status">{t('route.auto.dimensionsRequired')}</p> : null}
+
+        <button className="route-auto__calculate primary" type="button" onClick={props.onCalculatePlan} disabled={!canCalculatePlan}>
+          {props.planLoading ? t('route.auto.calculating') : acceptedPlan ? t('route.auto.recalculate') : t('route.auto.calculate')}
+        </button>
+        {props.planError ? <p className="route-status is-error" role="alert">{props.planError}</p> : null}
+
+        {shownPlan ? <div className={`route-plan-preview is-${shownPlanStatus}${props.planPreview ? ' is-preview' : ' is-accepted'}`}>
+          <div className="route-plan-preview__summary">
+            <span className={`route-plan-badge is-${shownPlanStatus}`}>{shownPlanStatus === 'advisory' ? <AlertTriangle size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />} {t(`route.auto.status.${shownPlanStatus}`)}</span>
+            <strong>{shownPlan.distanceNm.toFixed(1)} NM</strong>
+          </div>
+          {props.planPreview ? <p>{t('route.auto.previewHint')}</p> : <p>{t('route.auto.acceptedHint')}</p>}
+          <p className="route-plan-preview__disclaimer"><AlertTriangle size={16} aria-hidden="true" /> {t('route.auto.disclaimer')}</p>
+          {(shownPlan.endpoints.start.distanceM > 1 || shownPlan.endpoints.end.distanceM > 1) ? <p>{t('route.auto.snappedEndpoints', {
+            start: Math.round(shownPlan.endpoints.start.distanceM),
+            end: Math.round(shownPlan.endpoints.end.distanceM),
+          })}</p> : null}
+          {unknownDistanceNm(shownPlan) > 0 ? <p className="route-plan-preview__warning"><AlertTriangle size={16} aria-hidden="true" /> {t('route.auto.unknownDistance', { distance: unknownDistanceNm(shownPlan).toFixed(1) })}</p> : null}
+          {shownPlan.issues.length ? <ul className="route-plan-issues">{shownPlan.issues.map((issue, index) => {
+            const key = `route.auto.issueCode.${issue.code}`;
+            const translated = t(key);
+            const reasonKey = `route.auto.reason.${issue.code}`;
+            const translatedReason = t(reasonKey);
+            const label = translated !== key
+              ? translated
+              : translatedReason !== reasonKey ? translatedReason : t('route.auto.issue', { code: issue.code });
+            return <li className={`is-${issue.severity}`} key={`${issue.code}-${index}`}>{issue.message ?? label}</li>;
+          })}</ul> : null}
+          {shownPlanNeedsAttention ? <p className="route-plan-preview__warning"><AlertTriangle size={16} aria-hidden="true" /> {t('route.auto.sourceWarning')}</p> : null}
+          {selectedPlanSegment ? <div className="route-plan-segment-detail" ref={segmentDetail}>
+            <strong>{t('route.auto.segmentDetail')}</strong>
+            <span className={`route-plan-badge is-${selectedPlanSegment.assessment === 'clear' ? 'route' : 'advisory'}`}>{t(`route.auto.assessment.${selectedPlanSegment.assessment}`)}</span>
+            <dl>
+              <div><dt>{t('route.depth')}</dt><dd>{selectedPlanSegment.minDepthM == null ? t('route.auto.unknown') : `${selectedPlanSegment.minDepthM.toFixed(1)} m`} / {t('route.auto.requiredDepth', { depth: selectedPlanSegment.requiredDepthM.toFixed(1) })}</dd></div>
+              <div><dt>{t('route.auto.reasons')}</dt><dd>{selectedPlanSegment.reasons.length ? selectedPlanSegment.reasons.map((reason) => t(`route.auto.reason.${reason}`) === `route.auto.reason.${reason}` ? reason.replaceAll('_', ' ') : t(`route.auto.reason.${reason}`)).join(', ') : '—'}</dd></div>
+              <div><dt>{t('route.auto.sources')}</dt><dd>{selectedPlanSegment.sourceIds.length ? selectedPlanSegment.sourceIds.map((id) => {
+                const source = shownPlan.sources.find((item) => item.id === id);
+                if (!source) return id;
+                const ageSeconds = sourceAgeSeconds(source, sourceClock);
+                return `${id} · ${Math.max(0, Math.round(ageSeconds / 3600))} h${sourceNeedsAttention(source, sourceClock) ? ` · ${t('route.auto.stale')}` : ''}`;
+              }).join('; ') : '—'}</dd></div>
+            </dl>
+          </div> : null}
+          {props.planPreview ? <div className="route-plan-preview__actions">
+            <button type="button" onClick={props.onCancelPlan}>{t('action.cancel')}</button>
+            <button type="button" className="primary" onClick={props.onAcceptPlan}><Check size={17} aria-hidden="true" /> {t('route.auto.accept')}</button>
+          </div> : null}
+        </div> : null}
+      </section> : null}
       <div className="route-edit-actions">
         {props.editing ? <>
           <button onClick={props.onUndo} disabled={!props.canUndo} aria-label={t('action.undo')}><Undo2 size={20} aria-hidden="true" /></button><button onClick={props.onRedo} disabled={!props.canRedo} aria-label={t('action.redo')}><Redo2 size={20} aria-hidden="true" /></button>
           <button onClick={() => { if (selectedWaypoint) props.onDeleteWaypoint(selectedWaypoint.id); }} disabled={!selectedWaypoint}>{t('route.deletePoint')}</button>
           <button onClick={props.onUseLocation}>{t('route.useLocation')}</button>
           <button onClick={props.onCancelEdit}>{t('action.cancel')}</button><button className="primary" onClick={props.onFinishEdit} disabled={props.route.waypoints.length < 2} title={props.route.waypoints.length < 2 ? t('route.needTwoPoints') : undefined}>{t('action.done')}</button>
-        </> : <button className="primary" onClick={props.onStartEdit}>{t('route.edit')}</button>}
+        </> : <button className={props.route.plan ? '' : 'primary'} onClick={props.onStartEdit}>{props.route.plan ? t('route.auto.editManually') : t('route.edit')}</button>}
       </div>
+      {confirmNavigation ? <div
+        className="route-navigation-confirm"
+        role="alertdialog"
+        aria-labelledby="route-navigation-confirm-title"
+        aria-describedby="route-navigation-confirm-description"
+        tabIndex={-1}
+        ref={navigationConfirm}
+      >
+        <strong id="route-navigation-confirm-title"><AlertTriangle size={18} aria-hidden="true" /> {t('route.auto.confirmNavigationTitle')}</strong>
+        <p id="route-navigation-confirm-description">{advisoryDistanceNm(acceptedPlan) > 0
+          ? t('route.auto.confirmNavigation', { distance: advisoryDistanceNm(acceptedPlan).toFixed(1) })
+          : t('route.auto.confirmNavigationSources')}</p>
+        <div><button type="button" onClick={() => setConfirmNavigation(false)}>{t('action.cancel')}</button><button type="button" className="primary" onClick={() => { setConfirmNavigation(false); props.onNavigate(); }}>{t('route.auto.confirmAndStart')}</button></div>
+      </div> : null}
       {props.editing && props.route.waypoints.length < 2 ? <p className="route-status is-error">{t('route.needTwoPoints')}</p> : null}
       {props.editing ? <section className="route-waypoints" aria-labelledby="route-waypoints-title">
         <div className="route-waypoints__heading">

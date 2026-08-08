@@ -386,6 +386,19 @@ lateraal-, kardinaal-, üksikohu-, ohutu vee ja erimärkideks, mistõttu klient
 kasutab mõlema riigi jaoks samu ikoone ja popupisüsteemi. Väga laias vaates
 WFS-i ei küsita, sest märgikiht ilmub kaardile alles lähisuumis.
 
+Automaatmarsruut kasutab samade organisatsioonide detailsemaid masinloetavaid
+routingukihte eraldi snapshot'ina: Transpordiameti HIS-i kivid, takistused,
+vrakid, füüsilised märgid, laevateed ja mõõtealad ning Väylävirasto väyläalad,
+navigatsioonijooned, piirangud, `taitorakenteet:silta` veetee kõrgused,
+kanalirajatised ja AToN rikked. `_uusi` väyläkoondvaated sisaldavad ka teiste
+väylänpitäjate objekte; `mitoitussyvays` säilitatakse projekteeritud süvisena
+ning füüsiliseks haraussügavuseks loetakse ainult `haraussyvyys`. AToN rikked
+on staatilistest kihtidest eraldi kaheminutilises vahemälus. Lisaks loetakse
+OpenSeaMapi soovituslikud teed, TSS-id ja ohud Overpassist, EMODneti `mean`
+sügavus WCS GeoTIFF-ist ning OpenFreeMapi `water` geomeetria MVT-paanidest.
+Täpsed prioriteedid ja ebaõnnestumise semantika on kirjas
+[`routing.md`](routing.md).
+
 Sama Nutimeri teenuse sadamakiht 4 rikastab `/api/harbours` OSM-i kirjeid.
 Esmane ühendusvõti on normaliseeritud UN/LOCODE (`EE RST` = `EERST`), seejärel
 nimi ja asukoht. Nii jääb näiteks Ristna või Alliklepa kaardile ühe markerina:

@@ -12,6 +12,7 @@ import type {
   NavigationData,
   Route,
   RouteAnalysis,
+  RoutePlan,
   RouteWaypoint,
   Track,
   TrackPoint,
@@ -25,6 +26,7 @@ import { useTheme } from './lib/theme';
 import { loadSpeedUnit, saveSpeedUnit, type SpeedUnit } from './lib/units';
 import { loadMapView, saveMapView } from './lib/mapView';
 import { loadLayerState, saveLayerState } from './lib/layerState';
+import { initialNavigationWaypointIndex, navigationWaypointReached } from './lib/routeNavigation';
 import { floorToHour, formatDateTime } from './lib/time';
 import { MapView } from './map/MapView';
 import { radarFrameAt } from './map/basemaps';
@@ -45,8 +47,16 @@ import { MapLegend } from './components/MapLegend';
 import { MapKey } from './components/MapKey';
 import { LocateButton } from './components/LocateButton';
 import { RoutePanel } from './components/RoutePanel';
+import { VesselSettingsDialog } from './components/VesselSettingsDialog';
 import { NavigationBar } from './components/NavigationBar';
 import { routeStore } from './lib/routeStore';
+import {
+  applyVesselProfile,
+  loadVesselProfile,
+  normalizeVesselProfile,
+  saveVesselProfile,
+  type VesselProfile,
+} from './lib/vesselProfile';
 import { setPlaceLabelsVisible } from './map/layers/placeLabels';
 import {
   setNavigationVisibility,
@@ -380,13 +390,28 @@ function useGridDays(params: {
 
 const makeId = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 
-function newRoute(): Route {
+function newRoute(profile: VesselProfile): Route {
   const now = new Date().toISOString();
-  return {
+  return applyVesselProfile({
     id: makeId(), name: 'Uus marsruut', waypoints: [], startTime: now,
     speedKnots: 6, draughtM: 1.2, underKeelClearanceM: 0.5, fuelLitresPerHour: 5,
     createdAt: now, updatedAt: now,
-  };
+  }, profile);
+}
+
+function routePlanInputKey(route: Route): string {
+  const start = route.waypoints[0];
+  const end = route.waypoints.length >= 2 ? route.waypoints.at(-1) : undefined;
+  return JSON.stringify({
+    start: start ? [start.lat, start.lon] : null,
+    end: end ? [end.lat, end.lon] : null,
+    departureTime: route.startTime,
+    speedKnots: route.speedKnots,
+    draughtM: route.draughtM,
+    underKeelClearanceM: route.underKeelClearanceM,
+    beamM: route.beamM ?? null,
+    airDraughtM: route.airDraughtM ?? null,
+  });
 }
 
 export function App() {
@@ -414,13 +439,39 @@ export function App() {
   const [layers, setLayers] = useState<LayerState>(() => loadLayerState(DEFAULT_LAYERS));
   const [panelOpen, setPanelOpen] = useState(false);
   const [routeOpen, setRouteOpen] = useState(false);
-  const [route, setRoute] = useState<Route>(newRoute);
+  const [vesselSettingsOpen, setVesselSettingsOpen] = useState(false);
+  const [vesselProfile, setVesselProfile] = useState<VesselProfile>(loadVesselProfile);
+  const [route, setRoute] = useState<Route>(() => newRoute(vesselProfile));
   const [savedRoutes, setSavedRoutes] = useState<Route[]>([]);
   const [routeEditing, setRouteEditing] = useState(false);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
   const [routeAnalysis, setRouteAnalysis] = useState<RouteAnalysis | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const [routePlanPreview, setRoutePlanPreview] = useState<RoutePlan | null>(null);
+  const [routePlanLoading, setRoutePlanLoading] = useState(false);
+  const [routePlanError, setRoutePlanError] = useState<string | null>(null);
+  const [selectedPlanSegmentIndex, setSelectedPlanSegmentIndex] = useState<number | null>(null);
+  const [routeEndpointPicking, setRouteEndpointPicking] = useState<'start' | 'end' | null>(null);
+  const routePlanRequest = useRef<AbortController | null>(null);
+  const cancelRoutePlanRequest = useCallback(() => {
+    routePlanRequest.current?.abort();
+    routePlanRequest.current = null;
+    setRoutePlanLoading(false);
+  }, []);
+  const changeVesselProfile = useCallback((value: VesselProfile) => {
+    const nextProfile = normalizeVesselProfile(value);
+    saveVesselProfile(nextProfile);
+    setVesselProfile(nextProfile);
+
+    const applied = applyVesselProfile(route, nextProfile);
+    if (routePlanInputKey(route) !== routePlanInputKey(applied)) {
+      cancelRoutePlanRequest();
+      setRoute({ ...applied, plan: undefined, updatedAt: new Date().toISOString() });
+      setRoutePlanPreview(null);
+      setRoutePlanError(null);
+    }
+  }, [route, cancelRoutePlanRequest]);
   const [undoRoutes, setUndoRoutes] = useState<RouteWaypoint[][]>([]);
   const [redoRoutes, setRedoRoutes] = useState<RouteWaypoint[][]>([]);
   const editStart = useRef<Route | null>(null);
@@ -463,13 +514,20 @@ export function App() {
     routeStore.listRoutes().then((items) => setSavedRoutes(items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))).catch(() => {});
   }, []);
 
+  useEffect(() => () => routePlanRequest.current?.abort(), []);
+
   useEffect(() => {
-    if (routeEditing || route.waypoints.length < 2) { setRouteAnalysis(null); return; }
+    setSelectedPlanSegmentIndex(null);
+  }, [routePlanPreview?.generatedAt, route.plan?.generatedAt]);
+
+  useEffect(() => {
+    if (routeEditing || route.waypoints.length < 2) { setRouteAnalysis(null); setRouteLoading(false); return; }
+    setRouteAnalysis(null); setRouteLoading(true); setRouteError(null);
     const ac = new AbortController();
     const timer = window.setTimeout(() => {
-      setRouteLoading(true); setRouteError(null);
       api.routeAnalysis({
         waypoints: route.waypoints, startTime: route.startTime, speedKnots: route.speedKnots,
+        path: route.plan?.geometry,
         draughtM: route.draughtM, underKeelClearanceM: route.underKeelClearanceM,
         fuelLitresPerHour: route.fuelLitresPerHour,
         model: activeModel === 'best_match' ? undefined : activeModel, waveModel: activeWaveModel,
@@ -478,7 +536,7 @@ export function App() {
       }).finally(() => { if (!ac.signal.aborted) setRouteLoading(false); });
     }, 500);
     return () => { window.clearTimeout(timer); ac.abort(); };
-  }, [route, routeEditing, activeModel, activeWaveModel, t]);
+  }, [route.waypoints, route.plan?.geometry, route.startTime, route.speedKnots, route.draughtM, route.underKeelClearanceM, route.fuelLitresPerHour, routeEditing, activeModel, activeWaveModel, t]);
 
   useEffect(() => {
     if (routeEditing || route.waypoints.length < 2) return;
@@ -570,46 +628,74 @@ export function App() {
   const [offRouteWarning, setOffRouteWarning] = useState(false);
   const offRouteSince = useRef<number | null>(null);
   const navigationStartedAt = useRef<number>(0);
+  const [activeNavigationSnapshot, setActiveNavigationSnapshot] = useState<{
+    route: Route;
+    analysis: RouteAnalysis | null;
+  } | null>(null);
+  const candidateNavigationWaypoints = useMemo(
+    () => route.plan && route.plan.navigationWaypoints.length >= 2
+      ? route.plan.navigationWaypoints
+      : route.waypoints,
+    [route.plan, route.waypoints],
+  );
+  const navigationWaypoints = activeNavigationSnapshot
+    ? activeNavigationSnapshot.route.plan?.navigationWaypoints
+      ?? activeNavigationSnapshot.route.waypoints
+    : candidateNavigationWaypoints;
 
   const startNavigation = useCallback(() => {
-    if (route.waypoints.length < 2) return;
-    setNavigationActive(true); setNextWaypointIndex(1); setFollowingPosition(true);
+    if (candidateNavigationWaypoints.length < 2) return;
+    cancelRoutePlanRequest();
+    setRoutePlanPreview(null); setRoutePlanError(null);
+    setActiveNavigationSnapshot({
+      route: structuredClone(route),
+      analysis: routeAnalysis ? structuredClone(routeAnalysis) : null,
+    });
+    setNavigationActive(true);
+    setNextWaypointIndex(initialNavigationWaypointIndex(route, geo.position));
+    setFollowingPosition(true);
     setTrackPoints([]); setRecordTrack(false); setOffRouteWarning(false);
     navigationStartedAt.current = Date.now(); setRouteOpen(false); setRouteEditing(false);
     geo.startWatch();
-  }, [route.waypoints.length, geo.startWatch]);
+  }, [candidateNavigationWaypoints.length, cancelRoutePlanRequest, route, routeAnalysis, geo.position, geo.startWatch]);
 
   const stopNavigation = useCallback(() => {
     geo.stopWatch(); setNavigationActive(false); setOffRouteWarning(false);
+    const sailedRoute = activeNavigationSnapshot?.route ?? route;
     if (recordTrack && trackPoints.length > 1 && window.confirm(t('nav.saveTrack'))) {
       const ended = new Date().toISOString();
       const durationSeconds = Math.max(0, (Date.now() - navigationStartedAt.current) / 1000);
       const distanceNm = routeDistanceNm(trackPoints);
       const track: Track = {
-        id: makeId(), name: `${route.name} · ${new Date().toLocaleDateString()}`, providerId: 'device-gps',
+        id: makeId(), name: `${sailedRoute.name} · ${new Date().toLocaleDateString()}`, providerId: 'device-gps',
         startedAt: new Date(navigationStartedAt.current).toISOString(), endedAt: ended,
         distance: distanceNm * 1852, durationSeconds,
         averageSpeedKnots: durationSeconds ? distanceNm / durationSeconds * 3600 : 0,
-        estimatedFuelLitres: durationSeconds / 3600 * route.fuelLitresPerHour,
+        estimatedFuelLitres: durationSeconds / 3600 * sailedRoute.fuelLitresPerHour,
         points: trackPoints,
       };
       routeStore.saveTrack(track).catch(() => {});
     }
-    setRecordTrack(false);
-  }, [geo.stopWatch, recordTrack, trackPoints, route.name, route.fuelLitresPerHour, t]);
+    setRecordTrack(false); setActiveNavigationSnapshot(null);
+  }, [geo.stopWatch, activeNavigationSnapshot, route, recordTrack, trackPoints, t]);
 
   useEffect(() => {
-    if (!navigationActive || !geo.position || route.waypoints.length < 2) return;
+    if (!navigationActive || !geo.position || navigationWaypoints.length < 2) return;
     const position = geo.position;
-    const target = route.waypoints[nextWaypointIndex];
-    const previous = route.waypoints[Math.max(0, nextWaypointIndex - 1)]!;
-    if (target && (distanceMetres(position, target) <= 50 || segmentProgress(position, previous, target) >= 1) && nextWaypointIndex < route.waypoints.length - 1) {
-      setNextWaypointIndex((index) => Math.min(route.waypoints.length - 1, index + 1));
+    const target = navigationWaypoints[nextWaypointIndex];
+    const previous = navigationWaypoints[Math.max(0, nextWaypointIndex - 1)]!;
+    if (target && navigationWaypointReached(
+      nextWaypointIndex,
+      position,
+      target,
+      segmentProgress(position, previous, target),
+    ) && nextWaypointIndex < navigationWaypoints.length - 1) {
+      setNextWaypointIndex((index) => Math.min(navigationWaypoints.length - 1, index + 1));
     }
     if (followingPosition) mapRef.current?.easeTo({ center: [position.lon, position.lat], duration: 500 });
-    const a = route.waypoints[Math.max(0, nextWaypointIndex - 1)]!;
-    const b = route.waypoints[Math.min(nextWaypointIndex, route.waypoints.length - 1)]!;
-    const crossTrack = crossTrackDistanceMetres(position, a, b);
+    const a = navigationWaypoints[Math.max(0, nextWaypointIndex - 1)]!;
+    const b = navigationWaypoints[Math.min(nextWaypointIndex, navigationWaypoints.length - 1)]!;
+    const crossTrack = nextWaypointIndex === 0 ? 0 : crossTrackDistanceMetres(position, a, b);
     const limit = Math.max(100, position.accuracy * 2);
     if (crossTrack > limit) {
       offRouteSince.current ??= Date.now();
@@ -625,7 +711,7 @@ export function App() {
       }
       return [...current, { lat: position.lat, lon: position.lon, time: new Date(position.timestamp).toISOString(), speed: position.speed == null ? undefined : position.speed * 1.943844, course: position.heading ?? undefined }];
     });
-  }, [navigationActive, geo.position, route.waypoints, nextWaypointIndex, followingPosition, recordTrack]);
+  }, [navigationActive, geo.position, navigationWaypoints, nextWaypointIndex, followingPosition, recordTrack]);
 
   useEffect(() => {
     if (!navigationActive || !('wakeLock' in navigator)) return;
@@ -635,17 +721,18 @@ export function App() {
   }, [navigationActive]);
 
   const navMetrics = useMemo(() => {
-    const pos = geo.position; const target = route.waypoints[nextWaypointIndex];
+    const pos = geo.position; const target = navigationWaypoints[nextWaypointIndex];
     if (!pos || !target) return { distance: 0, bearing: 0, crossTrack: 0, remaining: 0, eta: null as string | null };
-    const a = route.waypoints[Math.max(0, nextWaypointIndex - 1)]!;
-    const remaining = distanceMetres(pos, target) / 1852 + routeDistanceNm(route.waypoints.slice(nextWaypointIndex));
-    const speedKnots = pos.speed && pos.speed > 0.25 ? pos.speed * 1.943844 : route.speedKnots;
+    const a = navigationWaypoints[Math.max(0, nextWaypointIndex - 1)]!;
+    const remaining = distanceMetres(pos, target) / 1852 + routeDistanceNm(navigationWaypoints.slice(nextWaypointIndex));
+    const plannedSpeedKnots = activeNavigationSnapshot?.route.speedKnots ?? route.speedKnots;
+    const speedKnots = pos.speed && pos.speed > 0.25 ? pos.speed * 1.943844 : plannedSpeedKnots;
     return {
       distance: distanceMetres(pos, target), bearing: bearingDegrees(pos, target),
-      crossTrack: crossTrackDistanceMetres(pos, a, target), remaining,
+      crossTrack: nextWaypointIndex === 0 ? 0 : crossTrackDistanceMetres(pos, a, target), remaining,
       eta: speedKnots > 0 ? new Date(Date.now() + remaining / speedKnots * 3_600_000).toISOString() : null,
     };
-  }, [geo.position, route.waypoints, route.speedKnots, nextWaypointIndex]);
+  }, [geo.position, navigationWaypoints, activeNavigationSnapshot, route.speedKnots, nextWaypointIndex]);
 
   const changeSpeedUnit = useCallback((u: SpeedUnit) => {
     setSpeedUnit(u);
@@ -1033,11 +1120,115 @@ export function App() {
    * sulgemine. Sulgemiseks on ribal oma rist.
    */
   const commitWaypoints = useCallback((waypoints: RouteWaypoint[]) => {
+    cancelRoutePlanRequest();
     setUndoRoutes((items) => [...items.slice(-49), route.waypoints]); setRedoRoutes([]);
-    setRoute((current) => ({ ...current, waypoints, updatedAt: new Date().toISOString() }));
-  }, [route.waypoints]);
+    setRoutePlanPreview(null); setRoutePlanError(null);
+    setRoute((current) => ({ ...current, waypoints, plan: undefined, updatedAt: new Date().toISOString() }));
+  }, [route.waypoints, cancelRoutePlanRequest]);
+
+  const setRouteEndpoint = useCallback((kind: 'start' | 'end', point: Pick<RouteWaypoint, 'lat' | 'lon' | 'name'>) => {
+    cancelRoutePlanRequest();
+    setRoute((current) => {
+      const nextPoint: RouteWaypoint = {
+        id: kind === 'start'
+          ? current.waypoints[0]?.id ?? makeId()
+          : current.waypoints.length >= 2 ? current.waypoints.at(-1)!.id : makeId(),
+        lat: point.lat,
+        lon: point.lon,
+        ...(point.name ? { name: point.name } : {}),
+      };
+      let waypoints: RouteWaypoint[];
+      if (kind === 'start') {
+        waypoints = current.waypoints.length ? [nextPoint, ...current.waypoints.slice(1)] : [nextPoint];
+      } else if (current.waypoints.length === 0) {
+        return current;
+      } else if (current.waypoints.length === 1) {
+        waypoints = [...current.waypoints, nextPoint];
+      } else {
+        waypoints = [...current.waypoints.slice(0, -1), nextPoint];
+      }
+      return { ...current, waypoints, plan: undefined, updatedAt: new Date().toISOString() };
+    });
+    setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null);
+    mapRef.current?.easeTo({ center: [point.lon, point.lat], zoom: Math.max(mapRef.current.getZoom(), 10) });
+  }, [cancelRoutePlanRequest]);
+
+  const useLocationForEndpoint = useCallback((kind: 'start' | 'end') => {
+    const apply = (position: { lat: number; lon: number }): void => setRouteEndpoint(kind, position);
+    // Otspunkt mõjutab ohutusarvutust: küsi nupuvajutusel värske high-accuracy
+    // fix, mitte kuni minuti vanust vaikset eellaadimist.
+    geo.request(apply);
+  }, [geo.request, setRouteEndpoint]);
+
+  const calculateRoutePlan = useCallback(() => {
+    const start = route.waypoints[0];
+    const end = route.waypoints.length >= 2 ? route.waypoints.at(-1) : undefined;
+    if (!start || !end || !route.beamM || route.beamM <= 0 || !route.airDraughtM || route.airDraughtM <= 0) return;
+    routePlanRequest.current?.abort();
+    const controller = new AbortController();
+    routePlanRequest.current = controller;
+    setRoutePlanLoading(true); setRoutePlanError(null); setRouteEndpointPicking(null);
+    setSelectedPlanSegmentIndex(null);
+    api.routePlan({
+      start: { lat: start.lat, lon: start.lon },
+      end: { lat: end.lat, lon: end.lon },
+      departureTime: route.startTime,
+      speedKnots: route.speedKnots,
+      draughtM: route.draughtM,
+      underKeelClearanceM: route.underKeelClearanceM,
+      beamM: route.beamM,
+      airDraughtM: route.airDraughtM,
+    }, controller.signal).then((response) => {
+      if (response.status === 'no_route') {
+        const detail = response.issues.map((issue) => {
+          if (issue.message) return issue.message;
+          const key = `route.auto.issueCode.${issue.code}`;
+          const translated = t(key);
+          return translated === key ? t('route.auto.issue', { code: issue.code }) : translated;
+        }).join(' · ');
+        setRoutePlanPreview(null);
+        setRoutePlanError(detail ? `${t('route.auto.noRoute')} ${detail}` : t('route.auto.noRoute'));
+        return;
+      }
+      setRoutePlanPreview(response);
+      const coordinates = response.geometry.coordinates;
+      if (coordinates.length > 1) {
+        const lons = coordinates.map((coordinate) => coordinate[0]);
+        const lats = coordinates.map((coordinate) => coordinate[1]);
+        mapRef.current?.fitBounds(
+          [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+          { padding: { top: 100, right: 60, bottom: 100, left: window.innerWidth > 700 ? 470 : 60 }, maxZoom: 13, duration: 700 },
+        );
+      }
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted) return;
+      const message = error instanceof Error ? error.message : '';
+      const apiErrorKey = `route.auto.apiError.${message}`;
+      const translatedApiError = t(apiErrorKey);
+      setRoutePlanError(message === 'data_unavailable'
+        ? t('route.auto.dataUnavailable')
+        : translatedApiError !== apiErrorKey ? translatedApiError : message || t('error.generic'));
+    }).finally(() => {
+      if (!controller.signal.aborted) setRoutePlanLoading(false);
+    });
+  }, [route, t]);
+
+  const acceptRoutePlan = useCallback(() => {
+    if (!routePlanPreview) return;
+    setRoute((current) => ({
+      ...current,
+      waypoints: current.waypoints.length >= 2 ? [current.waypoints[0]!, current.waypoints.at(-1)!] : current.waypoints,
+      plan: routePlanPreview,
+      updatedAt: new Date().toISOString(),
+    }));
+    setRoutePlanPreview(null); setRoutePlanError(null);
+  }, [routePlanPreview]);
 
   const handlePick = useCallback((lat: number, lon: number) => {
+    if (routeEndpointPicking) {
+      setRouteEndpoint(routeEndpointPicking, { lat, lon });
+      return;
+    }
     if (routeEditing) {
       commitWaypoints([...route.waypoints, { id: makeId(), lat, lon }]);
       return;
@@ -1045,11 +1236,13 @@ export function App() {
     setPicked({ lat, lon });
     setSheetExpanded(false); // Uus punkt algab alati ribast.
     setPointResult(null);
-  }, [routeEditing, route.waypoints, commitWaypoints]);
+  }, [routeEndpointPicking, setRouteEndpoint, routeEditing, route.waypoints, commitWaypoints]);
 
   const moveRouteWaypoint = useCallback((id: string, lat: number, lon: number) => {
-    setRoute((current) => ({ ...current, updatedAt: new Date().toISOString(), waypoints: current.waypoints.map((p) => p.id === id ? { ...p, lat, lon } : p) }));
-  }, []);
+    cancelRoutePlanRequest();
+    setRoutePlanPreview(null); setRoutePlanError(null);
+    setRoute((current) => ({ ...current, plan: undefined, updatedAt: new Date().toISOString(), waypoints: current.waypoints.map((p) => p.id === id ? { ...p, lat, lon } : p) }));
+  }, [cancelRoutePlanRequest]);
 
   const insertRouteWaypoint = useCallback((index: number, lat: number, lon: number) => {
     const id = makeId();
@@ -1066,8 +1259,10 @@ export function App() {
   }, [route.waypoints, commitWaypoints]);
 
   const previewRouteWaypoints = useCallback((waypoints: RouteWaypoint[]) => {
-    setRoute((current) => ({ ...current, waypoints }));
-  }, []);
+    cancelRoutePlanRequest();
+    setRoutePlanPreview(null); setRoutePlanError(null);
+    setRoute((current) => ({ ...current, waypoints, plan: undefined }));
+  }, [cancelRoutePlanRequest]);
 
   const commitRouteReorder = useCallback((previous: RouteWaypoint[]) => {
     setUndoRoutes((items) => [...items.slice(-49), previous]);
@@ -1100,12 +1295,12 @@ export function App() {
   // Popupid loevad ühikut ja keelt renderdamise hetkel; hoiame neid ref'is,
   // et kaardi klikikäsitlejaid ei peaks iga seadistuse muutuse peale uuesti
   // registreerima.
-  const popupCtx = useRef({ t, speedUnit, lang, interactionBlocked: routeEditing });
-  popupCtx.current = { t, speedUnit, lang, interactionBlocked: routeEditing };
+  const popupCtx = useRef({ t, speedUnit, lang, interactionBlocked: routeEditing || routeEndpointPicking !== null });
+  popupCtx.current = { t, speedUnit, lang, interactionBlocked: routeEditing || routeEndpointPicking !== null };
 
   useEffect(() => {
-    if (routeEditing) closePopup();
-  }, [routeEditing]);
+    if (routeEditing || routeEndpointPicking) closePopup();
+  }, [routeEditing, routeEndpointPicking]);
 
   const handleReady = useCallback((map: MapLibreMap) => {
     mapRef.current = map;
@@ -1178,6 +1373,7 @@ export function App() {
         <TopBar
           onOpenLayers={() => setPanelOpen(true)}
           onOpenRoutes={() => { setRouteOpen(true); setPicked(null); }}
+          onOpenVesselSettings={() => setVesselSettingsOpen(true)}
           geo={geo}
           favorites={favorites}
           onGoTo={goTo}
@@ -1191,10 +1387,14 @@ export function App() {
           radarFrame={radarFrame}
           ownPosition={geo.position}
           selectedPoint={picked}
-          routeWaypoints={route.waypoints}
-          routeSegments={routeAnalysis?.depthSegments ?? []}
+          routeWaypoints={activeNavigationSnapshot?.route.waypoints ?? route.waypoints}
+          routeSegments={activeNavigationSnapshot
+            ? activeNavigationSnapshot.analysis?.depthSegments ?? []
+            : routeAnalysis?.depthSegments ?? []}
+          routePlan={activeNavigationSnapshot?.route.plan ?? routePlanPreview ?? route.plan ?? null}
           trackPoints={trackPoints}
-          routeEditing={routeEditing}
+          routeEditing={navigationActive ? false : routeEditing}
+          routeEndpointPicking={!navigationActive && routeEndpointPicking !== null}
           selectedWaypointId={selectedWaypointId}
           onReady={handleReady}
           onMoveEnd={handleMoveEnd}
@@ -1203,6 +1403,11 @@ export function App() {
           onRouteMove={moveRouteWaypoint}
           onRouteMoveStart={() => { setUndoRoutes((items) => [...items.slice(-49), route.waypoints]); setRedoRoutes([]); }}
           onRouteInsert={insertRouteWaypoint}
+          onRouteSegmentSelect={(index) => {
+            if (navigationActive) return;
+            if (!(routePlanPreview ?? route.plan)) return;
+            setSelectedPlanSegmentIndex(index); setRouteOpen(true); setPicked(null);
+          }}
           onUserMove={() => { if (navigationActive) setFollowingPosition(false); }}
         />
 
@@ -1306,24 +1511,50 @@ export function App() {
           open={routeOpen}
           route={route}
           savedRoutes={savedRoutes}
-          analysis={routeAnalysis}
+          analysis={routePlanPreview ? null : routeAnalysis}
           loading={routeLoading}
           error={routeError}
+          planPreview={routePlanPreview}
+          planLoading={routePlanLoading}
+          planError={routePlanError}
+          endpointPicking={routeEndpointPicking}
+          selectedPlanSegmentIndex={selectedPlanSegmentIndex}
           editing={routeEditing}
           selectedWaypointId={selectedWaypointId}
           canUndo={undoRoutes.length > 0}
           canRedo={redoRoutes.length > 0}
           speedUnit={speedUnit}
-          onClose={() => setRouteOpen(false)}
-          onChange={setRoute}
-          onNew={() => { setRoute(newRoute()); setRouteAnalysis(null); setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); }}
-          onLoad={(next) => { setRoute(next); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(false); setSelectedWaypointId(null); }}
-          onDelete={(id) => { routeStore.deleteRoute(id).then(() => routeStore.listRoutes()).then(setSavedRoutes).catch(() => {}); setRoute(newRoute()); setRouteAnalysis(null); setSelectedWaypointId(null); }}
-          onStartEdit={() => { editStart.current = structuredClone(route); setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); setRouteEditing(true); }}
+          vesselProfile={vesselProfile}
+          onClose={() => {
+            cancelRoutePlanRequest();
+            setRouteOpen(false); setRouteEndpointPicking(null);
+            setRoutePlanPreview(null); setRoutePlanError(null);
+            setSelectedPlanSegmentIndex(null);
+          }}
+          onChange={(next) => {
+            const invalidatesPlan = routePlanInputKey(route) !== routePlanInputKey(next);
+            setRoute(invalidatesPlan ? { ...next, plan: undefined } : next);
+            if (invalidatesPlan) { cancelRoutePlanRequest(); setRoutePlanPreview(null); setRoutePlanError(null); }
+          }}
+          onNew={() => { cancelRoutePlanRequest(); setRoute(newRoute(vesselProfile)); setRouteAnalysis(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); }}
+          onLoad={(next) => {
+            cancelRoutePlanRequest();
+            const applied = applyVesselProfile(next, vesselProfile);
+            setRoute(routePlanInputKey(next) === routePlanInputKey(applied) ? applied : { ...applied, plan: undefined, updatedAt: new Date().toISOString() });
+            setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(false); setSelectedWaypointId(null);
+          }}
+          onDelete={(id) => { cancelRoutePlanRequest(); routeStore.deleteRoute(id).then(() => routeStore.listRoutes()).then(setSavedRoutes).catch(() => {}); setRoute(newRoute(vesselProfile)); setRouteAnalysis(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setSelectedWaypointId(null); }}
+          onStartEdit={() => {
+            editStart.current = structuredClone(route);
+            cancelRoutePlanRequest();
+            setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null);
+            setRoute((current) => current.plan ? { ...current, waypoints: current.plan.navigationWaypoints, plan: undefined, updatedAt: new Date().toISOString() } : current);
+            setRouteEditing(true);
+          }}
           onFinishEdit={() => { setRouteEditing(false); setSelectedWaypointId(null); editStart.current = null; setRoute((current) => ({ ...current, updatedAt: new Date().toISOString() })); }}
           onCancelEdit={() => { if (editStart.current) setRoute(editStart.current); setRouteEditing(false); setSelectedWaypointId(null); setUndoRoutes([]); setRedoRoutes([]); }}
-          onUndo={() => setUndoRoutes((history) => { const previous = history.at(-1); if (!previous) return history; setRedoRoutes((redo) => [route.waypoints, ...redo]); setRoute((current) => ({ ...current, waypoints: previous, updatedAt: new Date().toISOString() })); return history.slice(0, -1); })}
-          onRedo={() => setRedoRoutes((history) => { const next = history[0]; if (!next) return history; setUndoRoutes((undo) => [...undo, route.waypoints]); setRoute((current) => ({ ...current, waypoints: next, updatedAt: new Date().toISOString() })); return history.slice(1); })}
+          onUndo={() => setUndoRoutes((history) => { const previous = history.at(-1); if (!previous) return history; setRedoRoutes((redo) => [route.waypoints, ...redo]); setRoute((current) => ({ ...current, waypoints: previous, plan: undefined, updatedAt: new Date().toISOString() })); return history.slice(0, -1); })}
+          onRedo={() => setRedoRoutes((history) => { const next = history[0]; if (!next) return history; setUndoRoutes((undo) => [...undo, route.waypoints]); setRoute((current) => ({ ...current, waypoints: next, plan: undefined, updatedAt: new Date().toISOString() })); return history.slice(1); })}
           onSelectWaypoint={setSelectedWaypointId}
           onDeleteWaypoint={deleteRouteWaypoint}
           onPreviewWaypoints={previewRouteWaypoints}
@@ -1337,8 +1568,20 @@ export function App() {
             if (geo.position) appendPosition(geo.position);
             else geo.request(appendPosition);
           }}
+          onSetEndpoint={setRouteEndpoint}
+          onPickEndpoint={setRouteEndpointPicking}
+          onUseEndpointLocation={useLocationForEndpoint}
+          onCalculatePlan={calculateRoutePlan}
+          onAcceptPlan={acceptRoutePlan}
+          onCancelPlan={() => { setRoutePlanPreview(null); setRoutePlanError(null); }}
           onNavigate={startNavigation}
         />
+
+        {vesselSettingsOpen ? <VesselSettingsDialog
+          profile={vesselProfile}
+          onClose={() => setVesselSettingsOpen(false)}
+          onSave={(profile) => { changeVesselProfile(profile); setVesselSettingsOpen(false); }}
+        /> : null}
 
         <PointSheet
           open={picked !== null}

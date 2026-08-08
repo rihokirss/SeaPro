@@ -1,4 +1,5 @@
 import type { BBox } from '@seapro/shared';
+import { ROUTING_SERVICE_BBOX } from './routing/coverage.js';
 
 function num(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -105,6 +106,14 @@ export const config = {
   weatherGridBbox: bbox('WEATHER_GRID_BBOX', [53.0, 12.0, 66.7, 31.5]),
   /** Avaliku punktiprognoosi kulupiir; võib tulevikus grid'ist erineda. */
   weatherPointBbox: bbox('WEATHER_POINT_BBOX', [53.0, 12.0, 66.7, 31.5]),
+  /** Automaatmarsruudi v1 katvus: Eesti ja Soome merealad. */
+  routingBbox: bbox('ROUTING_BBOX', ROUTING_SERVICE_BBOX),
+  routingMaxDistanceNm: num('ROUTING_MAX_DISTANCE_NM', 500),
+  /** Kogu külma snapshot'i, klassifitseerimise ja otsingu ühine tähtaeg. */
+  routingPlanTimeoutMs: num('ROUTING_PLAN_TIMEOUT_MS', 90_000),
+  routingMaxConcurrentPlans: num('ROUTING_MAX_CONCURRENT_PLANS', 2),
+  routingSearchTimeoutMs: num('ROUTING_SEARCH_TIMEOUT_MS', 45_000),
+  routingSearchMaxNodes: num('ROUTING_SEARCH_MAX_NODES', 1_000_000),
 } as const;
 
 export function warnAboutConfig(log: (msg: string) => void): void {

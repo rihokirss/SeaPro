@@ -36,9 +36,23 @@ interface ArcCollection {
 export async function fetchNavigationWarnings(
   bbox: [number, number, number, number],
 ): Promise<NavigationWarning[]> {
+  return (await fetchNavigationWarningsWithMeta(bbox)).warnings;
+}
+
+export interface NavigationWarningResult {
+  warnings: NavigationWarning[];
+  ageSeconds: number;
+  stale: boolean;
+  error?: string;
+}
+
+/** Sama hoiatuseloend koos routingus vajaliku cache'i värskusjäljega. */
+export async function fetchNavigationWarningsWithMeta(
+  bbox: [number, number, number, number],
+): Promise<NavigationWarningResult> {
   const snapped = snapBbox(bbox);
   const key = `nutimeri:warnings:v1:${snapped.join(',')}`;
-  const { value } = await cache.get(key, WARNING_TTL, async () => {
+  const result = await cache.get(key, WARNING_TTL, async () => {
     const collections = await Promise.all(
       [7, 8, 9].map((layer) => queryLayer(`${WARNINGS}/${layer}`, snapped, 'status = 2')),
     );
@@ -66,7 +80,15 @@ export async function fetchNavigationWarnings(
   });
 
   const now = Date.now();
-  return value.filter((warning) => !warning.validTo || new Date(warning.validTo).getTime() >= now);
+  return {
+    warnings: result.value.filter((warning) =>
+      !warning.validTo || new Date(warning.validTo).getTime() >= now),
+    ageSeconds: result.ageSeconds,
+    stale: result.stale,
+    ...(result.fallbackError
+      ? { error: result.fallbackError instanceof Error ? result.fallbackError.message : String(result.fallbackError) }
+      : {}),
+  };
 }
 
 export async function fetchWrecks(bbox: [number, number, number, number]): Promise<Wreck[]> {

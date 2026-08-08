@@ -41,6 +41,16 @@ describe('EMODnet depth contours', () => {
     expect(url.searchParams.get('format')).toBe('GeoTIFF');
   });
 
+  it('can request a land-inclusive coarser raster for route planning', () => {
+    const url = new URL(depthCoverageUrl([24, 59, 25, 60], {
+      coverage: 'emodnet:mean_atlas_land',
+      resolution: 0.01,
+    }));
+    expect(url.searchParams.get('coverage')).toBe('emodnet:mean_atlas_land');
+    expect(url.searchParams.get('resx')).toBe('0.01');
+    expect(url.searchParams.get('resy')).toBe('0.01');
+  });
+
   it('smooths actual contour geometry while preserving open endpoints', () => {
     const original = [[0, 0], [1, 0], [1, 1]];
     const smoothed = smoothContourLine(original, 1);

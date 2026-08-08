@@ -1,0 +1,46 @@
+{
+  "elements": [
+    {
+      "type": "node",
+      "id": 10,
+      "lat": 59.4,
+      "lon": 24.5,
+      "tags": { "seamark:type": "rock", "seamark:name": "Madalkivi", "seamark:rock:depth": "1.7", "seamark:rock:water_level": "submerged" }
+    },
+    {
+      "type": "way",
+      "id": 11,
+      "tags": { "seamark:type": "recommended_track", "seamark:name": "Soovituslik tee", "seamark:recommended_track:orientation": "92" },
+      "geometry": [{ "lat": 59.5, "lon": 24.5 }, { "lat": 59.6, "lon": 24.8 }]
+    },
+    {
+      "type": "way",
+      "id": 12,
+      "tags": { "seamark:type": "separation_zone", "seamark:name": "Tallinn TSS" },
+      "geometry": [{ "lat": 59.6, "lon": 24.7 }, { "lat": 59.6, "lon": 24.9 }, { "lat": 59.7, "lon": 24.9 }, { "lat": 59.6, "lon": 24.7 }]
+    },
+    {
+      "type": "node",
+      "id": 13,
+      "lat": 60.0,
+      "lon": 25.0,
+      "tags": { "seamark:type": "bridge", "seamark:name": "Testsild", "seamark:bridge:clearance_height_closed": "3.2", "seamark:bridge:category": "opening" }
+    },
+    {
+      "type": "relation",
+      "id": 14,
+      "tags": { "seamark:type": "restricted_area", "seamark:restricted_area:restriction": "entry_prohibited" },
+      "members": [
+        { "type": "way", "ref": 1, "role": "outer", "geometry": [{ "lat": 59.8, "lon": 24.8 }, { "lat": 59.8, "lon": 25.0 }] },
+        { "type": "way", "ref": 2, "role": "outer", "geometry": [{ "lat": 59.8, "lon": 25.0 }, { "lat": 60.0, "lon": 25.0 }, { "lat": 59.8, "lon": 24.8 }] }
+      ]
+    },
+    {
+      "type": "node",
+      "id": 15,
+      "lat": 59.8294,
+      "lon": 23.5706,
+      "tags": { "leisure": "marina", "name": "Jussarö vierassatama" }
+    }
+  ]
+}
