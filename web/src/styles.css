@@ -254,7 +254,51 @@
 .route-home-harbour__selected strong, .route-home-harbour__selected small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .route-home-harbour__selected small { margin-top: 2px; color: var(--text-dim); font-family: var(--num); font-size: var(--t-cap); }
 .route-home-harbour__selected button { color: var(--danger); }
+.route-vessel-dialog .route-home-harbour__map-button { width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--s2); margin-top: var(--s3); }
+.route-home-harbour-map-pick {
+  position: absolute;
+  z-index: 30;
+  top: calc(76px + var(--safe-top) + var(--s3));
+  left: 50%;
+  width: min(560px, calc(100vw - var(--s5) - var(--s5)));
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  box-sizing: border-box;
+  color: var(--text);
+  background: var(--surface-solid);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-50%);
+}
+.route-home-harbour-map-pick > svg { color: var(--accent); }
+.route-home-harbour-map-pick span { min-width: 0; }
+.route-home-harbour-map-pick strong, .route-home-harbour-map-pick small { display: block; }
+.route-home-harbour-map-pick small { margin-top: 2px; color: var(--text-dim); font-size: var(--t-cap); }
+.route-home-harbour-map-pick button { min-height: 40px; padding: 0 var(--s3); color: var(--text); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm); cursor: pointer; }
 .route-vessel-dialog__actions { position: sticky; bottom: calc(0px - var(--s5) - var(--safe-bottom)); display: flex; justify-content: flex-end; gap: var(--s2); margin: var(--s3) calc(0px - var(--s5)) calc(0px - var(--s5) - var(--safe-bottom)); padding: var(--s4) var(--s5) calc(var(--s5) + var(--safe-bottom)); background: var(--surface-solid); border-top: 1px solid var(--line); }
+@media (min-width: 701px) {
+  .route-vessel-dialog__backdrop {
+    align-items: center;
+    justify-content: center;
+    padding: var(--s6);
+    box-sizing: border-box;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+  .route-vessel-dialog {
+    width: min(680px, 100%);
+    max-height: min(780px, calc(100dvh - var(--s6) - var(--s6)));
+    min-height: auto;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+  }
+}
 .route-panel .route-auto__calculate { width: 100%; margin-top: var(--s3); }
 .route-plan-preview { margin-top: var(--s3); padding: var(--s3); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); }
 .route-plan-preview.is-preview { border-color: var(--accent); }
@@ -406,6 +450,8 @@
   .route-mobile-compact button.primary { min-width: 58px; }
   .route-endpoint-actions.has-home { grid-template-columns: 1fr 1fr; }
   .route-endpoint-actions.has-home button:last-child { grid-column: 1 / -1; }
+  .route-home-harbour-map-pick { grid-template-columns: auto minmax(0, 1fr); }
+  .route-home-harbour-map-pick button { grid-column: 1 / -1; width: 100%; }
   .route-waypoints__list { max-height: 34dvh; }
   .nav-bar { top: auto; bottom: calc(var(--s3) + var(--safe-bottom)); width: calc(100vw - 2 * var(--s3)); box-sizing: border-box; overflow-x: auto; justify-content: flex-start; transform: translateX(-50%); }
   .nav-bar > div:nth-child(3), .nav-bar > div:nth-child(4) { display: none; }

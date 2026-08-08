@@ -440,6 +440,8 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [routeOpen, setRouteOpen] = useState(false);
   const [vesselSettingsOpen, setVesselSettingsOpen] = useState(false);
+  const [homeHarbourPicking, setHomeHarbourPicking] = useState(false);
+  const [homeHarbourMapPoint, setHomeHarbourMapPoint] = useState<{ lat: number; lon: number } | null>(null);
   const [vesselProfile, setVesselProfile] = useState<VesselProfile>(loadVesselProfile);
   const [route, setRoute] = useState<Route>(() => newRoute(vesselProfile));
   const [savedRoutes, setSavedRoutes] = useState<Route[]>([]);
@@ -453,6 +455,8 @@ export function App() {
   const [routePlanError, setRoutePlanError] = useState<string | null>(null);
   const [selectedPlanSegmentIndex, setSelectedPlanSegmentIndex] = useState<number | null>(null);
   const [routeEndpointPicking, setRouteEndpointPicking] = useState<'start' | 'end' | null>(null);
+  const mapPointPicking = routeEndpointPicking !== null || homeHarbourPicking;
+  const clearHomeHarbourMapPoint = useCallback(() => setHomeHarbourMapPoint(null), []);
   const routePlanRequest = useRef<AbortController | null>(null);
   const cancelRoutePlanRequest = useCallback(() => {
     routePlanRequest.current?.abort();
@@ -1225,6 +1229,11 @@ export function App() {
   }, [routePlanPreview]);
 
   const handlePick = useCallback((lat: number, lon: number) => {
+    if (homeHarbourPicking) {
+      setHomeHarbourMapPoint({ lat, lon });
+      setHomeHarbourPicking(false);
+      return;
+    }
     if (routeEndpointPicking) {
       setRouteEndpoint(routeEndpointPicking, { lat, lon });
       return;
@@ -1236,7 +1245,7 @@ export function App() {
     setPicked({ lat, lon });
     setSheetExpanded(false); // Uus punkt algab alati ribast.
     setPointResult(null);
-  }, [routeEndpointPicking, setRouteEndpoint, routeEditing, route.waypoints, commitWaypoints]);
+  }, [homeHarbourPicking, routeEndpointPicking, setRouteEndpoint, routeEditing, route.waypoints, commitWaypoints]);
 
   const moveRouteWaypoint = useCallback((id: string, lat: number, lon: number) => {
     cancelRoutePlanRequest();
@@ -1295,12 +1304,12 @@ export function App() {
   // Popupid loevad ühikut ja keelt renderdamise hetkel; hoiame neid ref'is,
   // et kaardi klikikäsitlejaid ei peaks iga seadistuse muutuse peale uuesti
   // registreerima.
-  const popupCtx = useRef({ t, speedUnit, lang, interactionBlocked: routeEditing || routeEndpointPicking !== null });
-  popupCtx.current = { t, speedUnit, lang, interactionBlocked: routeEditing || routeEndpointPicking !== null };
+  const popupCtx = useRef({ t, speedUnit, lang, interactionBlocked: routeEditing || mapPointPicking });
+  popupCtx.current = { t, speedUnit, lang, interactionBlocked: routeEditing || mapPointPicking };
 
   useEffect(() => {
-    if (routeEditing || routeEndpointPicking) closePopup();
-  }, [routeEditing, routeEndpointPicking]);
+    if (routeEditing || mapPointPicking) closePopup();
+  }, [routeEditing, mapPointPicking]);
 
   const handleReady = useCallback((map: MapLibreMap) => {
     mapRef.current = map;
@@ -1373,7 +1382,11 @@ export function App() {
         <TopBar
           onOpenLayers={() => setPanelOpen(true)}
           onOpenRoutes={() => { setRouteOpen(true); setPicked(null); }}
-          onOpenVesselSettings={() => setVesselSettingsOpen(true)}
+          onOpenVesselSettings={() => {
+            setVesselSettingsOpen(true);
+            setHomeHarbourPicking(false);
+            setHomeHarbourMapPoint(null);
+          }}
           geo={geo}
           favorites={favorites}
           onGoTo={goTo}
@@ -1394,7 +1407,7 @@ export function App() {
           routePlan={activeNavigationSnapshot?.route.plan ?? routePlanPreview ?? route.plan ?? null}
           trackPoints={trackPoints}
           routeEditing={navigationActive ? false : routeEditing}
-          routeEndpointPicking={!navigationActive && routeEndpointPicking !== null}
+          routeEndpointPicking={!navigationActive && mapPointPicking}
           selectedWaypointId={selectedWaypointId}
           onReady={handleReady}
           onMoveEnd={handleMoveEnd}
@@ -1579,8 +1592,28 @@ export function App() {
 
         {vesselSettingsOpen ? <VesselSettingsDialog
           profile={vesselProfile}
-          onClose={() => setVesselSettingsOpen(false)}
-          onSave={(profile) => { changeVesselProfile(profile); setVesselSettingsOpen(false); }}
+          mapPicking={homeHarbourPicking}
+          pickedMapPoint={homeHarbourMapPoint}
+          onClose={() => {
+            setVesselSettingsOpen(false);
+            setHomeHarbourPicking(false);
+            setHomeHarbourMapPoint(null);
+          }}
+          onSave={(profile) => {
+            changeVesselProfile(profile);
+            setVesselSettingsOpen(false);
+            setHomeHarbourPicking(false);
+            setHomeHarbourMapPoint(null);
+          }}
+          onPickMap={() => {
+            setHomeHarbourMapPoint(null);
+            setHomeHarbourPicking(true);
+            setRouteEndpointPicking(null);
+            setRouteOpen(false);
+            setPicked(null);
+          }}
+          onCancelMapPick={() => setHomeHarbourPicking(false)}
+          onMapPointApplied={clearHomeHarbourMapPoint}
         /> : null}
 
         <PointSheet

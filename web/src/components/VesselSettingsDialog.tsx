@@ -1,13 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Home, X } from 'lucide-react';
+import { Crosshair, Home, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { normalizeVesselProfile, type HomeHarbour, type VesselProfile } from '../lib/vesselProfile';
 import { SearchPicker } from './SearchPicker';
 
 interface Props {
   profile: VesselProfile;
+  mapPicking: boolean;
+  pickedMapPoint: { lat: number; lon: number } | null;
   onSave(profile: VesselProfile): void;
   onClose(): void;
+  onPickMap(): void;
+  onCancelMapPick(): void;
+  onMapPointApplied(): void;
 }
 
 interface Draft {
@@ -36,7 +41,16 @@ function optionalNumber(value: string): number | undefined {
   return value.trim() ? Number(value) : undefined;
 }
 
-export function VesselSettingsDialog({ profile, onSave, onClose }: Props) {
+export function VesselSettingsDialog({
+  profile,
+  mapPicking,
+  pickedMapPoint,
+  onSave,
+  onClose,
+  onPickMap,
+  onCancelMapPick,
+  onMapPointApplied,
+}: Props) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(() => profileDraft(profile));
   const [homeHarbour, setHomeHarbour] = useState<HomeHarbour | undefined>(profile.homeHarbour);
@@ -44,11 +58,25 @@ export function VesselSettingsDialog({ profile, onSave, onClose }: Props) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        if (mapPicking) onCancelMapPick();
+        else onClose();
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [mapPicking, onCancelMapPick, onClose]);
+
+  useEffect(() => {
+    if (!pickedMapPoint) return;
+    setHomeHarbour({
+      id: `map:${pickedMapPoint.lat.toFixed(6)},${pickedMapPoint.lon.toFixed(6)}`,
+      name: t('route.homeHarbour.mapPointName'),
+      lat: pickedMapPoint.lat,
+      lon: pickedMapPoint.lon,
+    });
+    onMapPointApplied();
+  }, [onMapPointApplied, pickedMapPoint, t]);
 
   const submit = (event: FormEvent): void => {
     event.preventDefault();
@@ -63,6 +91,14 @@ export function VesselSettingsDialog({ profile, onSave, onClose }: Props) {
       homeHarbour,
     }));
   };
+
+  if (mapPicking) {
+    return <div className="route-home-harbour-map-pick" role="status">
+      <Crosshair size={22} aria-hidden="true" />
+      <span><strong>{t('route.homeHarbour.mapPickTitle')}</strong><small>{t('route.homeHarbour.mapPickHint')}</small></span>
+      <button type="button" onClick={onCancelMapPick}>{t('route.auto.cancelMapPick')}</button>
+    </div>;
+  }
 
   return <div className="route-vessel-dialog__backdrop">
     <section className="route-vessel-dialog" role="dialog" aria-modal="true" aria-labelledby="route-vessel-dialog-title">
@@ -95,6 +131,9 @@ export function VesselSettingsDialog({ profile, onSave, onClose }: Props) {
             filter={(result) => result.kind === 'harbour'}
             onChoose={(result) => setHomeHarbour({ id: result.id, name: result.name, lat: result.lat, lon: result.lon })}
           />
+          <button type="button" className="route-home-harbour__map-button" onClick={onPickMap}>
+            <Crosshair size={18} aria-hidden="true" /> {t('route.homeHarbour.pickMap')}
+          </button>
         </fieldset>
 
         <div className="route-vessel-dialog__actions">
