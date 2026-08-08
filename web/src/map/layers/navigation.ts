@@ -6,6 +6,7 @@ import {
   fixedAidIconCategory,
   NAVIGATION_WARNING_ICON,
   TRAFFIC_DIRECTION_ICON,
+  TRAFFIC_DIRECTION_WHITE_ICON,
   WRECK_ICON,
 } from '../icons';
 
@@ -13,6 +14,7 @@ const SOURCE_ID = 'navigation-src';
 
 export const TRAFFIC_SCHEME_AREAS_LAYER = 'traffic-scheme-areas';
 export const TRAFFIC_SCHEME_LINES_LAYER = 'traffic-scheme-lines';
+export const TRAFFIC_SCHEME_RECOMMENDED_LAYER = 'traffic-scheme-recommended';
 export const TRAFFIC_SCHEME_ARROWS_LAYER = 'traffic-scheme-arrows';
 export const FAIRWAYS_LAYER = 'official-fairways';
 export const WARNING_AREAS_LAYER = 'navigation-warning-areas';
@@ -40,6 +42,7 @@ export interface NavigationVisibility {
   wrecks: boolean;
   aids: boolean;
   traffic: boolean;
+  falseColors: boolean;
   official: boolean;
 }
 
@@ -182,7 +185,13 @@ function ensureLayers(map: MapLibreMap): void {
       filter: ['all',
         ['==', ['get', 'featureKind'], 'traffic-scheme'],
         ['match', ['get', 'schemeKind'],
-          ['separation_lane', 'recommended_traffic_lane', 'traffic_lane'], false,
+          [
+            'separation_lane',
+            'recommended_traffic_lane',
+            'traffic_lane',
+            'recommended_track',
+            'recommended_route_centreline',
+          ], false,
           true,
         ],
       ],
@@ -193,6 +202,28 @@ function ensureLayers(map: MapLibreMap): void {
         'line-opacity': 0.82,
       },
     }, insertBefore(map, TRAFFIC_SCHEME_LINES_LAYER));
+  }
+
+  if (!map.getLayer(TRAFFIC_SCHEME_RECOMMENDED_LAYER)) {
+    map.addLayer({
+      id: TRAFFIC_SCHEME_RECOMMENDED_LAYER,
+      type: 'line',
+      source: SOURCE_ID,
+      filter: ['all',
+        ['==', ['get', 'featureKind'], 'traffic-scheme'],
+        ['in', ['get', 'schemeKind'], ['literal', [
+          'recommended_track',
+          'recommended_route_centreline',
+        ]]],
+      ],
+      minzoom: 6,
+      paint: {
+        'line-color': '#a93ab4',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 11, 1.8, 15, 2.5],
+        'line-opacity': 0.82,
+        'line-dasharray': [3, 2],
+      },
+    }, insertBefore(map, TRAFFIC_SCHEME_RECOMMENDED_LAYER));
   }
 
   if (!map.getLayer(TRAFFIC_SCHEME_ARROWS_LAYER)) {
@@ -445,9 +476,39 @@ export function setNavigationVisibility(map: MapLibreMap, visibility: Navigation
   setVisible(map, [WRECKS_LAYER, WRECK_LABELS_LAYER], visibility.wrecks);
   setVisible(
     map,
-    [TRAFFIC_SCHEME_AREAS_LAYER, TRAFFIC_SCHEME_LINES_LAYER, TRAFFIC_SCHEME_ARROWS_LAYER],
+    [
+      TRAFFIC_SCHEME_AREAS_LAYER,
+      TRAFFIC_SCHEME_LINES_LAYER,
+      TRAFFIC_SCHEME_RECOMMENDED_LAYER,
+      TRAFFIC_SCHEME_ARROWS_LAYER,
+    ],
     visibility.traffic,
   );
+  const trafficColour = visibility.falseColors ? '#ffffff' : '#a93ab4';
+  if (map.getLayer(TRAFFIC_SCHEME_AREAS_LAYER)) {
+    map.setPaintProperty(
+      TRAFFIC_SCHEME_AREAS_LAYER,
+      'fill-color',
+      visibility.falseColors
+        ? '#ffffff'
+        : [
+            'match', ['get', 'schemeKind'],
+            'precautionary_area', '#d581ce',
+            'inshore_traffic_zone', '#c596d8',
+            '#b34ebc',
+          ],
+    );
+  }
+  for (const layer of [TRAFFIC_SCHEME_LINES_LAYER, TRAFFIC_SCHEME_RECOMMENDED_LAYER]) {
+    if (map.getLayer(layer)) map.setPaintProperty(layer, 'line-color', trafficColour);
+  }
+  if (map.getLayer(TRAFFIC_SCHEME_ARROWS_LAYER)) {
+    map.setLayoutProperty(
+      TRAFFIC_SCHEME_ARROWS_LAYER,
+      'icon-image',
+      visibility.falseColors ? TRAFFIC_DIRECTION_WHITE_ICON : TRAFFIC_DIRECTION_ICON,
+    );
+  }
 
   // AIS AToN ja registrimärgid jagavad allikat. Registriobjektide lüliti
   // võib märgid sisse tuua ka siis, kui reaalaja AIS-märgid on väljas.

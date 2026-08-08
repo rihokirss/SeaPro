@@ -939,10 +939,11 @@ export function App() {
       warnings: layers.navigationWarnings,
       aids: layers.navigationAids,
       traffic: layers.trafficSchemes,
+      falseColors: layers.scalarField !== null,
       wrecks: layers.wrecks,
       official: layers.officialNavigation,
     });
-  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.trafficSchemes, layers.wrecks, layers.officialNavigation, mapReady]);
+  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.trafficSchemes, layers.scalarField, layers.wrecks, layers.officialNavigation, mapReady]);
 
   // --- Laevad (AIS) --------------------------------------------------------
   const [vessels, setVessels] = useState<Vessel[]>([]);

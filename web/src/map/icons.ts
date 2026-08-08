@@ -496,6 +496,7 @@ function navigationAidMarker(category: string): ImageData {
 export const NAVIGATION_WARNING_ICON = 'navigation-warning';
 export const WRECK_ICON = 'navigation-wreck';
 export const TRAFFIC_DIRECTION_ICON = 'traffic-direction';
+export const TRAFFIC_DIRECTION_WHITE_ICON = 'traffic-direction-white';
 
 /**
  * Liikluseraldusraja suur paks nool.
@@ -504,7 +505,7 @@ export const TRAFFIC_DIRECTION_ICON = 'traffic-direction';
  * siis, kui kasutatavas PBF-fondis vastavat Unicode'i noolt pole. Kujund on
  * vaikimisi paremale, MapLibre pöörab selle joone suunda.
  */
-function trafficDirectionArrow(): ImageData {
+function trafficDirectionArrow(fill: string): ImageData {
   const size = 42;
   const c = makeCanvas(size);
   const { ctx } = c;
@@ -520,7 +521,7 @@ function trafficDirectionArrow(): ImageData {
   ctx.lineTo(5, 4.5);
   ctx.lineTo(-16, 4.5);
   ctx.closePath();
-  ctx.fillStyle = '#a93ab4';
+  ctx.fillStyle = fill;
   ctx.fill();
 
   return toImageData(c);
@@ -641,7 +642,8 @@ export function registerIcons(map: MapLibreMap): void {
     [ANCHORAGE_ICON]: harbourMarker(HARBOUR_COLORS.anchorage, 7.5),
     [NAVIGATION_WARNING_ICON]: navigationWarningMarker(),
     [WRECK_ICON]: wreckMarker(),
-    [TRAFFIC_DIRECTION_ICON]: trafficDirectionArrow(),
+    [TRAFFIC_DIRECTION_ICON]: trafficDirectionArrow('#a93ab4'),
+    [TRAFFIC_DIRECTION_WHITE_ICON]: trafficDirectionArrow('#ffffff'),
   };
 
   for (const kind of ['coastal', 'offshore', 'buoy'] as const) {

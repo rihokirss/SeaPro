@@ -17,11 +17,12 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
  */
 export const LAYER_ORDER = [
   // Rasteraluskaardid ja overlay'd lisab MapView ise, need jäävad allapoole.
-  'scalar-field',
-  'wind-arrows',
   'traffic-scheme-areas',
   'traffic-scheme-lines',
+  'traffic-scheme-recommended',
   'traffic-scheme-arrows',
+  'scalar-field',
+  'wind-arrows',
   'place-labels',
   'place-labels-minor',
   'place-labels-islands',
