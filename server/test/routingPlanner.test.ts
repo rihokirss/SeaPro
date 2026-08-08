@@ -21,6 +21,7 @@ import {
 import type { HarbourAccess } from '../src/routing/harbourAccess.js';
 import type {
   RoutingCorridor,
+  RoutingHarbour,
   RoutingHazard,
   RoutingSourceMeta,
   RoutingVectorData,
@@ -404,6 +405,60 @@ describe('route planner snapshot integration', () => {
     expect(result.distanceNm).toBeGreaterThan(0);
   });
 
+  it('reports a harbour registry limit as a warning instead of blocking the route', async () => {
+    const request = routeRequest();
+    const harbour: RoutingHarbour = {
+      id: 'transpordiamet-his:harbour:test',
+      kind: 'harbour',
+      geometry: { type: 'Point', coordinates: [request.end.lon, request.end.lat] },
+      name: 'Testisadam',
+      maxDraughtM: 0.7,
+      official: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const result = await planRoute(request, {
+      snapshot: snapshotFor({ depthM: 8, harbours: [harbour] }),
+      bbox: BBOX,
+    });
+    expect(result.status).toBe('advisory');
+    if (result.status === 'no_route') throw new Error('Expected advisory');
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'harbour_draught_limit',
+      severity: 'critical',
+      details: expect.objectContaining({ endpoint: 'end', limitM: 0.7, actualM: 1.2 }),
+    }));
+    // Registripiirang ei ava sadamakanalit: tuletatud ligipääsu ei ole.
+    expect(result.issues.some((issue) => issue.code === 'harbour_access_inferred')).toBe(false);
+    // Sügav vesi otspunktis: tavaline kleepimine, mitte kaugele nihutamine.
+    expect(result.endpoints.end.distanceM).toBeLessThan(100);
+  });
+
+  it('keeps the harbour limit issue in a no_route response for context', async () => {
+    const request = routeRequest();
+    const harbour: RoutingHarbour = {
+      id: 'transpordiamet-his:harbour:test',
+      kind: 'harbour',
+      geometry: { type: 'Point', coordinates: [request.end.lon, request.end.lat] },
+      name: 'Testisadam',
+      maxDraughtM: 0.7,
+      official: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const result = await planRoute(request, {
+      snapshot: snapshotFor({ depthM: 0.5, harbours: [harbour] }),
+      bbox: BBOX,
+    });
+    expect(result.status).toBe('no_route');
+    if (result.status !== 'no_route') throw new Error('Expected no_route');
+    expect(result.issues.some((issue) => issue.code === 'harbour_draught_limit')).toBe(true);
+    expect(result.issues.some((issue) => issue.code !== 'harbour_draught_limit'
+      && issue.severity === 'critical')).toBe(true);
+  });
+
   it('returns an advisory and explicit unknown segments when depth is absent', async () => {
     const result = await planRoute(routeRequest(), {
       snapshot: snapshotFor({ depthState: RoutingDepthState.NoData }),
@@ -636,6 +691,7 @@ interface SurfaceOptions {
   depthM?: number;
   corridors?: RoutingCorridor[];
   hazards?: RoutingHazard[];
+  harbours?: RoutingHarbour[];
   water?: RoutingWaterMask;
   warnings?: RoutingWarning[];
   positionOverrides?: [number, number][];
@@ -705,6 +761,7 @@ function vectorData(options: SurfaceOptions): RoutingVectorData {
     restrictions: [],
     warnings: options.warnings ?? [],
     surveyAreas: [],
+    harbours: options.harbours,
     sources,
   };
 }

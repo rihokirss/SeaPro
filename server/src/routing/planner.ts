@@ -101,8 +101,12 @@ export async function planRoute(
 
   const startAccessResult = deriveHarbourAccess(request.start, request, snapshot.vectors, 'start');
   const endAccessResult = deriveHarbourAccess(request.end, request, snapshot.vectors, 'end');
-  const harbourLimit = harbourLimitResponse(startAccessResult, endAccessResult, sources, request);
-  if (harbourLimit) return harbourLimit;
+  // Sadamaregistri mõõtmelimiit (HIS max_laev_syv/lai) ei blokeeri marsruuti:
+  // registrikirjed on kohati aegunud või kirjeldavad väikseimat kaikohta.
+  // Ligipääsu siiski ei tuletata (accessFromResult annab 'limit' puhul null),
+  // sest ületatud limiit ei või avada madalat vett; piirang jõuab vastusesse
+  // kriitilise hoiatusena ja otspunkt kleebitakse tavalise veepunktina.
+  const limitIssues = harbourLimitIssues(startAccessResult, endAccessResult, request);
   const derivedStartAccess = accessFromResult(startAccessResult);
   const derivedEndAccess = accessFromResult(endAccessResult);
   const routingVectors: RoutingVectorData = {
@@ -146,7 +150,7 @@ export async function planRoute(
         code: !start && !end ? 'endpoints_not_navigable' : !start ? 'start_not_navigable' : 'end_not_navigable',
         severity: 'critical',
         details: { maxSnapDistanceM: MAX_ENDPOINT_SNAP_M },
-      }],
+      }, ...limitIssues],
     };
   }
 
@@ -155,7 +159,7 @@ export async function planRoute(
     return {
       status: 'no_route',
       sources,
-      issues: [{ code: 'harbour_access_not_navigable', severity: 'critical' }],
+      issues: [{ code: 'harbour_access_not_navigable', severity: 'critical' }, ...limitIssues],
     };
   }
   let activeSurface = surface;
@@ -178,7 +182,7 @@ export async function planRoute(
         return {
           status: 'no_route',
           sources,
-          issues: [{ code: 'harbour_access_not_navigable', severity: 'critical' }],
+          issues: [{ code: 'harbour_access_not_navigable', severity: 'critical' }, ...limitIssues],
         };
       }
       result = await findPathThrough(activeSurface, requiredAnchors, deadline);
@@ -187,7 +191,7 @@ export async function planRoute(
   }
   if (result.status === 'not_found') {
     if (result.reason === 'aborted') throw abortError();
-    return noRouteForSearchFailure(result, sources);
+    return noRouteForSearchFailure(result, sources, limitIssues);
   }
 
   // Võre on teadlikult jämedam kui lõplik 10 m kontroll. Kui viimane leiab
@@ -220,7 +224,7 @@ export async function planRoute(
     if (result.status === 'not_found') {
       if (result.reason === 'aborted') throw abortError();
       if (result.reason === 'timeout' || result.reason === 'node_limit') {
-        return noRouteForSearchFailure(result, sources);
+        return noRouteForSearchFailure(result, sources, limitIssues);
       }
       break;
     }
@@ -234,18 +238,19 @@ export async function planRoute(
         code: 'fine_revalidation_blocked',
         severity: 'critical',
         details: { reason: prepared?.reason ?? 'land' },
-      }],
+      }, ...limitIssues],
     };
   }
   if (prepared.status === 'invalid') {
     return {
       status: 'no_route',
       sources,
-      issues: [{ code: prepared.code, severity: 'critical' }],
+      issues: [{ code: prepared.code, severity: 'critical' }, ...limitIssues],
     };
   }
   const { coordinates, segments, navigationPath } = prepared;
   const issues = dedupeIssues([
+    ...limitIssues,
     ...sourceIssues(sources),
     ...harbourAccessIssues(startAccess, endAccess),
     ...endpointIssues(start.distanceM, end.distanceM),
@@ -482,32 +487,28 @@ function accessFromResult(result: HarbourAccessResult): HarbourAccess | null {
   return result.status === 'access' ? result.access : null;
 }
 
-function harbourLimitResponse(
+function harbourLimitIssues(
   start: HarbourAccessResult,
   end: HarbourAccessResult,
-  sources: RoutePlanSource[],
   request: RoutePlanRequest,
-): RoutePlanResponse | null {
+): RoutePlanIssue[] {
+  const issues: RoutePlanIssue[] = [];
   for (const [endpoint, result] of [['start', start], ['end', end]] as const) {
     if (result.status !== 'limit') continue;
     const actualM = result.reason === 'draught' ? request.draughtM : request.beamM;
-    return {
-      status: 'no_route',
-      sources,
-      issues: [{
-        code: result.reason === 'draught' ? 'harbour_draught_limit' : 'harbour_beam_limit',
-        severity: 'critical',
-        sourceIds: [result.harbour.source],
-        details: {
-          endpoint,
-          harbourName: result.harbour.name ?? result.harbour.id,
-          limitM: result.limitM,
-          actualM,
-        },
-      }],
-    };
+    issues.push({
+      code: result.reason === 'draught' ? 'harbour_draught_limit' : 'harbour_beam_limit',
+      severity: 'critical',
+      sourceIds: [result.harbour.source],
+      details: {
+        endpoint,
+        harbourName: result.harbour.name ?? result.harbour.id,
+        limitM: result.limitM,
+        actualM,
+      },
+    });
   }
-  return null;
+  return issues;
 }
 
 function requiredHarbourAnchors(
@@ -1048,6 +1049,7 @@ function dedupeIssues(issues: RoutePlanIssue[]): RoutePlanIssue[] {
 function noRouteForSearchFailure(
   failure: PathSearchFailure,
   sources: RoutePlanSource[],
+  extraIssues: RoutePlanIssue[] = [],
 ): RoutePlanResponse {
   const code = failure.reason === 'timeout'
     ? 'search_timeout'
@@ -1055,7 +1057,10 @@ function noRouteForSearchFailure(
   return {
     status: 'no_route',
     sources,
-    issues: [{ code, severity: 'critical', details: { expandedNodes: failure.expandedNodes } }],
+    issues: [
+      { code, severity: 'critical', details: { expandedNodes: failure.expandedNodes } },
+      ...extraIssues,
+    ],
   };
 }
 

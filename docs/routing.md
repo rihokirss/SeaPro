@@ -55,8 +55,17 @@ Edukas vastus on `status: "route"` või `status: "advisory"` ja sisaldab:
 - algse ja kuni 1 NM ulatuses läbitavale veele kleebitud A/B-punkti;
 - snapshot'i ID, genereerimisaja, allikate vanuse/katvuse ja märkused.
 
+Sadamaregistri mõõtmepiirang (HIS `max_laev_syv`/`max_laev_lai`) ei anna
+`no_route`: registrikirjed on kohati aegunud või kirjeldavad väikseimat
+kaikohta. Kui laev ületab otspunkti sadama avaldatud limiidi, siis tuletatud
+sadamakanalit ei ehitata (registrisüvis ei või avada EMODneti madalat vett),
+otspunkt kleebitakse tavalise veepunktina ja vastus on vähemalt `advisory`
+koos kriitilise `harbour_draught_limit`/`harbour_beam_limit` märkusega.
+Kapten kontrollib sadama tegelikku sügavust ja gabariiti ise.
+
 Kui masinloetavate andmete järgi läbitavat ühendust või lähedast läbitavat
-otspunkti ei leita, on vastus `status: "no_route"`. See on tavaline 200-vastus
+otspunkti ei leita, on vastus `status: "no_route"`; sadamalimiidi märkus jääb
+ka siis konteksti selgituseks kaasa. See on tavaline 200-vastus
 koos põhjustega. Kui terve
 baaskiht (EMODneti sügavus või OpenFreeMapi veemask) pole kättesaadav,
 tagastab API 503 `data_unavailable`; tühi vastus ei lähe kunagi arvesse kui

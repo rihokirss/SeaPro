@@ -36,7 +36,9 @@ export type HarbourAccessResult =
 /**
  * Tuletab valitud sadamapunktile kitsa ühenduse ametliku laevatee või
  * punase/rohelise märgipaari kaudu. See on otsapunkti ühendus, mitte luba
- * avada kogu sadama ümbruse madalikke.
+ * avada kogu sadama ümbruse madalikke. `limit` tähendab, et ligipääsu ei
+ * tuletata — planner käsitleb otspunkti tavalise veepunktina ja raporteerib
+ * registripiirangu hoiatusena, mitte kõva tõkkena.
  */
 export function deriveHarbourAccess(
   endpoint: { lat: number; lon: number },

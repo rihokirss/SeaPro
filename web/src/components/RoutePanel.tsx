@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type P
 import { AlertTriangle, Check, Crosshair, GripVertical, Home, LocateFixed, Play, Redo2, Settings2, Trash2, Undo2, X } from 'lucide-react';
 import type { Route, RouteAnalysis, RoutePlan, RouteWaypoint } from '@seapro/shared';
 import { degreesToCompass, routeDistanceNm } from '@seapro/shared';
-import { useI18n } from '../i18n';
+import { useI18n, type Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import type { VesselProfile } from '../lib/vesselProfile';
 import { SearchPicker } from './SearchPicker';
@@ -98,6 +98,25 @@ function unknownDistanceNm(plan: RoutePlan | undefined): number {
     { lon: segment.from[0], lat: segment.from[1] },
     { lon: segment.to[0], lat: segment.to[1] },
   ]), 0);
+}
+
+/**
+ * Sadamaregistri mõõtmepiirang ei blokeeri marsruuti, kuid peab olema
+ * eelvaates selgelt näha: tee lõpeb sadama lähedal tõendatavas vees ja
+ * kapten peab sadama sügavust ise kontrollima.
+ */
+function harbourLimitWarning(plan: RoutePlan | undefined, t: Translate): string | null {
+  const issue = plan?.issues.find((entry) =>
+    entry.code === 'harbour_draught_limit' || entry.code === 'harbour_beam_limit');
+  if (!issue) return null;
+  const details = issue.details ?? {};
+  return t(issue.code === 'harbour_draught_limit'
+    ? 'route.auto.harbourLimit.draught'
+    : 'route.auto.harbourLimit.beam', {
+    harbour: typeof details.harbourName === 'string' ? details.harbourName : '?',
+    limit: typeof details.limitM === 'number' ? details.limitM.toFixed(1) : '?',
+    actual: typeof details.actualM === 'number' ? details.actualM.toFixed(1) : '?',
+  });
 }
 
 function advisoryDistanceNm(plan: RoutePlan | undefined): number {
@@ -454,6 +473,7 @@ export function RoutePanel(props: Props) {
             end: Math.round(shownPlan.endpoints.end.distanceM),
           })}</p> : null}
           {unknownDistanceNm(shownPlan) > 0 ? <p className="route-plan-preview__warning"><AlertTriangle size={16} aria-hidden="true" /> {t('route.auto.unknownDistance', { distance: unknownDistanceNm(shownPlan).toFixed(1) })}</p> : null}
+          {harbourLimitWarning(shownPlan, t) ? <p className="route-plan-preview__warning"><AlertTriangle size={16} aria-hidden="true" /> {harbourLimitWarning(shownPlan, t)}</p> : null}
           {shownPlan.issues.length ? <ul className="route-plan-issues">{shownPlan.issues.map((issue, index) => {
             const key = `route.auto.issueCode.${issue.code}`;
             const translated = t(key);
