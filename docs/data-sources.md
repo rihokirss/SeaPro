@@ -363,6 +363,13 @@ AIS-märk jääb alati eraldi. Ametlikud laevateed ja märgid võivad ENC mereka
 sisu dubleerida, mistõttu nende kiht on vaikimisi väljas. Hoiatused ja reaalaja
 AIS-märgid on vaikimisi sees.
 
+OpenSeaMapi liiklusskeemide ja Transpordiameti laevateede kattuvad joonelõigud
+kuvatakse ainult üks kord. Kuni 25 m kaugusel ja kuni 20° suunaerinevusega
+lõigatakse nähtavast registrijoonest maha ainult tegelik kattuv osa; registri
+unikaalsed lõigud jäävad alles. Täielik registrigeomeetria säilib eraldi
+läbipaistvas klikikihis. Kui liiklusskeemid välja lülitada, kuvatakse taas kogu
+Transpordiameti joon.
+
 Soome WFS-i MultiPoint-objektid normaliseeritakse samasse `NavigationAid`
 mudelisse nagu Nutimeri märgid. `navigointilajikoodi` 1–9 tõlgitakse IALA
 lateraal-, kardinaal-, üksikohu-, ohutu vee ja erimärkideks, mistõttu klient

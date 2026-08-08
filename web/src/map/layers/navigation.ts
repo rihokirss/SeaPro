@@ -9,6 +9,7 @@ import {
   TRAFFIC_DIRECTION_WHITE_ICON,
   WRECK_ICON,
 } from '../icons';
+import { fairwayVisibleGeometries } from '../lineOverlap';
 
 const SOURCE_ID = 'navigation-src';
 
@@ -17,6 +18,7 @@ export const TRAFFIC_SCHEME_LINES_LAYER = 'traffic-scheme-lines';
 export const TRAFFIC_SCHEME_RECOMMENDED_LAYER = 'traffic-scheme-recommended';
 export const TRAFFIC_SCHEME_ARROWS_LAYER = 'traffic-scheme-arrows';
 export const FAIRWAYS_LAYER = 'official-fairways';
+export const FAIRWAY_HIT_LAYER = 'official-fairways-hit';
 export const WARNING_AREAS_LAYER = 'navigation-warning-areas';
 export const WARNING_LINE_HIT_LAYER = 'navigation-warning-line-hit';
 export const WARNING_LINES_LAYER = 'navigation-warning-lines';
@@ -34,8 +36,10 @@ export const NAVIGATION_CLICK_LAYERS = [
   WARNING_AREAS_LAYER,
   WRECKS_LAYER,
   NAVIGATION_AID_HIT_LAYER,
-  FAIRWAYS_LAYER,
+  FAIRWAY_HIT_LAYER,
 ];
+
+const NAVIGATION_LINE_COLOUR = '#a93ab4';
 
 export interface NavigationVisibility {
   warnings: boolean;
@@ -109,19 +113,34 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
     });
   }
 
+  const visibleFairways = fairwayVisibleGeometries(data.fairways, data.trafficSchemes);
   for (const fairway of data.fairways) {
+    const properties = {
+      id: fairway.id,
+      name: fairway.name,
+      fairwayClass: fairway.fairwayClass ?? '',
+      depthM: fairway.depthM ?? null,
+      shipDraughtM: fairway.shipDraughtM ?? null,
+      widthM: fairway.widthM ?? null,
+      fairwayType: fairway.type ?? '',
+    };
+    // Täielik registrigeomeetria kuulub ainult läbipaistvasse klikikihti.
     features.push({
       type: 'Feature',
       geometry: fairway.geometry as Geometry,
       properties: {
         featureKind: 'fairway',
-        id: fairway.id,
-        name: fairway.name,
-        fairwayClass: fairway.fairwayClass ?? '',
-        depthM: fairway.depthM ?? null,
-        shipDraughtM: fairway.shipDraughtM ?? null,
-        widthM: fairway.widthM ?? null,
-        fairwayType: fairway.type ?? '',
+        ...properties,
+      },
+    });
+    // Nähtavast joonest lõikame maha ainult OpenSeaMapiga kattuvad osad.
+    const visibleGeometry = visibleFairways.get(fairway.id);
+    if (visibleGeometry) features.push({
+      type: 'Feature',
+      geometry: visibleGeometry as Geometry,
+      properties: {
+        featureKind: 'fairway-visible',
+        ...properties,
       },
     });
   }
@@ -197,7 +216,7 @@ function ensureLayers(map: MapLibreMap): void {
       ],
       minzoom: 6,
       paint: {
-        'line-color': '#a93ab4',
+        'line-color': NAVIGATION_LINE_COLOUR,
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 11, 1.8, 15, 2.5],
         'line-opacity': 0.82,
       },
@@ -218,7 +237,7 @@ function ensureLayers(map: MapLibreMap): void {
       ],
       minzoom: 6,
       paint: {
-        'line-color': '#a93ab4',
+        'line-color': NAVIGATION_LINE_COLOUR,
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 11, 1.8, 15, 2.5],
         'line-opacity': 0.82,
         'line-dasharray': [3, 2],
@@ -269,15 +288,29 @@ function ensureLayers(map: MapLibreMap): void {
       id: FAIRWAYS_LAYER,
       type: 'line',
       source: SOURCE_ID,
-      filter: ['==', ['get', 'featureKind'], 'fairway'],
+      filter: ['==', ['get', 'featureKind'], 'fairway-visible'],
       minzoom: 9,
       paint: {
-        'line-color': '#a337c8',
+        'line-color': NAVIGATION_LINE_COLOUR,
         'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.5, 14, 3],
         'line-opacity': 0.75,
         'line-dasharray': [3, 2],
       },
     }, insertBefore(map, FAIRWAYS_LAYER));
+  }
+
+  if (!map.getLayer(FAIRWAY_HIT_LAYER)) {
+    map.addLayer({
+      id: FAIRWAY_HIT_LAYER,
+      type: 'line',
+      source: SOURCE_ID,
+      filter: ['==', ['get', 'featureKind'], 'fairway'],
+      minzoom: 9,
+      paint: {
+        'line-color': 'rgba(169,58,180,0.01)',
+        'line-width': 28,
+      },
+    }, insertBefore(map, FAIRWAY_HIT_LAYER));
   }
 
   if (!map.getLayer(WARNING_AREAS_LAYER)) {
@@ -484,7 +517,6 @@ export function setNavigationVisibility(map: MapLibreMap, visibility: Navigation
     ],
     visibility.traffic,
   );
-  const trafficColour = visibility.falseColors ? '#ffffff' : '#a93ab4';
   if (map.getLayer(TRAFFIC_SCHEME_AREAS_LAYER)) {
     map.setPaintProperty(
       TRAFFIC_SCHEME_AREAS_LAYER,
@@ -499,14 +531,20 @@ export function setNavigationVisibility(map: MapLibreMap, visibility: Navigation
           ],
     );
   }
-  for (const layer of [TRAFFIC_SCHEME_LINES_LAYER, TRAFFIC_SCHEME_RECOMMENDED_LAYER]) {
-    if (map.getLayer(layer)) map.setPaintProperty(layer, 'line-color', trafficColour);
-  }
   if (map.getLayer(TRAFFIC_SCHEME_ARROWS_LAYER)) {
     map.setLayoutProperty(
       TRAFFIC_SCHEME_ARROWS_LAYER,
       'icon-image',
       visibility.falseColors ? TRAFFIC_DIRECTION_WHITE_ICON : TRAFFIC_DIRECTION_ICON,
+    );
+  }
+  if (map.getLayer(FAIRWAYS_LAYER)) {
+    // Kui OpenSeaMapi jooned on väljas, peab nähtavale tulema registrijoone
+    // täielik kuju. Kärbitud geomeetria on õige ainult koos dubletti katva
+    // liiklusskeemikihiga.
+    map.setFilter(
+      FAIRWAYS_LAYER,
+      ['==', ['get', 'featureKind'], visibility.traffic ? 'fairway-visible' : 'fairway'],
     );
   }
 
@@ -544,7 +582,7 @@ export function setNavigationVisibility(map: MapLibreMap, visibility: Navigation
         : ['all', kindFilter, offPositionFilter],
     );
   }
-  setVisible(map, [FAIRWAYS_LAYER], visibility.official);
+  setVisible(map, [FAIRWAYS_LAYER, FAIRWAY_HIT_LAYER], visibility.official);
 }
 
 function setVisible(map: MapLibreMap, layers: string[], visible: boolean): void {
