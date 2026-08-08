@@ -113,6 +113,13 @@ export interface PathValidation {
 export interface SimplifyPathOptions {
   /** Maximum multiplicative cost increase allowed for a shortcut. Defaults to 1. */
   readonly maxCostRatio?: number;
+  /**
+   * Absolute cost allowance (in grid-cell units) on top of the ratio. Lets
+   * string pulling iron out short "refraction" jinks that grid search creates
+   * at cost-region boundaries, without permitting large-scale detour changes.
+   * Defaults to 0.
+   */
+  readonly maxCostIncrease?: number;
   /** Do not introduce a worse risk class than the original sub-path. Defaults true. */
   readonly preserveRisk?: boolean;
   /** Path points that string pulling must retain, in route order. */

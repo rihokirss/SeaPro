@@ -86,6 +86,10 @@ export function simplifyPath(
   if (!Number.isFinite(maxCostRatio) || maxCostRatio < 1) {
     throw new RangeError('maxCostRatio must be a finite number of at least 1');
   }
+  const maxCostIncrease = options.maxCostIncrease ?? 0;
+  if (!Number.isFinite(maxCostIncrease) || maxCostIncrease < 0) {
+    throw new RangeError('maxCostIncrease must be a finite non-negative number');
+  }
   const preserveRisk = options.preserveRisk ?? true;
   const requiredIndexes = locateRequiredPointIndexes(path, options.requiredPoints ?? []);
 
@@ -110,7 +114,7 @@ export function simplifyPath(
       const shortcut = traceSegment(grid, path[anchor]!, path[candidate]!);
       if (!shortcut.valid) continue;
       const originalCost = cumulativeCost[candidate]! - cumulativeCost[anchor]!;
-      if (shortcut.cost > originalCost * maxCostRatio + EPSILON) continue;
+      if (shortcut.cost > originalCost * maxCostRatio + maxCostIncrease + EPSILON) continue;
       if (preserveRisk && maxTraceRisk(grid, shortcut) > maxOriginalRisk(grid, edgeTraces, anchor, candidate)) continue;
       if (preserveRisk && introducesNewReason(grid, shortcut, edgeTraces, anchor, candidate)) continue;
       accepted = candidate;

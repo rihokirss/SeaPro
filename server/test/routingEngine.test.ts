@@ -147,6 +147,32 @@ describe('route post-processing', () => {
     expect(validatePath(grid, simplified).valid).toBe(true);
   });
 
+  it('irons out refraction jinks at cost boundaries only with an absolute allowance', () => {
+    // 5x rada (c) keskel: võreotsing ületab selle "murdudes" järsema nurga
+    // all. Ilma absoluutse varuta jääb V-jõnks alles, sest sirge lõikab rada
+    // pikemalt; väike varu lubab sirgeks tõmmata, riskiklass ei muutu.
+    const grid = makeGrid([
+      '.......',
+      '.......',
+      'ccccccc',
+      'ccccccc',
+      '.......',
+      '.......',
+      '.......',
+    ]);
+    const route = [
+      { x: 0, y: 6 },
+      { x: 2, y: 4 },
+      { x: 2, y: 1 },
+      { x: 6, y: 0 },
+    ];
+    expect(validatePath(grid, route).valid).toBe(true);
+    expect(simplifyPath(grid, route).length).toBeGreaterThan(2);
+    const smoothed = simplifyPath(grid, route, { maxCostIncrease: 10 });
+    expect(smoothed).toEqual([{ x: 0, y: 6 }, { x: 6, y: 0 }]);
+    expect(validatePath(grid, smoothed).valid).toBe(true);
+  });
+
   it('retains required harbour gate points while string-pulling', () => {
     const grid = makeGrid(['...', '...', '...']);
     const gate = { x: 2, y: 0 };

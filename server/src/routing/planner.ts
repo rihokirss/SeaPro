@@ -38,6 +38,9 @@ import type { RoutingSourceMeta, RoutingVectorData } from './sourceTypes.js';
 import { loadRoutingWaterMask, routingWaterAt, type RoutingWaterMask } from './waterMask.js';
 
 const MAX_ENDPOINT_SNAP_M = 1_852;
+// ~2 lisalahtrit 5x koridoris või 10 lahtrit tavavees: piisav kulupiiride
+// murdumis-jõnksude silumiseks, liiga väike marsruudi ümberkujundamiseks.
+const SIMPLIFY_COST_SLACK = 10;
 const MAX_GEOMETRY_POINTS = 2_000;
 const MAX_NAVIGATION_WAYPOINTS = 100;
 const FINE_REVALIDATION_STEP_M = 10;
@@ -694,8 +697,13 @@ function prepareRouteCandidate(
   endAccess: HarbourAccess | null,
   deadline: PlanningDeadline,
 ): PreparedRouteCandidate {
+  // Võreotsing "murrab" trassi kulupiiridel nagu valguskiir (nt TSS-i raja
+  // ette tekib V-kujuline jõnks, et rada järsema nurga alt ületada). Väike
+  // absoluutne kuluvaru laseb sellised lühikesed murded sirgeks tõmmata;
+  // riskiklass ega põhjused halveneda ei tohi ja tulemus revalideeritakse.
   let geometryPath = simplifyPath(surface, rawPath, {
     maxCostRatio: 1.05,
+    maxCostIncrease: SIMPLIFY_COST_SLACK,
     preserveRisk: true,
     requiredPoints: requiredAnchors,
     checkpoint: deadline.checkpoint,

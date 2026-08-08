@@ -140,7 +140,10 @@ tagastata sirgjoonelist varuteed.
 
 Leitud trepijoon lihtsustatakse line-of-sight kontrolliga. Iga otsetee
 rasterdatakse uuesti samal snapshot'il, ei tohi läbida blokki, halvendada
-riskiklassi, tuua sisse uut ohupõhjust ega ületada lubatud kulukasvu. Pika
+riskiklassi, tuua sisse uut ohupõhjust ega ületada lubatud kulukasvu.
+Kulukasvu piiril on lisaks suhtarvule väike absoluutne varu, mis silub
+võreotsingu „murdumis-jõnksud" kulupiiridel (nt TSS-i raja ees) ilma
+marsruuti sisuliselt ümber kujundamata. Pika
 sirglõigu `clear`/`caution`/`unknown` piirid tuletatakse lahtrite kaupa ja
 lisatakse ka GeoJSON-i joonele. Kaardi geomeetria ja navigeerimise
 kontrollpunktid kirjeldavad sama valideeritud joont.
@@ -163,7 +166,15 @@ ROUTING_PLAN_TIMEOUT_MS=90000
 ROUTING_MAX_CONCURRENT_PLANS=2
 ROUTING_SEARCH_TIMEOUT_MS=45000
 ROUTING_SEARCH_MAX_NODES=1000000
+ROUTING_TIMINGS_LOG=0
 ```
+
+Kiirust mõõdetakse korratavalt `server/scripts/bench-routing.ts` abil:
+`capture` külmutab elusa snapshot'i `data/bench/` alla, `run` kordab
+planeerimist võrguta ja deterministlikult koos faasiaegadega ning
+`compare` on optimeerimiste regressioonivärav (geomeetria räsi peab
+klappima või kulu olema võrdne). `ROUTING_TIMINGS_LOG=1` logib samad
+faasiajad iga päris päringu kohta.
 
 Ristkülik on ainult serveri kõva ressursipiir. Selle sees rakendub lisaks
 konservatiivne Eesti ja Soome rannikumere teenindusmask; mask ei ole
