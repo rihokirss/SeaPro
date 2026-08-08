@@ -221,20 +221,30 @@ export function createRoutingWaterSampler(mask: RoutingWaterMask): RoutingWaterS
   return {
     rowAt(lat) {
       const tileRow = tileY(lat, mask.zoom);
+      // Skanjoon: ringi lõikepunktid selle laiuskraadiga arvutatakse paani
+      // kohta üks kord ja iga proov maksab vaid mõne võrdluse. Sama half-open
+      // ray-cast avaldis samadel ujukomaväärtustel kui `pointInRing`.
+      const rowTiles = new Map<number, RowPolygon[] | null>();
       let lastTileColumn = Number.NaN;
-      let polygons: PreparedPolygon[] | null = null;
+      let current: RowPolygon[] | null = null;
       return (lon) => {
         const tileColumn = tileX(lon, mask.zoom);
         if (tileColumn !== lastTileColumn) {
           lastTileColumn = tileColumn;
-          polygons = preparedTile(`${tileColumn}:${tileRow}`);
+          let entry = rowTiles.get(tileColumn);
+          if (entry === undefined) {
+            const polygons = preparedTile(`${tileColumn}:${tileRow}`);
+            entry = polygons ? rowPolygons(polygons, lat) : null;
+            rowTiles.set(tileColumn, entry);
+          }
+          current = entry;
         }
-        if (!polygons) return null;
-        for (const polygon of polygons) {
-          if (!ringContains(polygon.outer, lon, lat)) continue;
+        if (!current) return null;
+        for (const polygon of current) {
+          if (!oddCrossingsRight(polygon.outer, lon)) continue;
           let inHole = false;
           for (const hole of polygon.holes) {
-            if (ringContains(hole, lon, lat)) {
+            if (oddCrossingsRight(hole, lon)) {
               inHole = true;
               break;
             }
@@ -245,6 +255,47 @@ export function createRoutingWaterSampler(mask: RoutingWaterMask): RoutingWaterS
       };
     },
   };
+}
+
+interface RowPolygon {
+  outer: number[];
+  holes: number[][];
+}
+
+function rowPolygons(polygons: PreparedPolygon[], lat: number): RowPolygon[] {
+  const result: RowPolygon[] = [];
+  for (const polygon of polygons) {
+    const outer = ringCrossingsAt(polygon.outer, lat);
+    // Ilma välisringi lõiketa ei saa punkt sellel laiuskraadil sees olla.
+    if (outer.length === 0) continue;
+    result.push({
+      outer,
+      holes: polygon.holes
+        .map((hole) => ringCrossingsAt(hole, lat))
+        .filter((crossings) => crossings.length > 0),
+    });
+  }
+  return result;
+}
+
+function ringCrossingsAt(ring: PreparedRing, lat: number): number[] {
+  if (lat < ring.minY || lat > ring.maxY) return [];
+  const { xs, ys } = ring;
+  const crossings: number[] = [];
+  for (let i = 0, j = xs.length - 1; i < xs.length; j = i++) {
+    if ((ys[i]! > lat) !== (ys[j]! > lat)) {
+      crossings.push((xs[j]! - xs[i]!) * (lat - ys[i]!) / (ys[j]! - ys[i]!) + xs[i]!);
+    }
+  }
+  return crossings;
+}
+
+function oddCrossingsRight(crossings: number[], lon: number): boolean {
+  let count = 0;
+  for (const crossing of crossings) {
+    if (lon < crossing) count++;
+  }
+  return (count & 1) === 1;
 }
 
 function prepareRing(ring: Position[]): PreparedRing {
@@ -266,13 +317,3 @@ function prepareRing(ring: Position[]): PreparedRing {
   return { xs, ys, minX, minY, maxX, maxY };
 }
 
-function ringContains(ring: PreparedRing, lon: number, lat: number): boolean {
-  if (lon < ring.minX || lon > ring.maxX || lat < ring.minY || lat > ring.maxY) return false;
-  const { xs, ys } = ring;
-  let inside = false;
-  for (let i = 0, j = xs.length - 1; i < xs.length; j = i++) {
-    if ((ys[i]! > lat) !== (ys[j]! > lat)
-      && lon < (xs[j]! - xs[i]!) * (lat - ys[i]!) / (ys[j]! - ys[i]!) + xs[i]!) inside = !inside;
-  }
-  return inside;
-}
