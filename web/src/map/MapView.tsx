@@ -19,6 +19,7 @@ import { addColorBase } from './colorBase';
 import { addDarkBase } from './darkBase';
 import { registerIcons } from './icons';
 import { LAYER_ORDER } from './layerOrder';
+import { POPUP_CLICK_LAYERS } from './popups';
 import { addPlaceLabels } from './layers/placeLabels';
 import type { Position } from '../lib/geolocation';
 import type { DepthRiskSegment, RouteWaypoint, TrackPoint } from '@seapro/shared';
@@ -416,12 +417,16 @@ export function MapView({
         return;
       }
       const padding = window.matchMedia('(pointer: coarse)').matches ? 12 : 3;
-      const hits = map.queryRenderedFeatures([
+      // Punktiprognoosi blokeerivad ainult päriselt klikitavad objektid.
+      // LAYER_ORDER sisaldab ka kohanimesid, tuulenooli ja muid visuaalseid
+      // kihte, mis tegid suure osa kaardist mobiilis näiliselt mitteklikitavaks.
+      const clickableLayers = POPUP_CLICK_LAYERS.filter((id) => map.getLayer(id));
+      const hits = clickableLayers.length > 0 ? map.queryRenderedFeatures([
         [e.point.x - padding, e.point.y - padding],
         [e.point.x + padding, e.point.y + padding],
       ], {
-        layers: LAYER_ORDER.filter((id) => map.getLayer(id)),
-      });
+        layers: clickableLayers,
+      }) : [];
       if (hits.length > 0) return;
       cb.current.onPick(e.lngLat.lat, e.lngLat.lng);
     });

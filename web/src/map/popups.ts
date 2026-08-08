@@ -93,7 +93,8 @@ function keepPopupInView(map: MapLibreMap, activePopup: maplibregl.Popup): void 
   });
 }
 
-const POPUP_CLICK_LAYERS = [
+/** Ainult kihid, mille puudutamine avab objektipopupi. */
+export const POPUP_CLICK_LAYERS = [
   STATIONS_LAYER,
   HARBOURS_LAYER,
   ANCHORAGES_LAYER,
