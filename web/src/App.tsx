@@ -1190,6 +1190,7 @@ export function App() {
           activeOverlays={layers.overlays}
           radarFrame={radarFrame}
           ownPosition={geo.position}
+          selectedPoint={picked}
           routeWaypoints={route.waypoints}
           routeSegments={routeAnalysis?.depthSegments ?? []}
           trackPoints={trackPoints}

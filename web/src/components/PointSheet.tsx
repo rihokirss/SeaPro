@@ -47,6 +47,16 @@ const ROWS: Variable[] = [
 /** Kiirnäidud paneeli ülaosas — mida kaatrimees vaatab esimesena. */
 const READOUTS: Variable[] = ['wind_speed', 'wind_gust', 'wave_height', 'air_temp'];
 
+/** Mobiili ruutvaates kuvatavad kuus põhinäitu. */
+const PEEK_READOUTS: Variable[] = [
+  'wind_speed',
+  'wind_gust',
+  'wave_height',
+  'air_temp',
+  'precipitation',
+  'wind_dir',
+];
+
 /** Graafikul valitavad suurused. */
 const CHARTABLE: Variable[] = [
   'wind_speed',
@@ -124,6 +134,53 @@ function ReadoutGrid({
   );
 }
 
+function PeekReadouts({
+  values,
+  speedUnit,
+}: {
+  values: Partial<Record<Variable, number | null>>;
+  speedUnit: SpeedUnit;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <span className="sheet__peek-grid">
+      {PEEK_READOUTS.map((variable) => {
+        const raw = values[variable];
+        const isWind = variable === 'wind_speed' || variable === 'wind_gust';
+        return (
+          <span className="sheet__peek-metric" key={variable}>
+            <span className="sheet__peek-label">{t(`var.${variable}`)}</span>
+            <span
+              className="sheet__peek-value"
+              style={isWind && raw != null ? { color: windColor(raw) } : undefined}
+            >
+              {variable === 'wind_dir' ? (
+                raw != null ? (
+                  <span
+                    className="sheet__peek-arrow"
+                    style={{ transform: `rotate(${(raw + 180) % 360}deg)` }}
+                    title={`${Math.round(raw)}° ${degreesToCompass(raw)}`}
+                  >
+                    ↑
+                  </span>
+                ) : '–'
+              ) : (
+                <>
+                  {formatValue(variable, raw, speedUnit)}
+                  {raw != null ? (
+                    <span className="sheet__peek-unit">{unitLabel(variable, speedUnit)}</span>
+                  ) : null}
+                </>
+              )}
+            </span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 export function PointSheet({
   open,
   onClose,
@@ -189,31 +246,48 @@ export function PointSheet({
             aria-expanded={false}
             aria-label={t('point.expand')}
           >
-            <span className="sheet__peek-coords">
-              {lat.toFixed(2)}° {lon.toFixed(2)}°
+            <span className="sheet__peek-desktop">
+              <span className="sheet__peek-coords">
+                {lat.toFixed(2)}° {lon.toFixed(2)}°
+              </span>
+
+              {loading ? (
+                <span className="sheet__peek-loading">{t('point.loading')}</span>
+              ) : (
+                <span className="sheet__peek-values">
+                  {peek.wind_speed != null ? (
+                    <span style={{ color: windColor(peek.wind_speed) }}>
+                      {formatValue('wind_speed', peek.wind_speed, speedUnit)}{' '}
+                      {unitLabel('wind_speed', speedUnit)}
+                      {peek.wind_dir != null ? ` ${degreesToCompass(peek.wind_dir)}` : ''}
+                    </span>
+                  ) : null}
+                  {peek.wave_height != null ? (
+                    <span>
+                      {formatValue('wave_height', peek.wave_height, speedUnit)}{' '}
+                      {unitLabel('wave_height', speedUnit)}
+                    </span>
+                  ) : null}
+                </span>
+              )}
+
+              <ChevronUp className="sheet__peek-chevron" size={20} aria-hidden="true" />
             </span>
 
-            {loading ? (
-            <span className="sheet__peek-loading">{t('point.loading')}</span>
-          ) : (
-            <span className="sheet__peek-values">
-              {peek.wind_speed != null ? (
-                <span style={{ color: windColor(peek.wind_speed) }}>
-                  {formatValue('wind_speed', peek.wind_speed, speedUnit)}{' '}
-                  {unitLabel('wind_speed', speedUnit)}
-                  {peek.wind_dir != null ? ` ${degreesToCompass(peek.wind_dir)}` : ''}
-                </span>
-              ) : null}
-              {peek.wave_height != null ? (
-                <span>
-                  {formatValue('wave_height', peek.wave_height, speedUnit)}{' '}
-                  {unitLabel('wave_height', speedUnit)}
-                </span>
-              ) : null}
+            <span className="sheet__peek-mobile">
+              <span className="sheet__peek-title">{t('point.title')}</span>
+              <span className="sheet__peek-expand-hint" aria-hidden="true">
+                <ChevronUp size={14} />
+                {t('point.expand')}
+              </span>
+              {loading ? (
+                <span className="sheet__peek-loading">{t('point.loading')}</span>
+              ) : error ? (
+                <span className="sheet__peek-loading">{error}</span>
+              ) : (
+                <PeekReadouts values={peek} speedUnit={speedUnit} />
+              )}
             </span>
-          )}
-
-            <ChevronUp className="sheet__peek-chevron" size={20} aria-hidden="true" />
           </button>
 
           {/* Eraldi nupp, mitte riba sees: nupp nupu sees ei ole lubatud.

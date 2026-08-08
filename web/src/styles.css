@@ -1162,27 +1162,30 @@ textarea {
     visibility 0s;
 }
 
-/* Mobiilis on avatud punktiprognoos ise valitud aja näit: eraldi kellaaja-,
-   kuupäeva- ja "Nüüd"-chipid võtaksid selle kohal asjatult ühe rea ruumi.
-   Jätame alles ajajoone, sest sellelt saab prognoosi aega endiselt muuta.
-
-   Prognoos ei ole enam ekraani alumise serva küljes, seega kujundame ta siin
-   päris hõljuvaks kaardiks: väike küljevahe, alumised ümarnurgad ja piirjoon. */
+/* Mobiilis algab prognoos logo alt ja lõpeb terve ajariba kohal. Nii jäävad
+   valitud aeg, kuupäev ja "Nüüd"-nupp ka täisvaates alati nähtavale. */
 @media (max-width: 879px) {
-  .app.has-point-forecast .timebar__row {
-    display: none;
-  }
-
   .app.has-point-forecast .sheet {
     left: calc(var(--s4) + var(--safe-left));
     right: calc(var(--s4) + var(--safe-right));
-    bottom: calc(var(--ruler-h) + var(--s4) + var(--safe-bottom));
-    max-height: min(
-      74vh,
-      calc(100vh - var(--ruler-h) - var(--safe-top) - var(--safe-bottom) - var(--s6))
-    );
+    top: calc(64px + var(--safe-top));
+    bottom: calc(var(--timebar-h) + var(--s4) + var(--safe-bottom));
+    max-height: none;
     border: 1px solid var(--line-strong);
     border-radius: var(--r-lg);
+    transform: translateY(-12px) scale(0.98);
+    transform-origin: top left;
+  }
+
+  .app.has-point-forecast .sheet.is-open {
+    transform: translateY(0) scale(1);
+  }
+
+  .app.has-point-forecast .sheet.is-peek {
+    right: auto;
+    bottom: auto;
+    width: min(220px, calc(100vw - var(--safe-left) - var(--safe-right) - var(--s6)));
+    height: min(220px, calc(100vw - var(--safe-left) - var(--safe-right) - var(--s6)));
   }
 }
 
@@ -1229,6 +1232,18 @@ button.sheet__grip::before {
 .sheet__peek-row {
   display: flex;
   align-items: center;
+}
+
+.sheet__peek-desktop {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.sheet__peek-mobile {
+  display: none;
 }
 
 .sheet__peek {
@@ -1293,6 +1308,11 @@ button.sheet__grip::before {
 
 .sheet__peek-close:hover {
   color: var(--text);
+}
+
+.selected-point-marker {
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgba(2, 12, 20, 0.65));
 }
 
 .sheet__head {
@@ -2151,6 +2171,145 @@ button.sheet__grip::before {
   inset: 0;
   z-index: 2;
   pointer-events: none;
+}
+
+/* Mobiili esimene vaade: logo all paiknev ruudukujuline 2 × 3 näidik. */
+@media (max-width: 879px) {
+  .sheet__coords {
+    display: none;
+  }
+
+  .sheet.is-peek > .sheet__grip,
+  .sheet__peek-desktop {
+    display: none;
+  }
+
+  .sheet__peek-row,
+  .sheet__peek,
+  .sheet__peek-mobile {
+    width: 100%;
+    height: 100%;
+  }
+
+  .sheet__peek-row {
+    position: relative;
+  }
+
+  .sheet__peek {
+    display: block;
+    min-height: 0;
+    padding: var(--s5);
+    padding-top: 42px;
+  }
+
+  .sheet__peek-mobile {
+    position: relative;
+    display: block;
+  }
+
+  .sheet__peek-title {
+    position: absolute;
+    top: -30px;
+    left: 0;
+    color: var(--text-dim);
+    font-size: var(--t-micro);
+    font-weight: var(--w-bold);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .sheet__peek-expand-hint {
+    position: absolute;
+    top: -34px;
+    right: 34px;
+    display: flex;
+    align-items: center;
+    gap: var(--s1);
+    max-width: 112px;
+    min-height: 28px;
+    overflow: hidden;
+    color: var(--accent);
+    font-size: var(--t-micro);
+    font-weight: var(--w-bold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sheet__peek-expand-hint svg {
+    flex: none;
+    stroke-width: 2.5;
+  }
+
+  .sheet__peek-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, 1fr);
+    gap: var(--s2);
+    height: 100%;
+  }
+
+  .sheet__peek-metric {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--s2) var(--s3);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+  }
+
+  .sheet__peek-label {
+    overflow: hidden;
+    color: var(--text-faint);
+    font-size: var(--t-micro);
+    font-weight: var(--w-bold);
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sheet__peek-value {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s1);
+    margin-top: var(--s1);
+    color: var(--text);
+    font-family: var(--num);
+    font-size: var(--t-lg);
+    font-weight: var(--w-bold);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .sheet__peek-unit {
+    color: var(--text-faint);
+    font-size: var(--t-micro);
+    font-weight: var(--w-reg);
+  }
+
+  .sheet__peek-arrow {
+    display: inline-block;
+    color: var(--accent);
+    font-size: var(--t-num);
+    transform-origin: center;
+  }
+
+  .sheet__peek-mobile > .sheet__peek-loading {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    margin: 0;
+    white-space: normal;
+  }
+
+  .sheet.is-peek .sheet__peek-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 1;
+    margin: 0;
+  }
 }
 
 /* ==========================================================================

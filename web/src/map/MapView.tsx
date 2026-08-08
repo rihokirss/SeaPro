@@ -36,6 +36,7 @@ export interface MapViewProps {
   activeOverlays: string[];
   radarFrame: RadarFrame;
   ownPosition: Position | null;
+  selectedPoint: { lat: number; lon: number } | null;
   routeWaypoints: RouteWaypoint[];
   routeSegments: DepthRiskSegment[];
   trackPoints: TrackPoint[];
@@ -190,6 +191,7 @@ export function MapView({
   activeOverlays,
   radarFrame,
   ownPosition,
+  selectedPoint,
   routeWaypoints,
   routeSegments,
   trackPoints,
@@ -206,6 +208,7 @@ export function MapView({
 }: MapViewProps): React.ReactElement {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const selectedPointMarker = useRef<maplibregl.Marker | null>(null);
   const [styleReady, setStyleReady] = useState(false);
   // Hoiame callback'id ref'is, et kaarti ei ehitataks iga renderi peale uuesti.
   const cb = useRef({ onReady, onMoveEnd, onPick, onRouteSelect, onRouteMove, onRouteMoveStart, onRouteInsert, onUserMove });
@@ -557,6 +560,28 @@ export function MapView({
         : [],
     });
   }, [ownPosition, styleReady]);
+
+  // Prognoosipunkt püsib kaardil nähtaval, kuni prognoos suletakse.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!selectedPoint) {
+      selectedPointMarker.current?.remove();
+      selectedPointMarker.current = null;
+      return;
+    }
+
+    if (!selectedPointMarker.current) {
+      const marker = new maplibregl.Marker({ color: '#e0a94f', scale: 0.85 })
+        .setLngLat([selectedPoint.lon, selectedPoint.lat])
+        .addTo(map);
+      marker.getElement().classList.add('selected-point-marker');
+      selectedPointMarker.current = marker;
+    } else {
+      selectedPointMarker.current.setLngLat([selectedPoint.lon, selectedPoint.lat]);
+    }
+  }, [selectedPoint]);
 
   useEffect(() => {
     const map = mapRef.current;
