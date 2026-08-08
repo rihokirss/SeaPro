@@ -478,13 +478,23 @@ function stationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const ageSeconds = Number(p.ageSeconds);
   const freshness = String(p.freshness ?? 'none');
 
+  const valueHtml = (variable: Variable, value: number | null): string => {
+    if (value === null || variable !== 'wind_dir' || !Number.isFinite(value)) {
+      return escapeHtml(formatValue(variable, value, speedUnit));
+    }
+    const degrees = Math.round(value);
+    const rotation = (value + 180) % 360;
+    return `<span class="popup__direction-arrow" style="transform:rotate(${rotation}deg)" ` +
+      `title="${degrees}°" aria-label="${degrees}°">↑</span>`;
+  };
+
   const rows = (Object.entries(values) as [Variable, number | null][])
     .filter(([, v]) => v !== null && v !== undefined)
     .map(
       ([variable, v]) => `
         <tr>
           <th>${escapeHtml(t(`var.${variable}`))}</th>
-          <td>${escapeHtml(formatValue(variable, v, speedUnit))}
+          <td>${valueHtml(variable, v)}
             <small>${escapeHtml(unitLabel(variable, speedUnit))}</small></td>
         </tr>`,
     )

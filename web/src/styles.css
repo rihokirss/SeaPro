@@ -2757,6 +2757,14 @@ button.sheet__grip::before {
   font-size: var(--t-micro);
 }
 
+.popup__direction-arrow {
+  display: inline-block;
+  color: var(--accent);
+  font-size: var(--t-lg);
+  line-height: 1;
+  transform-origin: center;
+}
+
 .popup__empty {
   margin: 0;
   font-size: var(--t-md);
