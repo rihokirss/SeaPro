@@ -1,9 +1,9 @@
 # SeaPro
 
 SeaPro is an open-source marine weather map application for the Baltic Sea and
-the Estonian coast. It brings forecasts, observation stations, waves, wind, sea
-level, AIS vessels, and navigational information together on one interactive
-map.
+the coasts of Estonia and Finland. It brings forecasts, observation stations,
+waves, wind, sea level, AIS vessels, and navigational information together on
+one interactive map.
 
 Source code and development: [github.com/rihokirss/SeaPro](https://github.com/rihokirss/SeaPro)
 
