@@ -16,6 +16,7 @@
   "scripts": {
     "dev": "NODE_ENV=development npm run dev --workspace=server & NODE_ENV=development npm run dev --workspace=web",
     "build": "npm run build --workspace=web && npm run build --workspace=server",
+    "data:depth": "bash scripts/build-estonia-depth.sh",
     "start": "NODE_ENV=production node --env-file-if-exists=.env server/dist/index.js",
     "test": "npm run test --workspaces --if-present",
     "test:live": "npm run test:live --workspace=server",

@@ -41,7 +41,18 @@ await registerApiRoutes(app);
 // toodangus on web/dist olemas ja server annab selle ise välja.
 const webDist = resolve(here, '../../web/dist');
 if (existsSync(webDist)) {
-  await app.register(fastifyStatic, { root: webDist, index: ['index.html'] });
+  await app.register(fastifyStatic, {
+    root: webDist,
+    index: ['index.html'],
+    setHeaders(response, pathName) {
+      // PMTilesi paane loetakse sama faili eri byte-range'idena. Lühike
+      // brauserivahemälu väldib ühe kaardiseansi jooksul samade lõikude
+      // korduvat allalaadimist, aga lubab andmefaili ühe päevaga uuendada.
+      if (pathName.endsWith('.pmtiles')) {
+        response.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      }
+    },
+  });
 
   // SPA fallback: iga tundmatu tee, mis pole /api, saab index.html-i.
   app.setNotFoundHandler((req, reply) => {

@@ -137,7 +137,9 @@ SeaPro pakub sellele nii heledat kui tumedat merekasutuseks kohandatud stiili.
 - Eesti ja Soome ametlikud elektroonilised merekaardid Transpordiameti ja
   Traficomi WMS-teenustest;
 - ametlikud navigatsioonimärgid ja faarvaatrid;
-- EMODneti vektorkujul samasügavusjooned;
+- Eestis Maa- ja Ruumiameti 1 : 10 000 sügavusjooned ja -punktid,
+  väljaspool HIS-i mõõdistuskatvust EMODneti vektorjooned ning
+  mudelsügavused; server lõikab mudelijooned ametliku katvuse seest välja;
 - kehtivad navigatsioonihoiatused ning vrakid;
 - OpenStreetMapi liikluseraldusskeemid eraldi vektorkihina, ilma ametlikke
   navigatsioonimärke dubleerivate poideta;

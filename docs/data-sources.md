@@ -417,10 +417,55 @@ poleks ühtki kvooti ega võtmesõltuvust.
 | Tume aluskaart | `tiles.openfreemap.org/planet` (vektor, OpenMapTiles skeem) | Valevärvi-välja alla. Oma stiil `web/src/map/darkBase.ts`: vesi tume, maa heledam. **Vektor on siin nõue, mitte eelistus** — vt allpool |
 | Merekaart (EE) | `gis.transpordiamet.ee/primar/wms_ip/TranspordiametNutimeri` | WMS, `layers=cells&styles=style-id-263`, bounds 57.45–60.1 N |
 | Merekaart (FI) | `julkinen.traficom.fi/s57/wms`, `layers=cells`, `styles=style-id-203` | WMS, läbipaistva maismaaga |
-| Samasügavusjooned ja mudelsügavused | `ows.emodnet-bathymetry.eu/wfs`, `emodnet:contours`; WCS `emodnet:mean`; `rest.emodnet-bathymetry.eu/depth_sample` | Ülevaates WFS-vektorid; lähisuumis DTM-ist genereeritud 1 m jooned kuni 5 m-ni, edasi 5 m samm, lisaks hõre punktvõre; CC BY 4.0 |
+| Samasügavusjooned ja mudelsügavused | Maa- ja Ruumiameti `horisontaalid` WFS (`samasygavusjooned`, `sygavuspunktid`); Transpordiameti HIS-i mõõtealad; EMODnet WFS/WCS/depth sample | Eestis z9-st ametlik 1 : 10 000 vektor; API lõikab EMODneti HIS-i katvusmaski seest välja. Mõlemad on abikihid, mitte navigatsioonikaart |
 | Liikluseraldusskeemid | OpenStreetMap `seamark:type` objektid Overpassi kaudu | Ainult liiklusrajad, -alad, piirid ja soovituslikud teed; poid ning muud navimärgid on välja filtreeritud |
 | Sügavused | `ows.emodnet-bathymetry.eu/wms` | |
 | Ilmaradar | `ilmgs.envir.ee/geoserver/ilm/wms`, vaatlus `ilm:cmp_cap`, lühiennustus `ilm:nowcasting` | Eesti; 5 min kaadrid, nowcast umbes 90 min tulevikku; SeaPro ajaliugur valib lähima päriselt avaldatud kaadri |
+
+### Eesti sügavusvektori PMTiles
+
+Repo fail `web/public/data/estonia-depth.pmtiles` on Maa- ja Ruumiameti WFS-i
+SHP-väljavõtte brauserisõbralik tuletis. Algandmed on Transpordiameti
+hüdrograafia infosüsteemi sügavuspunktidest loodud jooned ja punktid,
+mõõtkavas 1 : 10 000. Algse `SYGAVUS` atribuudi nimi on arhiivis `depth` ning
+väärtus jääb meetritesse.
+
+WFS-i ametlik kirjeldus ütleb, et samasügavusjooned on **5 m intervalliga ja
+lisaks on 2 m joon**. Eraldi 1 m samasügavusjoont selles kihis ei ole. Arhiiv
+ei genereeri puuduvaid vahejooni ega anna lähteandmest täpsemat muljet.
+
+Arhiivi uuendamiseks käivita repo juurest:
+
+```bash
+npm run data:depth
+```
+
+Skript `scripts/build-estonia-depth.sh` laadib mõlemad SHAPEZIP-kihid,
+teisendab geomeetria EPSG:3301-st WGS84-sse ja teeb neist `depth_contours` ning
+`depth_soundings` lähtekihiga PMTiles v3 arhiivi. Lisaks laadib skript HIS-i
+`Mõõtealad` kihi, ühendab 7463 mõõteala üheks hulknurgaks ja kirjutab
+`server/src/data/estonia-depth-coverage.json` katvusmaski. API lõikab nii
+EMODneti jooned täpselt mõõteala piiril ning jätab mõõteala sees alles ainult
+ametliku kihi; z7–z8 jääb EMODnet nähtavaks, sest PMTiles algab z9-st.
+
+PMTilesi maksimaalne paanisuum on 14; suuremal suumil ülessuumitakse säilinud
+vektorgeomeetriat. Nii jääb fail umbes 27 MB suuruseks, kuid z14 paani
+4096-ühikuline koordinaatvõrk säilitab Eesti laiuskraadil geomeetria ligikaudu
+0,3 m sammuga — väiksemalt kui 1 : 10 000 lähteandmestiku praktiline täpsus.
+
+Brauser loeb PMTilesi HTTP Range päringutega ja Vite PWA ei lisa seda faili
+eellaaditavasse vahemällu. Tootmisserver või CDN peab seetõttu toetama byte
+range'e. Maa- ja Ruumiamet lubab andmeid ning tuletisi tasuta kasutada, kuid
+nõuab päritolule viitamist; viide lisatakse MapLibre'i atribuudiribale.
+Algandmete kirjeldus ja litsents: [Horisontaalid ja kõrguspunktid](https://geoportaal.maaamet.ee/est/ruumiandmed/korgusandmed/horisontaalid-ja-korguspunktid-p509.html),
+[avaandmete litsents](https://geoportaal.maaamet.ee/avaandmete-litsents).
+
+EMODneti 2024 DTM-ist kogu Läänemere staatilise tiheda vektorpaketi tegemist
+on kaalutud. Natiivne võrk on 1/16 kaareminutit (Läänemerel umbes 115 m);
+SeaPro praeguse 1–4 m ja edasi 5 m kontuurisammuga andis proov kogu mere kohta
+ligikaudu 300–700 MB PMTilesi. Seepärast jääb EMODnet praegu serveri vahemäluga
+WCS/WFS-kihiks, mitte repos hoitavaks binaariks. Eesti 27 MB ametlik arhiiv on
+staatiline, deterministlik ja HTTP Range päringutega odav.
 
 ### Navily kaart
 

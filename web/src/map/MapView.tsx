@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, Map as MapLibreMap, RasterTileSource } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
+import { Protocol } from 'pmtiles';
 import 'maplibre-gl/dist/maplibre-gl.css';
 // MapLibre 6 otsib tööprotsessi faili oma mooduli URL-i kõrvalt
 // (`./maplibre-gl-worker.mjs`). Vite ei näe seda staatiliselt ega emiteeri
@@ -21,6 +22,7 @@ import { registerIcons } from './icons';
 import { LAYER_ORDER } from './layerOrder';
 import { POPUP_CLICK_LAYERS } from './popups';
 import { addPlaceLabels } from './layers/placeLabels';
+import { addEstoniaDepth, removeEstoniaDepthLayers } from './layers/estoniaDepth';
 import type { Position } from '../lib/geolocation';
 import type { DepthRiskSegment, RoutePlan, RouteWaypoint, TrackPoint } from '@seapro/shared';
 import {
@@ -66,7 +68,18 @@ export interface MapViewProps {
 const ACCURACY_RING_MAX_M = 1000;
 const DEPTH_CONTOUR_MIN_ZOOM = 7;
 const DEPTH_SAMPLE_MIN_ZOOM = 12;
+// Muuda väärtust, kui serveripoolne lõikus või allika sisu muutub. Päringu
+// versioon väldib vana 24 h HTTP-cache'i näitamist pärast andmekihi uuendust.
+const DEPTH_DISPLAY_REVISION = 'ee-his-coverage-v1';
 const EMPTY_FEATURE_COLLECTION: FeatureCollection = { type: 'FeatureCollection', features: [] };
+const pmtilesProtocol = new Protocol();
+let pmtilesProtocolRegistered = false;
+
+function ensurePmtilesProtocol(): void {
+  if (pmtilesProtocolRegistered) return;
+  maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile);
+  pmtilesProtocolRegistered = true;
+}
 
 /** Web Mercatori resolutsioon: meetrit piksli kohta ekvaatoril zoomil 0. */
 const EQUATOR_M_PER_PX = 156543.03392;
@@ -251,6 +264,7 @@ export function MapView({
     if (!container.current || mapRef.current) return;
 
     maplibregl.setWorkerUrl(maplibreWorkerUrl);
+    ensurePmtilesProtocol();
 
     const map = new maplibregl.Map({
       container: container.current,
@@ -511,13 +525,15 @@ export function MapView({
     }
   }, [activeOverlays, radarFrame, styleReady]);
 
-  // Samasügavusjooned: nähtava ala WFS-päring ja GeoJSON-i vektorkuva.
+  // Samasügavusjooned: Eestis ametlik 1 : 10 000 PMTiles; EMODnet on
+  // ülevaatekiht ning katab ka ülejäänud Läänemere.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleReady) return;
 
     const wanted = activeOverlays.includes('depth-details');
     if (!wanted) {
+      removeEstoniaDepthLayers(map);
       if (map.getLayer('depth-sample-labels')) map.removeLayer('depth-sample-labels');
       if (map.getLayer('depth-contour-labels')) map.removeLayer('depth-contour-labels');
       if (map.getLayer('depth-contours')) map.removeLayer('depth-contours');
@@ -526,6 +542,11 @@ export function MapView({
 
     const before = LAYER_ORDER.find((id) => map.getLayer(id));
     addDepthContours(map, before);
+    addEstoniaDepth(
+      map,
+      new URL('/data/estonia-depth.pmtiles', window.location.href).href,
+      before,
+    );
 
     let controller: AbortController | null = null;
     const refresh = (): void => {
@@ -546,7 +567,7 @@ export function MapView({
       controller = new AbortController();
       const zoom = Math.floor(map.getZoom());
       fetch(
-        `/api/depth-contours?bbox=${encodeURIComponent(bbox)}&zoom=${zoom}`,
+        `/api/depth-contours?bbox=${encodeURIComponent(bbox)}&zoom=${zoom}&revision=${DEPTH_DISPLAY_REVISION}`,
         { signal: controller.signal },
       )
         .then(async (response) => {
@@ -563,7 +584,7 @@ export function MapView({
         sampleSource.setData(EMPTY_FEATURE_COLLECTION);
       } else {
         fetch(
-          `/api/depth-samples?bbox=${encodeURIComponent(bbox)}&zoom=${zoom}`,
+          `/api/depth-samples?bbox=${encodeURIComponent(bbox)}&zoom=${zoom}&revision=${DEPTH_DISPLAY_REVISION}`,
           { signal: controller.signal },
         )
           .then(async (response) => {

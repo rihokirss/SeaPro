@@ -9,7 +9,10 @@ dist/
 
 # Runtime
 *.log
-data/
+/data/
+/server/data/
+!web/public/data/
+!web/public/data/*.pmtiles
 .cache/
 coverage/
 

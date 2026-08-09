@@ -28,6 +28,11 @@ import {
   type DepthContourBbox,
 } from '../depthContours.js';
 import {
+  clipDepthContoursOutsideEstonia,
+  ESTONIA_DEPTH_MIN_ZOOM,
+  filterDepthSamplesOutsideEstonia,
+} from '../depthCoverage.js';
+import {
   fetchNavigationWarnings,
   fetchOfficialHarbours,
   fetchOfficialNavigation,
@@ -239,13 +244,16 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     if (zoom >= 11 && bbox[2]! - bbox[0]! <= 1.5 && bbox[3]! - bbox[1]! <= 1.5) {
       const data = await fetchDenseDepthContours(typedBbox);
       reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-      return data;
+      return clipDepthContoursOutsideEstonia(data);
     }
 
     const body = await fetchDepthContours(typedBbox);
     reply.type('application/geo+json');
     reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-    return reply.send(body);
+    const data = JSON.parse(body) as unknown;
+    return zoom >= ESTONIA_DEPTH_MIN_ZOOM
+      ? clipDepthContoursOutsideEstonia(data)
+      : data;
   });
 
   /** Hõredad, mudelist tuletatud sügavusnumbrid; kuvatakse ainult lähisuumis. */
@@ -263,7 +271,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Vigane bbox või zoom' });
     }
 
-    const data = await fetchDepthSamples(bbox as DepthContourBbox, zoom);
+    const data = filterDepthSamplesOutsideEstonia(
+      await fetchDepthSamples(bbox as DepthContourBbox, zoom),
+    );
     reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
     return data;
   });
