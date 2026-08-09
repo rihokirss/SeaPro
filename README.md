@@ -226,6 +226,7 @@ npm run dev        # web and server in development mode
 npm run typecheck  # TypeScript checks
 npm test           # automated tests
 npm run build      # production build
+npm run data:depth # rebuild official Estonian and Finnish depth vectors
 npm start          # run the built application on port 8080
 ```
 
@@ -234,6 +235,28 @@ Integration tests that call external services run separately:
 ```bash
 npm run test:live
 ```
+
+### Rebuilding official depth contours
+
+Run the depth-data conversion from the repository root:
+
+```bash
+npm run data:depth
+```
+
+The command downloads the official Estonian and Finnish depth contours,
+soundings, and coverage data, converts the source geometries to WGS84, and
+builds a shared PMTiles v3 archive. It replaces both generated outputs:
+
+- `web/public/data/official-depth.pmtiles` — the z7–z12 browser map archive;
+- `server/src/data/official-depth-coverage.json` — the coverage mask used to
+  exclude overlapping EMODnet data.
+
+The conversion requires `curl`, `unzip`, Node.js, and npm. It downloads pinned
+versions of Mapshaper and Tippecanoe through `npx`, requires network access to
+the Estonian and Finnish source services, and uses a temporary working
+directory. See [the data-source documentation](docs/data-sources.md#eesti-ja-soome-ametlik-sügavusvektor)
+for source details, zoom-dependent contour levels, and deployment notes.
 
 ## Configuration and data sources
 
