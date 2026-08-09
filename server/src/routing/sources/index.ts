@@ -62,6 +62,7 @@ export {
 export async function loadRoutingVectorData(
   bbox: BBox,
   departureTime: string,
+  onPhase?: (name: string, ms: number) => void,
 ): Promise<RoutingVectorData> {
   if (!bbox.every(Number.isFinite) || bbox[0] >= bbox[2] || bbox[1] >= bbox[3]) {
     throw new Error('Routing bbox peab olema [lõuna, lääs, põhi, ida] ja positiivse pindalaga');
@@ -76,35 +77,38 @@ export async function loadRoutingVectorData(
   // ja mahajäänud päring jookseb taustal lõpuni ning soojendab cache'i
   // järgmiseks katseks.
   const [estonia, estonianWarnings, finland, finnishWarnings, osm] = await Promise.all([
-    withSourceBudget(loadEstonianRoutingData(bbox), () => ({
+    timedSource('transpordiamet_his', () => withSourceBudget(loadEstonianRoutingData(bbox), () => ({
       hazards: [], corridors: [], surveyAreas: [], harbours: [],
       source: budgetExceededMeta('transpordiamet-his',
         'Transpordiamet, Hüdrograafia infosüsteem',
         'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer'),
-    })),
-    withSourceBudget(loadEstonianRoutingWarnings(bbox, departureTime), () => ({
-      warnings: [],
-      source: budgetExceededMeta('transpordiamet-warnings',
-        'Transpordiamet, navigatsioonihoiatused',
-        'https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer'),
-    })),
-    withSourceBudget(loadFinnishRoutingData(bbox, departureTime), () => ({
-      hazards: [], corridors: [], restrictions: [], warnings: [],
-      source: budgetExceededMeta('vaylavirasto-wfs',
-        'Väylävirasto avoin WFS', 'https://vayla.fi/vaylista/aineistot/avoindata'),
-    })),
-    withSourceBudget(loadFinnishRoutingWarnings(bbox, departureTime), () => ({
-      warnings: [],
-      source: budgetExceededMeta('traficom-warnings',
-        'Traficom / Fintraffic, navigational warnings',
-        'https://julkinen.traficom.fi/inspirepalvelu/avoin/wfs'),
-    })),
-    withSourceBudget(loadOsmRoutingData(bbox), () => ({
+    })), onPhase),
+    timedSource('transpordiamet_warnings', () => withSourceBudget(
+      loadEstonianRoutingWarnings(bbox, departureTime), () => ({
+        warnings: [],
+        source: budgetExceededMeta('transpordiamet-warnings',
+          'Transpordiamet, navigatsioonihoiatused',
+          'https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer'),
+      })), onPhase),
+    timedSource('vaylavirasto_wfs', () => withSourceBudget(
+      loadFinnishRoutingData(bbox, departureTime), () => ({
+        hazards: [], corridors: [], restrictions: [], warnings: [],
+        source: budgetExceededMeta('vaylavirasto-wfs',
+          'Väylävirasto avoin WFS', 'https://vayla.fi/vaylista/aineistot/avoindata'),
+      })), onPhase),
+    timedSource('traficom_warnings', () => withSourceBudget(
+      loadFinnishRoutingWarnings(bbox, departureTime), () => ({
+        warnings: [],
+        source: budgetExceededMeta('traficom-warnings',
+          'Traficom / Fintraffic, navigational warnings',
+          'https://julkinen.traficom.fi/inspirepalvelu/avoin/wfs'),
+      })), onPhase),
+    timedSource('openstreetmap_overpass', () => withSourceBudget(loadOsmRoutingData(bbox), () => ({
       hazards: [], corridors: [], restrictions: [], harbours: [],
       source: budgetExceededMeta('openstreetmap-overpass',
         '© OpenStreetMap contributors / OpenSeaMap seamarks',
         'https://www.openstreetmap.org/copyright'),
-    })),
+    })), onPhase),
   ]);
 
   return {
@@ -127,6 +131,19 @@ export async function loadRoutingVectorData(
       osm.source,
     ],
   };
+}
+
+async function timedSource<T>(
+  name: string,
+  loader: () => Promise<T>,
+  onPhase?: (name: string, ms: number) => void,
+): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    return await loader();
+  } finally {
+    onPhase?.(name, performance.now() - startedAt);
+  }
 }
 
 function sortById<T extends { id: string }>(items: T[]): T[] {

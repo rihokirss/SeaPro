@@ -96,6 +96,16 @@ export const config = {
   },
 
   backgroundPoll: bool('BACKGROUND_POLL', true),
+  /** Staatiliste routingupaanide eellaadimine; vaikimisi eraldi välja lülitatud. */
+  routingPrewarm: bool('ROUTING_PREWARM', false),
+
+  /**
+   * Routingupaanide taustsoojendus hoiab teadlikult suuremat staatilist
+   * aluskihti kui tavaline kaardiseanss. Protsessi 2 GiB piirist jääb selle
+   * järel endiselt piisav varu ajutisele kulupinnale ja sügavusrasterile.
+   */
+  cacheMaxMemoryMb: num('CACHE_MAX_MEMORY_MB', 192),
+  cacheMaxPersistedEntryMb: num('CACHE_MAX_PERSISTED_ENTRY_MB', 8),
 
   defaultLat: num('DEFAULT_LAT', 59.0),
   defaultLon: num('DEFAULT_LON', 23.5),

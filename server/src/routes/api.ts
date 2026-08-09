@@ -53,9 +53,11 @@ import { analyseRoute } from '../routeAnalysis.js';
 import { isWithinRoutingServiceArea } from '../routing/coverage.js';
 import {
   planRoute,
+  routePlanningBbox,
   RoutingDataUnavailableError,
   RoutingPlanTimeoutError,
 } from '../routing/planner.js';
+import { routingWarmup } from '../routing/warmup.js';
 
 const VARIABLE_SET = new Set<string>(VARIABLES);
 
@@ -203,6 +205,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     // Vahemälu maht: kirjed kasvavad kaardi kerimisega ja piiri lähedus on
     // ainus märk sellest, et väljatõstmine on tööle hakanud.
     cache: { entries: cache.size, megabytes: Math.round((cache.bytes / 1048576) * 10) / 10 },
+    routingWarmup: routingWarmup.status(),
   }));
 
   app.get('/api/config', async () => ({
@@ -632,7 +635,8 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       || !isWithinRoutingServiceArea(body.end)) {
       return reply.code(400).send({ error: 'outside_routing_coverage' });
     }
-    const distanceNm = distanceMetres(body.start, body.end) / 1852;
+    const distanceM = distanceMetres(body.start, body.end);
+    const distanceNm = distanceM / 1852;
     if (distanceNm < 0.01 || distanceNm > config.routingMaxDistanceNm) {
       return reply.code(400).send({
         error: `Algus- ja lõpp-punkti kaugus peab olema 0.01–${config.routingMaxDistanceNm} NM`,
@@ -646,6 +650,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const requestAbort = new AbortController();
+    const planningBbox = routePlanningBbox(body as RoutePlanRequest, distanceM);
     const abortRequest = (): void => {
       if (!requestAbort.signal.aborted) requestAbort.abort();
     };
@@ -666,6 +671,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     req.raw.once('close', onRequestClose);
     reply.raw.once('close', onResponseClose);
     activeRoutePlans++;
+    routingWarmup.foregroundStarted();
 
     try {
       reply.header('Cache-Control', 'no-store');
@@ -708,6 +714,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       throw error;
     } finally {
       activeRoutePlans--;
+      routingWarmup.foregroundFinished(planningBbox);
       req.raw.off('aborted', abortRequest);
       req.raw.off('close', onRequestClose);
       reply.raw.off('close', onResponseClose);

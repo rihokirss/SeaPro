@@ -13,6 +13,7 @@ import type {
 import {
   asRoutingGeometry,
   adaptiveBboxTiles,
+  bboxTiles,
   dedupeById,
   finiteNumber,
   intersectBbox,
@@ -29,7 +30,7 @@ import {
 const HIS = 'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer';
 const ESTONIA: BBox = [57, 20, 60.5, 29];
 const SOURCE = 'transpordiamet-his' as const;
-const TTL_SECONDS = 24 * 3600;
+const TTL_SECONDS = 7 * 24 * 3600;
 const PAGE_SIZE = 2_000;
 
 const LAYERS = {
@@ -78,7 +79,13 @@ export async function loadEstonianRoutingData(bbox: BBox): Promise<EstonianRouti
     }));
   }
 
-  const tiles = adaptiveBboxTiles(clipped, 1, 16);
+  const canonicalTiles = bboxTiles(clipped, 1);
+  // Suure bbox'i tavaline adaptiivne paan võib olla 2° või 4° ning ei tabaks
+  // taustal soojendatud 1° võtmeid. Kui kogu ala kanoonilised paanid on
+  // värsked, koosta vastus neist; osalise katte korral säilib senine fallback.
+  const tiles = canonicalTiles.every(isFreshTile)
+    ? canonicalTiles
+    : adaptiveBboxTiles(clipped, 1, 16);
   const settled = await settleMapLimit(tiles, 2, loadTile);
   const loaded = settled.flatMap((result): LoadedTile<EstonianRoutingCollections>[] =>
     result.status === 'fulfilled' ? [result.value] : []);
@@ -109,7 +116,7 @@ function withinBbox<T extends { geometry: Parameters<typeof routingGeometryInter
 }
 
 async function loadTile(tile: BBox): Promise<LoadedTile<EstonianRoutingCollections>> {
-  const key = `routing:transpordiamet-his:v2:${tile.join(',')}`;
+  const key = tileKey(tile);
   const result = await cache.get(key, TTL_SECONDS, async () => {
     const entries = await Promise.all(Object.entries(LAYERS).map(async ([name, layer]) =>
       [name, await queryArcGisLayer(layer, tile)] as const));
@@ -120,6 +127,25 @@ async function loadTile(tile: BBox): Promise<LoadedTile<EstonianRoutingCollectio
     stamp: sourceStamp(SOURCE, result),
     ageSeconds: result.ageSeconds,
   };
+}
+
+function tileKey(tile: BBox): string {
+  return `routing:transpordiamet-his:v2:${tile.join(',')}`;
+}
+
+function isFreshTile(tile: BBox): boolean {
+  return cache.peek(tileKey(tile))?.stale === false;
+}
+
+/** Soojendab täpselt sama kanoonilise paani, mida foreground hiljem kasutab. */
+export async function warmEstonianRoutingTile(tile: BBox): Promise<boolean> {
+  if (!intersectBbox(tile, ESTONIA)) return false;
+  await loadTile(tile);
+  return true;
+}
+
+export function isEstonianRoutingTileFresh(tile: BBox): boolean {
+  return !intersectBbox(tile, ESTONIA) || isFreshTile(tile);
 }
 
 async function queryArcGisLayer(layer: number, bbox: BBox): Promise<GeoJsonCollection> {

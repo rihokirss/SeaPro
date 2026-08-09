@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   cacheGet: vi.fn(),
+  cachePeek: vi.fn(),
   fetchJson: vi.fn(),
 }));
 
 vi.mock('../src/cache.js', () => ({
-  cache: { get: mocks.cacheGet },
+  cache: { get: mocks.cacheGet, peek: mocks.cachePeek },
 }));
 
 vi.mock('../src/http.js', () => ({
@@ -20,6 +21,7 @@ const BBOX = [60, 24, 60.1, 24.1] as const;
 describe('Soome routinguallika cache-rühmad', () => {
   beforeEach(() => {
     mocks.cacheGet.mockReset();
+    mocks.cachePeek.mockReset();
     mocks.fetchJson.mockReset();
     mocks.fetchJson.mockResolvedValue({ features: [], numberMatched: 0 });
     mocks.cacheGet.mockImplementation(async (
@@ -34,12 +36,12 @@ describe('Soome routinguallika cache-rühmad', () => {
     }));
   });
 
-  it('cacheb staatilised kihid 24 tunniks ja AToN rikked 120 sekundiks', async () => {
+  it('cacheb staatilised kihid nädalaks ja AToN rikked 120 sekundiks', async () => {
     const result = await loadFinnishRoutingData([...BBOX], '2026-08-08T12:00:00Z');
     const calls = mocks.cacheGet.mock.calls.map(([key, ttl]) => [String(key), Number(ttl)] as const);
 
     expect(calls).toEqual(expect.arrayContaining([
-      [expect.stringContaining(':static:'), 24 * 3600],
+      [expect.stringContaining(':static:'), 7 * 24 * 3600],
       [expect.stringContaining(':faults:'), 120],
     ]));
     expect(calls).toHaveLength(2);

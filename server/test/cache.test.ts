@@ -20,6 +20,15 @@ const load = <T>(value: T) => (): Promise<T> => Promise.resolve(value);
 const big = (n: number): string => `${n}`.padEnd(1024 * 1024, 'x');
 
 describe('Cache', () => {
+  it('lubab productionu routingukihi jaoks mahupiiri seadistada', async () => {
+    const cache = new Cache({ maxMemoryBytes: 3 * 1024 * 1024 });
+    for (let i = 0; i < 5; i++) await cache.get(`custom-${i}`, 3600, load(big(i)));
+
+    expect(cache.bytes).toBeLessThanOrEqual(3 * 1024 * 1024);
+    expect(cache.peek('custom-4')).not.toBeNull();
+    expect(cache.peek('custom-0')).toBeNull();
+  });
+
   it('hoiab mälupiiri, tõstes välja kõige ammu kasutatud kirje', async () => {
     const cache = new Cache();
 
@@ -68,6 +77,20 @@ describe('Cache', () => {
       expect(cache.prune()).toBe(1);
       expect(cache.peek('iidne')).toBeNull();
       expect(cache.peek('värske')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('säilitab üle ööpäeva vana kirje, kui selle pikem TTL veel kehtib', async () => {
+    const cache = new Cache();
+    vi.useFakeTimers();
+    try {
+      await cache.get('nädalane-staatika', 7 * 24 * 3600, load('route'));
+      vi.advanceTimersByTime(25 * 3600 * 1000);
+
+      expect(cache.prune()).toBe(0);
+      expect(cache.peek('nädalane-staatika')).toMatchObject({ stale: false, value: 'route' });
     } finally {
       vi.useRealTimers();
     }

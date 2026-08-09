@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { config } from './config.js';
 
 /**
  * Kahekihiline vahemälu, mis püsib ka üle taaskäivituse.
@@ -55,12 +56,12 @@ export interface CachedResult<T> {
  * Nädalane Open-Meteo võrepaan võib üheksa välja ja 16 asukohaga ületada
  * 512 kB. Vana piir jättis seetõttu just kaardipaanid cache.json-ist välja:
  * deploy või PM2 restart kaotas viimased ilmaandmed, kuigi väiksemad kirjed
- * taastati. 2 MB jätab välja päriselt hiiglaslikud vastused, kuid mahutab
- * tavapärase võrepaani.
+ * taastati. Klassi konservatiivne vaikimisi piir on 2 MiB; productionu
+ * singleton kasutab konfiguratsiooni, sest routingupaanid võivad olla suuremad.
  */
-const MAX_PERSISTED_ENTRY = 2 * 1024 * 1024;
+const DEFAULT_MAX_PERSISTED_ENTRY = 2 * 1024 * 1024;
 
-/** Kirjeid vanemad kui see, ei laadita tagasi — need on niikuinii kasutud. */
+/** Aegunud kirjeid vanemad kui see ei taastata; kehtiv pikem TTL jääb alles. */
 const MAX_PERSISTED_AGE_MS = 24 * 3600 * 1000;
 
 /**
@@ -73,20 +74,18 @@ const MAX_PERSISTED_AGE_MS = 24 * 3600 * 1000;
  * seni, kuni PM2 `max_memory_restart` selle maha võttis — koristus taaskäivituse
  * kaudu, keset kasutamist.
  *
- * 96 MB on valitud paani suuruse järgi: nädala jagu andmeid ühe paani kohta on
- * ~200 kB, seega mahub siia mitusada paani ehk kordades rohkem, kui üks seanss
- * jõuab vaadata. Piiri ületamisel kaob KÕIGE AMMU KASUTATUD kirje — mitte
- * kõige vanem, sest praegu vaadatavat ala hoitakse pidevalt värskena ja see
- * peab alles jääma.
+ * Klassi 96 MiB vaikepiir mahutab sadu tavalisi paane. Productionu singletoni
+ * piir on seadistatav ja suurem, et tuumikala staatilised routingupaanid ei
+ * tõrjuks ilmaandmeid välja. Piiri ületamisel kaob KÕIGE AMMU KASUTATUD kirje.
  */
-const MAX_MEMORY_BYTES = 96 * 1024 * 1024;
+const DEFAULT_MAX_MEMORY_BYTES = 96 * 1024 * 1024;
 
 /**
  * Vanuspiir `stale` kirjele.
  *
- * Sama piir mis kettal: üle ööpäeva vana prognoos ei ole enam "veidi vana
- * andmed", vaid eksitav. Varukoopiana ei kõlba, kettale ei lähe — mälus
- * hoidmiseks pole samuti põhjust.
+ * Sama piir mis kettal: üle ööpäeva vana AEGUNUD prognoos ei ole enam "veidi
+ * vana andmed", vaid eksitav. Pikema TTL-iga veel kehtivat staatilist kirjet
+ * see piir ei eemalda.
  */
 const MAX_STALE_AGE_MS = MAX_PERSISTED_AGE_MS;
 
@@ -129,6 +128,24 @@ export class Cache {
   #flushTimer: NodeJS.Timeout | null = null;
   /** `stale` kihi ligikaudne mälukulu baitides. */
   #bytes = 0;
+  readonly #maxMemoryBytes: number;
+  readonly #maxPersistedEntryBytes: number;
+
+  constructor(options: {
+    maxMemoryBytes?: number;
+    maxPersistedEntryBytes?: number;
+  } = {}) {
+    this.#maxMemoryBytes = positiveLimit(
+      options.maxMemoryBytes,
+      DEFAULT_MAX_MEMORY_BYTES,
+      'maxMemoryBytes',
+    );
+    this.#maxPersistedEntryBytes = positiveLimit(
+      options.maxPersistedEntryBytes,
+      DEFAULT_MAX_PERSISTED_ENTRY,
+      'maxPersistedEntryBytes',
+    );
+  }
 
   /**
    * Paneb kirje mõlemasse kihti ja hoiab mälupiiri.
@@ -153,12 +170,12 @@ export class Cache {
 
   /** Kõige ammu kasutatud kirjed välja, kuni mälupiir on täidetud. */
   #evict(): void {
-    if (this.#bytes <= MAX_MEMORY_BYTES) return;
+    if (this.#bytes <= this.#maxMemoryBytes) return;
     for (const [key, entry] of this.#stale) {
       this.#stale.delete(key);
       this.#fresh.delete(key);
       this.#bytes -= entry.bytes;
-      if (this.#bytes <= MAX_MEMORY_BYTES) break;
+      if (this.#bytes <= this.#maxMemoryBytes) break;
     }
   }
 
@@ -321,9 +338,8 @@ export class Cache {
       let stillFresh = 0;
 
       for (const e of entries) {
-        if (e.storedAt < cutoff) continue;
-
         const expiresAt = e.expiresAt ?? 0;
+        if (e.storedAt < cutoff && expiresAt <= now) continue;
         const entry = {
           value: e.value,
           storedAt: e.storedAt,
@@ -368,10 +384,11 @@ export class Cache {
    * eri probleemi ja vajavad kumbki oma piiri.
    */
   prune(log?: (msg: string) => void): number {
-    const cutoff = Date.now() - MAX_STALE_AGE_MS;
+    const now = Date.now();
+    const cutoff = now - MAX_STALE_AGE_MS;
     let dropped = 0;
     for (const [key, entry] of this.#stale) {
-      if (entry.storedAt >= cutoff) continue;
+      if (entry.storedAt >= cutoff || entry.expiresAt > now) continue;
       this.#stale.delete(key);
       this.#fresh.delete(key);
       this.#bytes -= entry.bytes;
@@ -388,11 +405,12 @@ export class Cache {
     this.prune(log);
     if (!this.#dirty) return;
 
-    const cutoff = Date.now() - MAX_PERSISTED_AGE_MS;
+    const now = Date.now();
+    const cutoff = now - MAX_PERSISTED_AGE_MS;
     const out: PersistedEntry[] = [];
 
     for (const [key, entry] of this.#stale) {
-      if (entry.storedAt < cutoff) continue;
+      if (entry.storedAt < cutoff && entry.expiresAt <= now) continue;
       let serialized: string;
       try {
         serialized = JSON.stringify(entry.value);
@@ -402,7 +420,7 @@ export class Cache {
       // Hoiame faili mõistlikus suuruses: üksikud hiiglaslikud vastused
       // (nt LainePoisi täisajalugu) ei anna taaskäivitusel piisavalt tagasi,
       // et nende kirjutamist õigustada.
-      if (serialized.length > MAX_PERSISTED_ENTRY) continue;
+      if (serialized.length > this.#maxPersistedEntryBytes) continue;
 
       // Värskusaeg tuleb kaasa panna: ilma selleta ei saaks taaskäivitusel
       // eristada minutivanust kirjet tunnivanusest.
@@ -471,4 +489,15 @@ export class Cache {
   }
 }
 
-export const cache = new Cache();
+function positiveLimit(value: number | undefined, fallback: number, name: string): number {
+  const result = value ?? fallback;
+  if (!Number.isFinite(result) || result <= 0) {
+    throw new RangeError(`${name} peab olema positiivne arv`);
+  }
+  return result;
+}
+
+export const cache = new Cache({
+  maxMemoryBytes: config.cacheMaxMemoryMb * 1024 * 1024,
+  maxPersistedEntryBytes: config.cacheMaxPersistedEntryMb * 1024 * 1024,
+});

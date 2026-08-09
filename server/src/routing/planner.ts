@@ -100,6 +100,7 @@ export async function planRoute(
   const snapshot = options.snapshot ?? await deadline.waitFor(loadRoutingSnapshot(
     planningBbox,
     request.departureTime,
+    instrumentation,
   ));
   instrumentation?.phase('snapshot_load', performance.now() - snapshotStartedAt);
   deadline.checkpoint();
@@ -334,11 +335,16 @@ export async function planRoute(
 export async function loadRoutingSnapshot(
   bbox: BBox,
   departureTime: string,
+  instrumentation?: RoutingInstrumentation,
 ): Promise<RoutingSnapshot> {
   const [depth, water, vectors] = await Promise.allSettled([
-    fetchRoutingDepthRaster(bbox),
-    loadRoutingWaterMask(bbox),
-    loadRoutingVectorData(bbox, departureTime),
+    timedSnapshotPart('depth', () => fetchRoutingDepthRaster(bbox), instrumentation),
+    timedSnapshotPart('water', () => loadRoutingWaterMask(bbox), instrumentation),
+    timedSnapshotPart('vectors', () => loadRoutingVectorData(
+      bbox,
+      departureTime,
+      (name, ms) => instrumentation?.phase(`snapshot.vector.${name}`, ms),
+    ), instrumentation),
   ]);
   const unavailable: string[] = [];
   if (depth.status === 'rejected') unavailable.push('emodnet-depth');
@@ -355,6 +361,19 @@ export async function loadRoutingSnapshot(
     throw new RoutingDataUnavailableError('Marsruudi snapshot jäi poolikuks', unavailable);
   }
   return { depth: depth.value, water: water.value, vectors: vectors.value };
+}
+
+async function timedSnapshotPart<T>(
+  name: string,
+  loader: () => Promise<T>,
+  instrumentation?: RoutingInstrumentation,
+): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    return await loader();
+  } finally {
+    instrumentation?.phase(`snapshot.${name}`, performance.now() - startedAt);
+  }
 }
 
 export function routePlanningBbox(request: RoutePlanRequest, distanceM: number): BBox {

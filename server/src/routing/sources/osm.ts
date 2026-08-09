@@ -16,6 +16,7 @@ import type {
 } from '../sourceTypes.js';
 import {
   adaptiveBboxTiles,
+  bboxTiles,
   dedupeById,
   finiteNumber,
   settleMapLimit,
@@ -30,7 +31,7 @@ const ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
 ];
 const SOURCE = 'openstreetmap-overpass' as const;
-const TTL_SECONDS = 24 * 3600;
+const TTL_SECONDS = 7 * 24 * 3600;
 // Viimati vastanud endpoint proovitakse esimesena: kui üks peeglitest on
 // ummikus (aeglane 504), ei põleta iga paan tema timeouti uuesti läbi.
 let preferredEndpoint = 0;
@@ -110,7 +111,10 @@ export interface OsmRoutingData {
 }
 
 export async function loadOsmRoutingData(bbox: BBox): Promise<OsmRoutingData> {
-  const tiles = adaptiveBboxTiles(bbox, 1, 16);
+  const canonicalTiles = bboxTiles(bbox, 1);
+  const tiles = canonicalTiles.every(isFreshTile)
+    ? canonicalTiles
+    : adaptiveBboxTiles(bbox, 1, 16);
   // Sisemine eelarve on allika 40 s välispiirist väiksem: eelarve täitumisel
   // katkestatakse ka pooleliolevad päringud, nii et juba laaditud paanid
   // jõuavad osalise kattena alati kohale, mitte ei kuku kõik korraga välja.
@@ -120,7 +124,7 @@ export async function loadOsmRoutingData(bbox: BBox): Promise<OsmRoutingData> {
   const settled = await settleMapLimit(
     tiles,
     2,
-    (tile) => loadTile(tile, budget.signal),
+    (tile) => loadTile(tile, budget.signal, 'foreground'),
     30_000,
   ).finally(() => clearTimeout(budgetTimer));
   const loaded = settled.flatMap((result): LoadedTile<OverpassRoutingResponse>[] =>
@@ -150,9 +154,14 @@ function withinBbox<T extends { geometry: Parameters<typeof routingGeometryInter
   return features.filter((feature) => routingGeometryIntersectsBbox(feature.geometry, bbox));
 }
 
-async function loadTile(tile: BBox, signal?: AbortSignal): Promise<LoadedTile<OverpassRoutingResponse>> {
-  const key = `routing:openstreetmap-overpass:v3:${tile.join(',')}`;
-  const result = await cache.get(key, TTL_SECONDS, () => queryOverpass(expandBbox(tile, 0.25), signal));
+async function loadTile(
+  tile: BBox,
+  signal?: AbortSignal,
+  priority: OverpassPriority = 'foreground',
+): Promise<LoadedTile<OverpassRoutingResponse>> {
+  const key = tileKey(tile);
+  const result = await cache.get(key, TTL_SECONDS, () =>
+    queryOverpass(expandBbox(tile, 0.25), signal, priority));
   // Kontrolli ka stale cache-väärtust: osaline HTTP 200 vastus ei tohi muutuda
   // järgmisel laadimisel vaikimisi "täielikuks" tühjaks ohukihiks.
   validateOverpassRoutingResponse(result.value);
@@ -163,9 +172,29 @@ async function loadTile(tile: BBox, signal?: AbortSignal): Promise<LoadedTile<Ov
   };
 }
 
+function tileKey(tile: BBox): string {
+  return `routing:openstreetmap-overpass:v3:${tile.join(',')}`;
+}
+
+function isFreshTile(tile: BBox): boolean {
+  return cache.peek(tileKey(tile))?.stale === false;
+}
+
+export async function warmOsmRoutingTile(
+  tile: BBox,
+  signal?: AbortSignal,
+): Promise<void> {
+  await loadTile(tile, signal, 'background');
+}
+
+export function isOsmRoutingTileFresh(tile: BBox): boolean {
+  return isFreshTile(tile);
+}
+
 async function queryOverpass(
   [south, west, north, east]: BBox,
   signal?: AbortSignal,
+  priority: OverpassPriority = 'foreground',
 ): Promise<OverpassRoutingResponse> {
   const types = QUERY_TYPES.join('|');
   const query = `[out:json][timeout:60];
@@ -183,15 +212,17 @@ out geom tags;`;
     const index = (preferredEndpoint + attempt) % ENDPOINTS.length;
     try {
       if (signal?.aborted) break;
-      const response = await fetchJson<unknown>(ENDPOINTS[index]!, {
-        form: { data: query },
-        // Peab mahtuma plaani 90 s tähtaja sisse ka mitme paani ja kahe
-        // endpointi korral; aeglaselt rippuv peegel ei tohi plaani tappa.
-        // Saarestiku 1-kraadine paan on samas päriselt raske päring.
-        timeoutMs: 25_000,
-        retries: 0,
-        signal,
-      });
+      const response = await overpassGate.run(priority, () => fetchJson<unknown>(
+        ENDPOINTS[index]!, {
+          form: { data: query },
+          // Peab mahtuma plaani 90 s tähtaja sisse ka mitme paani ja kahe
+          // endpointi korral; aeglaselt rippuv peegel ei tohi plaani tappa.
+          // Saarestiku 1-kraadine paan on samas päriselt raske päring.
+          timeoutMs: 25_000,
+          retries: 0,
+          signal,
+        },
+      ));
       validateOverpassRoutingResponse(response);
       preferredEndpoint = index;
       return response;
@@ -203,6 +234,47 @@ out geom tags;`;
     lastError instanceof Error ? lastError.message : String(lastError)
   }`);
 }
+
+type OverpassPriority = 'foreground' | 'background';
+
+/** Kõigi route- ja warmup-kutsete ühine viisakuspiir foreground-eelistusega. */
+export class PriorityGate {
+  #active = 0;
+  readonly #foreground: Array<() => void> = [];
+  readonly #background: Array<() => void> = [];
+
+  constructor(readonly concurrency: number) {}
+
+  async run<T>(priority: OverpassPriority, task: () => Promise<T>): Promise<T> {
+    await this.#acquire(priority);
+    try {
+      return await task();
+    } finally {
+      this.#release();
+    }
+  }
+
+  #acquire(priority: OverpassPriority): Promise<void> {
+    if (this.#active < this.concurrency) {
+      this.#active++;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      (priority === 'foreground' ? this.#foreground : this.#background).push(resolve);
+    });
+  }
+
+  #release(): void {
+    const next = this.#foreground.shift() ?? this.#background.shift();
+    if (next) {
+      next();
+      return;
+    }
+    this.#active--;
+  }
+}
+
+const overpassGate = new PriorityGate(2);
 
 export function parseOsmRoutingData(
   response: OverpassRoutingResponse,

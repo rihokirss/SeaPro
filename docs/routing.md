@@ -168,7 +168,20 @@ ROUTING_MAX_CONCURRENT_PLANS=2
 ROUTING_SEARCH_TIMEOUT_MS=45000
 ROUTING_SEARCH_MAX_NODES=1000000
 ROUTING_TIMINGS_LOG=0
+ROUTING_PREWARM=0
+CACHE_MAX_MEMORY_MB=192
+CACHE_MAX_PERSISTED_ENTRY_MB=8
 ```
+
+Kui `ROUTING_PREWARM=1`, soojendab server tunnise kontrolltsükliga Eesti
+rannikumere, Soome lahe ja Edela-Soome kanoonilised 1° staatilised
+routingupaanid. Eelisjärjekorras on Soome laht ja Edela-Soome; pärast päris
+marsruuti lisatakse järjekorda ka selle bbox'i naaberpaanid. Taustatöö ei lae
+EMODneti sügavusrasterit ega kaheminutilisi navigatsioonihoiatusi/AToN-rikkeid
+ning ei alusta uut paani aktiivse autoroute'i ajal.
+Staatiliste Transpordiameti, Väylävirasto ja OSM/OpenSeaMapi routingupaanide
+TTL on seitse päeva; tunnine kontroll laadib uuesti ainult aegunud või puuduva
+paani. Dünaamiliste hoiatuste ja AToN-rikete TTL jääb kaheks minutiks.
 
 Kiirust mõõdetakse korratavalt `server/scripts/bench-routing.ts` abil:
 `capture` külmutab elusa snapshot'i `data/bench/` alla, `run` kordab

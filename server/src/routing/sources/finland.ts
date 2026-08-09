@@ -16,6 +16,7 @@ import type {
 import {
   asRoutingGeometry,
   adaptiveBboxTiles,
+  bboxTiles,
   dedupeById,
   finiteNumber,
   intersectBbox,
@@ -32,7 +33,7 @@ import {
 const WFS = 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ows';
 const FINLAND: BBox = [59.4, 19, 70.2, 31.7];
 const SOURCE = 'vaylavirasto-wfs' as const;
-const STATIC_TTL_SECONDS = 24 * 3600;
+const STATIC_TTL_SECONDS = 7 * 24 * 3600;
 const FAULT_TTL_SECONDS = 120;
 const PAGE_SIZE = 10_000;
 const MARINE_BRIDGE_CLEARANCE_PROPERTY = 'alittav_vayla_korkraj_vesiv';
@@ -101,13 +102,19 @@ export async function loadFinnishRoutingData(
     }));
   }
 
-  const tiles = adaptiveBboxTiles(clipped, 1, 16);
+  const canonicalTiles = bboxTiles(clipped, 1);
+  const staticTiles = canonicalTiles.every(isFreshStaticTile)
+    ? canonicalTiles
+    : adaptiveBboxTiles(clipped, 1, 16);
+  // Kiiresti muutuvad rikked ei kuulu laia staatilisse baaskihti. Need jäävad
+  // väikese TTL-iga senisele adaptiivsele päringule.
+  const faultTiles = adaptiveBboxTiles(clipped, 1, 16);
   // Rikked muutuvad kiiresti, seega ei tohi neid staatilise faarvaatriandmega
-  // samasse ööpäevasesse cache-kirjesse lukustada. Mõlemad rühmad lahendatakse
+  // samasse nädalasesse cache-kirjesse lukustada. Mõlemad rühmad lahendatakse
   // sõltumatult, et ühe rühma tõrge ei kustutaks teise edukaid objekte.
   const [staticSettled, faultSettled] = await Promise.all([
-    settleMapLimit(tiles, 2, loadStaticTile),
-    settleMapLimit(tiles, 2, loadFaultTile),
+    settleMapLimit(staticTiles, 2, loadStaticTile),
+    settleMapLimit(faultTiles, 2, loadFaultTile),
   ]);
   const staticLoaded = staticSettled.flatMap((result): LoadedTile<FinnishStaticRoutingCollections>[] =>
     result.status === 'fulfilled' ? [result.value] : []);
@@ -135,7 +142,7 @@ export async function loadFinnishRoutingData(
       source: SOURCE,
       attribution: 'Väylävirasto avoin WFS',
       attributionUrl: 'https://vayla.fi/vaylista/aineistot/avoindata',
-      requested: tiles.length * 2,
+      requested: staticTiles.length + faultTiles.length,
       loaded,
       errors,
     }),
@@ -150,13 +157,32 @@ function withinBbox<T extends { geometry: Parameters<typeof routingGeometryInter
 }
 
 async function loadStaticTile(tile: BBox): Promise<LoadedTile<FinnishStaticRoutingCollections>> {
-  const key = `routing:vaylavirasto-wfs:static:v3:${tile.join(',')}`;
+  const key = staticTileKey(tile);
   const result = await cache.get(key, STATIC_TTL_SECONDS, () => loadLayers(STATIC_LAYERS, tile));
   return {
     value: result.value,
     stamp: sourceStamp(SOURCE, result),
     ageSeconds: result.ageSeconds,
   };
+}
+
+function staticTileKey(tile: BBox): string {
+  return `routing:vaylavirasto-wfs:static:v3:${tile.join(',')}`;
+}
+
+function isFreshStaticTile(tile: BBox): boolean {
+  return cache.peek(staticTileKey(tile))?.stale === false;
+}
+
+/** Staatiline osa eraldi, et eellaadimine ei lukustaks AToN-rikkeid cache'i. */
+export async function warmFinnishStaticRoutingTile(tile: BBox): Promise<boolean> {
+  if (!intersectBbox(tile, FINLAND)) return false;
+  await loadStaticTile(tile);
+  return true;
+}
+
+export function isFinnishStaticRoutingTileFresh(tile: BBox): boolean {
+  return !intersectBbox(tile, FINLAND) || isFreshStaticTile(tile);
 }
 
 async function loadFaultTile(tile: BBox): Promise<LoadedTile<FinnishFaultCollections>> {

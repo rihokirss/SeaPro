@@ -140,10 +140,18 @@ function sourceAgeSeconds(source: RoutePlan['sources'][number], nowMs: number): 
   return Math.max(source.ageSeconds, wallClockAge);
 }
 
+const WEEKLY_STATIC_ROUTE_SOURCES = new Set([
+  'transpordiamet-his',
+  'vaylavirasto-wfs',
+  'openstreetmap-overpass',
+]);
+
 function sourceNeedsAttention(source: RoutePlan['sources'][number], nowMs: number): boolean {
   const maxAgeSeconds = source.id === 'transpordiamet-warnings' || source.id === 'traficom-warnings'
     ? 5 * 60
-    : source.id === 'emodnet-depth' ? 30 * 24 * 3600 : 24 * 3600;
+    : source.id === 'emodnet-depth'
+      ? 30 * 24 * 3600
+      : WEEKLY_STATIC_ROUTE_SOURCES.has(source.id) ? 7 * 24 * 3600 : 24 * 3600;
   return source.stale || source.coverage !== 'complete'
     || sourceAgeSeconds(source, nowMs) > maxAgeSeconds;
 }

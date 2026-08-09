@@ -7,6 +7,7 @@ import { cache } from './cache.js';
 import { config, warnAboutConfig } from './config.js';
 import { registerApiRoutes } from './routes/api.js';
 import { startBackgroundJobs, stopBackgroundJobs } from './background.js';
+import { routingWarmup } from './routing/warmup.js';
 import { usageMeter } from './usage.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -75,10 +76,14 @@ cache.startPersisting(120, (msg) => app.log.debug(msg));
 if (config.backgroundPoll) {
   startBackgroundJobs(app.log);
 }
+if (config.routingPrewarm) {
+  routingWarmup.start(app.log);
+}
 
 async function shutdown(signal: string): Promise<void> {
   app.log.info(`${signal} — sulgen`);
   stopBackgroundJobs();
+  routingWarmup.stop();
   // Kirjuta vahemälu kettale enne väljumist, et taaskäivitus algaks soojalt.
   cache.stopPersisting();
   cache.flush((msg) => app.log.info(msg));
