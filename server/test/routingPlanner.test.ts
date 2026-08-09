@@ -39,6 +39,26 @@ const SOURCE: RoutePlanSource = {
 };
 
 describe('routing cost surface precedence', () => {
+  it('ignores cancelled navigation marks as physical obstacles', () => {
+    const aid = (id: string, operational: boolean | undefined): RoutingHazard => ({
+      id,
+      kind: 'physical_aid',
+      geometry: { type: 'Point', coordinates: [24.012, 59.006] },
+      name: 'Testtooder',
+      confidence: 'high',
+      navigationRole: 'other',
+      ...(operational === undefined ? {} : { operational }),
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    });
+    const active = detailsNear(surfaceFor({ hazards: [aid('aid', undefined)] }), 24.012, 59.006);
+    expect(active.blocked).toBe(true);
+    // Tühistatud märk (nt Naissaare sadama S tooder) ei ole enam vees.
+    const cancelled = detailsNear(surfaceFor({ hazards: [aid('aid', false)] }), 24.012, 59.006);
+    expect(cancelled.blocked).toBe(false);
+  });
+
   it('allows unknown water with a high cost instead of calling it safe', () => {
     const surface = surfaceFor({ depthState: RoutingDepthState.NoData });
     const cell = detailsNear(surface, 24.012, 59.006);

@@ -520,6 +520,11 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
 
   function applyHazard(hazard: RoutingHazard): void {
     if (hazard.kind === 'physical_aid' && harbourBoundaryAidIds.has(hazard.id)) return;
+    // Tühistatud/kasutusest väljas märk (HIS margi_olek != 0, Väylä
+    // toimintatila != 1) ei pruugi enam vees olla: registrikirje ei ole
+    // füüsiline keha ja NMA koondfailil põhinev kaardikiht teda ei näitagi.
+    // Töötava märgi rikked katab eraldi aton_fault hoiatuskiht.
+    if (hazard.kind === 'physical_aid' && hazard.operational === false) return;
     const uncertaintyM = hazard.confidence === 'high' ? 10 : hazard.confidence === 'medium' ? 30 : 75;
     const exactRadiusM = input.vessel.beamM / 2 + Math.max(
       (hazard.sizeM ?? 0) / 2,
