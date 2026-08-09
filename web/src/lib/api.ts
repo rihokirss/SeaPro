@@ -91,7 +91,7 @@ export const api = {
   radarTimes: (signal?: AbortSignal) => get<RadarTimeline>('/api/radar-times', signal),
 
   search(
-    opts: { q: string; lang: 'et' | 'en'; bbox?: [number, number, number, number] },
+    opts: { q: string; lang: 'et' | 'en' | 'fi'; bbox?: [number, number, number, number] },
     signal?: AbortSignal,
   ) {
     const p = new URLSearchParams({ q: opts.q, lang: opts.lang });

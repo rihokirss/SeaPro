@@ -1,27 +1,37 @@
 import { createContext, useContext } from 'react';
 import et from './et.json';
 import en from './en.json';
+import fi from './fi.json';
 
-export type Lang = 'et' | 'en';
+export type Lang = 'et' | 'en' | 'fi';
 
-const DICTS: Record<Lang, Record<string, string>> = { et, en };
+const DICTS: Record<Lang, Record<string, string>> = { et, en, fi };
 
 export const LANGS: { id: Lang; label: string }[] = [
   { id: 'et', label: 'Eesti' },
   { id: 'en', label: 'English' },
+  { id: 'fi', label: 'Suomi' },
 ];
 
 const STORAGE_KEY = 'seapro.lang';
 
 export function detectLang(): Lang {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved === 'et' || saved === 'en') return saved;
-  // Eestikeelne brauser saab eestikeelse liidese, muidu inglise.
-  return navigator.language.toLowerCase().startsWith('et') ? 'et' : 'en';
+  if (saved === 'et' || saved === 'en' || saved === 'fi') return saved;
+  const browserLang = navigator.language.toLowerCase();
+  if (browserLang.startsWith('et')) return 'et';
+  if (browserLang.startsWith('fi')) return 'fi';
+  return 'en';
 }
 
 export function saveLang(lang: Lang): void {
   localStorage.setItem(STORAGE_KEY, lang);
+}
+
+export function localeTag(lang: Lang): 'et-EE' | 'en-GB' | 'fi-FI' {
+  if (lang === 'et') return 'et-EE';
+  if (lang === 'fi') return 'fi-FI';
+  return 'en-GB';
 }
 
 export type Translate = (key: string, vars?: Record<string, string | number>) => string;

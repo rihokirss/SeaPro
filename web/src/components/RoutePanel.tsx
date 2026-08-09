@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type P
 import { AlertTriangle, Check, Crosshair, GripVertical, Home, LocateFixed, Play, Redo2, Settings2, Trash2, Undo2, X } from 'lucide-react';
 import type { Route, RouteAnalysis, RoutePlan, RouteWaypoint } from '@seapro/shared';
 import { degreesToCompass, routeDistanceNm } from '@seapro/shared';
-import { useI18n, type Translate } from '../i18n';
+import { localeTag, useI18n, type Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import type { VesselProfile } from '../lib/vesselProfile';
 import { SearchPicker } from './SearchPicker';
@@ -339,7 +339,7 @@ export function RoutePanel(props: Props) {
   };
 
   if (!props.open) return null;
-  const fmt = (iso: string) => new Date(iso).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const fmt = (iso: string) => new Date(iso).toLocaleString(localeTag(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const selectedIndex = props.route.waypoints.findIndex((point) => point.id === props.selectedWaypointId);
   const selectedWaypoint = selectedIndex >= 0 ? props.route.waypoints[selectedIndex]! : null;
   const acceptedPlan = props.route.plan;
@@ -428,7 +428,7 @@ export function RoutePanel(props: Props) {
       </div>
       <div className="route-form">
         <label>{t('route.name')}<input value={props.route.name} placeholder={t('route.namePlaceholder')} onChange={(e) => props.onChange({ ...props.route, name: e.target.value, updatedAt: new Date().toISOString() })} /></label>
-        <label>{t('route.startTime')}<Suspense fallback={<input className="route-date-input" value={new Date(props.route.startTime).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB')} readOnly aria-busy="true" />}>
+        <label>{t('route.startTime')}<Suspense fallback={<input className="route-date-input" value={new Date(props.route.startTime).toLocaleString(localeTag(lang))} readOnly aria-busy="true" />}>
           <LocalizedDateTimePicker value={props.route.startTime} onChange={(startTime) => props.onChange({ ...props.route, startTime, updatedAt: new Date().toISOString() })} />
         </Suspense></label>
       </div>

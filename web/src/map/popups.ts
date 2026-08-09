@@ -2,7 +2,7 @@ import * as maplibregl from 'maplibre-gl';
 import type { Map as MapLibreMap, MapGeoJSONFeature } from 'maplibre-gl';
 import type { Variable } from '@seapro/shared';
 import { degreesToCompass } from '@seapro/shared';
-import type { Translate } from '../i18n';
+import { localeTag, type Lang, type Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import { STATIONS_LAYER } from './layers/stations';
 import { VESSEL_LAYERS } from './layers/vessels';
@@ -25,7 +25,7 @@ import { NAVIGATION_CLICK_LAYERS } from './layers/navigation';
 export interface PopupContext {
   t: Translate;
   speedUnit: SpeedUnit;
-  lang: string;
+  lang: Lang;
   /** Marsruudi redigeerimisel kuuluvad kõik kaardi žestid redaktorile. */
   interactionBlocked: boolean;
 }
@@ -810,7 +810,7 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       if (Number.isFinite(updated.getTime())) {
         rows.push(row(
           t('navigation.updatedAt'),
-          escapeHtml(new Intl.DateTimeFormat(ctx.lang === 'et' ? 'et-EE' : 'en-GB', {
+          escapeHtml(new Intl.DateTimeFormat(localeTag(ctx.lang), {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',
@@ -875,7 +875,11 @@ function localizedWarning(
   fi: unknown,
   ctx: PopupContext,
 ): string {
-  const values = ctx.lang === 'et' ? [et, en, fi] : [en, et, fi];
+  const values = ctx.lang === 'et'
+    ? [et, en, fi]
+    : ctx.lang === 'fi'
+      ? [fi, en, et]
+      : [en, et, fi];
   for (const value of values) {
     const result = String(value ?? '').trim();
     if (result) return result;
@@ -914,11 +918,11 @@ function addMultilineText(rows: string[], label: string, value: unknown): void {
   if (text) rows.push(row(label, multiline(text), ''));
 }
 
-function formatDateRange(from: string, to: string, lang: string): string {
+function formatDateRange(from: string, to: string, lang: Lang): string {
   const format = (value: string): string => {
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) return '';
-    return new Intl.DateTimeFormat(lang === 'et' ? 'et-EE' : 'en-GB', {
+    return new Intl.DateTimeFormat(localeTag(lang), {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -931,10 +935,10 @@ function formatDateRange(from: string, to: string, lang: string): string {
   return start && end ? `${start} – ${end}` : start || end;
 }
 
-function formatVesselEta(value: string, lang: string): string {
+function formatVesselEta(value: string, lang: Lang): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
-  return new Intl.DateTimeFormat(lang === 'et' ? 'et-EE' : 'en-GB', {
+  return new Intl.DateTimeFormat(localeTag(lang), {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',

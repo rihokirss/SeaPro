@@ -1,195 +1,202 @@
 # SeaPro
 
-SeaPro on avatud lähtekoodiga mereilma kaardirakendus Läänemere ja Eesti
-ranniku jaoks. See koondab prognoosid, mõõtejaamad, lained, tuule, veetaseme,
-AIS-laevad ja navigatsiooniinfo ühele interaktiivsele kaardile.
+SeaPro is an open-source marine weather map application for the Baltic Sea and
+the Estonian coast. It brings forecasts, observation stations, waves, wind, sea
+level, AIS vessels, and navigational information together on one interactive
+map.
 
-Lähtekood ja arendus: [github.com/rihokirss/SeaPro](https://github.com/rihokirss/SeaPro)
+Source code and development: [github.com/rihokirss/SeaPro](https://github.com/rihokirss/SeaPro)
 
 > [!WARNING]
-> SeaPro on informatiivne abivahend. Ära kasuta seda ainsa ilma- või
-> navigatsiooniinfo allikana. Merel järgi ametlikke teadaandeid, merekaarte ja
-> kohalike ametiasutuste juhiseid.
+> SeaPro is an informational aid. Do not use it as your sole source of weather
+> or navigational information. At sea, follow official notices, nautical
+> charts, and guidance from local authorities.
 
-## Võimalused
+## Features
 
-- tuule-, laine-, temperatuuri-, rõhu-, nähtavus- ja veetaseme prognoosid;
-- Eesti ja Soome ranniku mõõtejaamad ning lainepoid;
-- reaalajalähedased AIS-laevade asukohad;
-- navigatsioonimärgid, faarvaatrid, hoiatused ja vrakid;
-- automaatne A–B meremarsruut Eesti ja Soome vetes, arvestades sügavust,
-  kive, takistusi, vrakke, laeva gabariite, ametlikke faarvaatreid,
-  soovituslikke teid ja liiklusskeeme;
-- asukoha- ja sadamaotsing;
-- eesti- ja ingliskeelne kasutajaliides;
-- paigaldatav PWA ning viimaste prognooside võrguühenduseta vahemälu.
+- forecasts for wind, waves, temperature, pressure, visibility, and sea level;
+- coastal observation stations and wave buoys in Estonia and Finland;
+- near-real-time AIS vessel positions;
+- aids to navigation, fairways, warnings, and wrecks;
+- automatic A–B marine routing in Estonian and Finnish waters, accounting for
+  depth, rocks, obstacles, wrecks, vessel dimensions, official fairways,
+  recommended routes, and traffic schemes;
+- place and harbour search;
+- Estonian, English, and Finnish user interfaces;
+- an installable PWA with offline caching of the latest forecasts.
 
-## Andmepakkujad
+## Data providers
 
-Ilmaandmed normaliseeritakse serveris ühtsetesse SI-ühikutesse ja liidetakse
-kliendis üheks vaateks. Kasutaja saab punktivaates pakkujaid sisse ja välja
-lülitada. Kaardi ruudustikupõhine ilmapilt tuleb Open-Meteost, sest teised
-pakkujad annavad üksikpunkti või jaamade andmeid ega toeta tihedat
-võrgupäringut.
+Weather data is normalised into consistent SI units on the server and combined
+into a single view in the client. Users can enable and disable providers in the
+point view. The gridded weather view on the map comes from Open-Meteo because
+the other providers supply individual points or station data and do not support
+dense grid queries.
 
-### Prognoosid
+### Forecasts
 
-| Pakkuja | Katvus ja andmed | Märkused |
+| Provider | Coverage and data | Notes |
 | --- | --- | --- |
-| **Open-Meteo** | Globaalne; tuul, lained, temperatuurid, rõhk, niiskus, pilvisus, sademed, nähtavus, veetase ja hoovused | Peamine kaardikihi allikas. Atmosfäärimudelid: automaatne valik, MET Nordic, ICON-EU, ECMWF IFS ja GFS. Lainemudelid: DWD EWAM, automaatne valik ja DWD GWAM. |
-| **MET Norway** | Globaalne, eriti hea Põhjalas; ilma- ja mereprognoos kuni üheksa päeva | Vajab `.env` failis `CONTACT_EMAIL` väärtust. Võti pole vajalik. |
-| **Windfinder** | Nimepõhised prognoosipunktid; tuul, puhangud ja õhutemperatuur umbes kolmeks päevaks | Kasutab avaliku prognoosilehe andmeid, mitte ametlikku API-t, ning on seetõttu teistest pakkujatest muutlikum. |
+| **Open-Meteo** | Global; wind, waves, temperatures, pressure, humidity, cloud cover, precipitation, visibility, sea level, and currents | Main source for map layers. Atmospheric models: automatic selection, MET Nordic, ICON-EU, ECMWF IFS, and GFS. Wave models: DWD EWAM, automatic selection, and DWD GWAM. |
+| **MET Norway** | Global, particularly strong in the Nordic region; weather and marine forecasts for up to nine days | Requires `CONTACT_EMAIL` in the `.env` file. No API key is needed. |
+| **Windfinder** | Named forecast locations; wind, gusts, and air temperature for approximately three days | Uses data from the public forecast page rather than an official API, making it more susceptible to change than the other providers. |
 
-Open-Meteo vaikimisi lainemudel on Läänemere jaoks 5 km lahutusega DWD EWAM.
-Kaardipunkti vajutades saab võrrelda samas kohas mitme pakkuja aegridu.
+Open-Meteo's default wave model for the Baltic Sea is DWD EWAM at 5 km
+resolution. Selecting a point on the map lets you compare time series from
+multiple providers at the same location.
 
-#### Open-Meteo API piirangud
+#### Open-Meteo API limits
 
-Open-Meteo tasuta teenuse päringueelarve on punktipõhine: mitmepunktilise
-võrgupäringu iga asukoht läheb arvestusse eraldi. Projekt lähtub teenuse
-kaaluvalemist:
+Open-Meteo's free-service request budget is point-based: every location in a
+multi-point grid query is counted separately. The project follows the service's
+weighting formula:
 
 ```text
-kaal = summa asukohtade kaupa:
-       max(1, (muutujate arv × mudelite arv / 10) × max(1, päevade arv / 14))
+weight = sum over locations:
+         max(1, (number of variables × number of models / 10) × max(1, number of days / 14))
 ```
 
-SeaPro arvestab välise teenuse 5000 päringuühiku tunnipiiri ja 10 000 ühiku
-päevapiiriga. Turvavaru jätmiseks peatab rakenduse enda piiraja uued
-Open-Meteo päringud juba 3000 ühiku juures tunnis ja 8000 juures päevas.
-Atmosfääri- ja mere-API eelarveid jälgitakse eraldi.
+SeaPro accounts for the external service's hourly limit of 5,000 request units
+and daily limit of 10,000 units. To leave a safety margin, the application's own
+rate limiter stops new Open-Meteo requests at 3,000 units per hour and 8,000
+units per day. Atmospheric and marine API budgets are tracked separately.
 
-Tasulise Open-Meteo paketi kasutamiseks lisa serveri `.env` faili
-`OPEN_METEO_API_KEY`. Võtme olemasolul kasutab SeaPro automaatselt reserveeritud
-`customer-` endpointe ega rakenda tasuta paketi tunni- ja päevapiirajat. Ilma
-võtmeta jääb kõik vaikimisi tasuta režiimi. Paketi kuueelarvet haldab
-Open-Meteo; serveripoolne vahemälu jääb mõlemas režiimis tööle.
+To use a paid Open-Meteo plan, add `OPEN_METEO_API_KEY` to the server's `.env`
+file. When the key is present, SeaPro automatically uses the reserved
+`customer-` endpoints and does not apply the free plan's hourly and daily rate
+limits. Without a key, everything remains in the free mode by default.
+Open-Meteo manages the plan's monthly budget; the server-side cache remains
+active in both modes.
 
-Server mõõdab eraldi ainult päriselt Open-Meteole läinud HTTP-päringuid,
-nende hinnangulist arvestuskaalu ja cache'i tabamuse protsenti. Veebiklient
-saadab anonüümse juhusliku seansi-ID; server salvestab sellest ainult
-kuupõhiselt soolatud räsi. Päeva- ja kuunumbreid ning jooksva tempo põhjal
-arvutatud kuuprognoosi näeb `/api/health` vastuse väljal
-`openMeteo.usage`. Mõõdik püsib failis `data/openmeteo-usage.json`.
+The server separately measures only HTTP requests actually sent to Open-Meteo,
+their estimated billing weight, and the cache hit rate. The web client sends an
+anonymous random session ID; the server stores only a monthly salted hash of
+it. Daily and monthly totals, together with a projected monthly total based on
+the current rate, are available under `openMeteo.usage` in the `/api/health`
+response. The metrics are persisted in `data/openmeteo-usage.json`.
 
-Päringumahu hoidmiseks:
+To keep request volume under control:
 
-- kaardivõre on kõige rohkem 8 × 8 punkti ehk 64 asukohta ühe päringu kohta;
-- lähestikused kaardivaated ja klikitud punktid kleebitakse samale võrele, et
-  nad jagaksid vahemälu;
-- üks päring toob korraga kogu muutujakomplekti ja kuni seitsme päeva andmed,
-  sest kuni kümne muutuja ning 14 päeva küsimine ei suurenda ühe asukoha
-  minimaalset kaalu;
-- tiheda kaardipildi loob klient hõreda võre interpoleerimisega;
-- vaikevahemälu kestab Open-Meteo jaoks ühe tunni ja rakendus kasutab limiidi
-  täitumisel võimalusel varasemaid vahemällu salvestatud andmeid.
+- the map grid contains at most 8 × 8 points, or 64 locations per request;
+- nearby map views and selected points are snapped to the same grid so they can
+  share cached data;
+- one request fetches the full set of variables and up to seven days of data,
+  because requesting up to ten variables and 14 days does not increase the
+  minimum weight of a location;
+- the client creates a dense map view by interpolating the sparse grid;
+- Open-Meteo data is cached for one hour by default, and the application uses
+  older cached data when possible after a limit has been reached.
 
-Piiride hetkeseisu näeb töötava serveri tervisekontrollist:
+You can inspect the current limits through the running server's health check:
 
 ```bash
 curl -s http://localhost:8080/api/health | jq .budgets
 ```
 
-Piirid ja teenuse tingimused võivad muutuda. Enne avaliku või suure
-kasutajamahuga instantsi käivitamist kontrolli Open-Meteo kehtivat
-kasutuspoliitikat. Tehniline taust on kirjas ka
-[`docs/data-sources.md`](docs/data-sources.md).
+Limits and service terms may change. Before running a public or high-traffic
+instance, check Open-Meteo's current usage policy. Further technical background
+is available in [`docs/data-sources.md`](docs/data-sources.md).
 
-### Mõõtmised
+### Observations
 
-| Pakkuja | Katvus ja andmed |
+| Provider | Coverage and data |
 | --- | --- |
-| **TalTech METOC** | Eesti ranniku- ja avamerejaamad: tuul, lained, temperatuurid, rõhk, niiskus, nähtavus ja veetase. |
-| **LainePoiss** | Eesti aktiivsed lainepoid: oluline ja maksimaalne lainekõrgus, periood ning suund. |
-| **Riigi Ilmateenistus** | Eesti ilmajaamad: tuul, temperatuurid, rõhk, niiskus, nähtavus ja sademed. |
-| **Ilmatieteen laitos (FMI)** | Soome rannikujaamad, lainepoid ja mareograafid Soome lahest Perämereni. |
+| **TalTech METOC** | Estonian coastal and offshore stations: wind, waves, temperatures, pressure, humidity, visibility, and sea level. |
+| **LainePoiss** | Active Estonian wave buoys: significant and maximum wave height, period, and direction. |
+| **Estonian Weather Service** | Estonian weather stations: wind, temperatures, pressure, humidity, visibility, and precipitation. |
+| **Finnish Meteorological Institute (FMI)** | Finnish coastal stations, wave buoys, and tide gauges from the Gulf of Finland to the Bothnian Bay. |
 
-### AIS ja navigatsiooniandmed
+### AIS and navigational data
 
-- **Fintraffic Digitraffic** annab Soome riikliku AIS-voo;
-- **Transpordiameti Nutimeri** annab Eesti kaldajaamade avaliku AIS-voo;
-- **aisstream.io** täiendab katvust, kui `AISSTREAM_KEY` on seadistatud;
-- sama laev liidetakse MMSI järgi üheks kirjeks ja kaardile jõuab värskeim
-  positsioon;
-- **Transpordiameti Nutimeri** annab ametlikud navigatsioonimärgid,
-  faarvaatrid, Eesti navigatsioonihoiatused, vrakid ja sadamaregistri andmed;
-- **Traficomi** avalik WFS annab Soome kehtivad navigatsioonihoiatused;
-- **OpenStreetMapi** sadamaandmeid rikastatakse ametliku sadamaregistri
-  väljadega ning AIS AtoN sõnumid täiendavad navigatsioonimärke.
+- **Fintraffic Digitraffic** provides Finland's national AIS feed;
+- **Estonian Transport Administration's Nutimeri** provides the public AIS feed
+  from Estonian coastal stations;
+- **aisstream.io** supplements coverage when `AISSTREAM_KEY` is configured;
+- reports for the same vessel are merged by MMSI, and the newest position is
+  shown on the map;
+- **Estonian Transport Administration's Nutimeri** provides official aids to
+  navigation, fairways, Estonian navigational warnings, wrecks, and harbour
+  registry data;
+- **Traficom's** public WFS provides current Finnish navigational warnings;
+- **OpenStreetMap** harbour data is enriched with fields from the official
+  harbour registry, while AIS AtoN messages supplement aids to navigation.
 
-## Kaardikihid
+## Map layers
 
-Aluskaart on OpenFreeMapi/OpenMapTilesi vektorkaart OpenStreetMapi andmetega.
-SeaPro pakub sellele nii heledat kui tumedat merekasutuseks kohandatud stiili.
+The base map is an OpenFreeMap/OpenMapTiles vector map using OpenStreetMap data.
+SeaPro provides both light and dark styles adapted for marine use.
 
-### Ilm
+### Weather
 
-- **tuul** — väljalülitatud, suunanoolte või animeeritud osakestena;
-- **ilmajaamad ja lainepoid** — viimased mõõtmised koos ajatempliga;
-- **ilmaradar** — Keskkonnaagentuuri WMS-ist tegelikud radarivaatlused ja
-  umbes 90 minuti `nowcasting`-lühiennustus; kaader järgib ajaliugurit;
-- **valevärviväli** — korraga üks ruumiline väli: tuulekiirus,
-  lainekõrgus, pilvisus, sademed, õhu- või meretemperatuur, rõhk, veetase,
-  hoovuse kiirus või nähtavus;
-- **ajaliugur** — prognoosikihi ja punktigraafikute liigutamine ajas.
+- **wind** — off, direction arrows, or animated particles;
+- **weather stations and wave buoys** — latest observations with timestamps;
+- **weather radar** — actual radar observations from the Estonian Environment
+  Agency's WMS and an approximately 90-minute `nowcasting` forecast; the frame
+  follows the time slider;
+- **false-colour field** — one spatial field at a time: wind speed, wave height,
+  cloud cover, precipitation, air or sea temperature, pressure, sea level,
+  current speed, or visibility;
+- **time slider** — move the forecast layer and point charts through time.
 
-### Navigatsioon
+### Navigation
 
-- Eesti ja Soome ametlikud elektroonilised merekaardid Transpordiameti ja
-  Traficomi WMS-teenustest;
-- ametlikud navigatsioonimärgid ja faarvaatrid;
-- Eestis Maa- ja Ruumiameti ning Soomes Traficomi ametlikud sügavusjooned ja
-  -punktid ühest staatilisest vektorarhiivist; väljaspool nende ühendkatvust
-  EMODneti vektorjooned ja mudelsügavused;
-- Eesti ja Soome kehtivad ametlikud navigatsioonihoiatused ühe SeaPro
-  tingmärgi-, joone-, ala- ja hüpikaknasüsteemiga ning teadaolevad vrakid;
-- OpenStreetMapi liikluseraldusskeemid eraldi vektorkihina, ilma ametlikke
-  navigatsioonimärke dubleerivate poideta;
-- EMODneti batümeetria;
-- kohanimed, mida saab tihedama kaardipildi jaoks eraldi peita.
+- official Estonian and Finnish electronic nautical charts from the Estonian
+  Transport Administration and Traficom WMS services;
+- official aids to navigation and fairways;
+- official depth contours and soundings from the Estonian Land and Spatial
+  Development Board in Estonia and Traficom in Finland, combined in one static
+  vector archive; EMODnet vector contours and model depths outside their
+  combined coverage;
+- current official Estonian and Finnish navigational warnings in one shared
+  SeaPro symbol, line, area, and popup system, together with known wrecks;
+- OpenStreetMap traffic separation schemes as a separate vector layer, without
+  buoys that duplicate official aids to navigation;
+- EMODnet bathymetry;
+- place names, which can be hidden separately for a less crowded map.
 
-### Automaatmarsruut
+### Automatic routing
 
-Marsruudipaneelis saab valida A- ja B-punkti kaardilt, otsingust või GPS-ist
-ning sisestada süvise, kiilualuse varu, laeva laiuse ja kõrguse veeliinist.
-Server koostab ühe andmesnapshot'i, leiab sellel A*-otsinguga läbitava tee ning
-tagastab tegeliku joone, navigeerimise kontrollpunktid, riskilõigud ja kasutatud
-allikate värskuse.
+In the route panel, you can select points A and B from the map, search, or GPS,
+then enter the vessel's draught, under-keel clearance, beam, and height above
+the waterline. The server builds a single data snapshot, uses A* search to find
+a traversable path through it, and returns the actual geometry, navigation
+waypoints, risk segments, and freshness of the sources used.
 
-Teadaolev maa, ebapiisav sügavus, puhverdatud kivi/takistus/vrakk, ametlik
-liikluskeeld või liiga madal/kitsas läbipääs on kõva tõke. Puuduliku katvusega
-vesi ei muutu vaikimisi ohutuks: seda võib kasutada ainult suure kuluga,
-marsruut märgitakse nõuandvaks ja enne navigeerimist tuleb kinnitada ametliku
-merekaardi kontroll. OpenSeaMapi soovituslik tee võib teadaolevalt sobivas
-vees marsruuti eelistada, kuid ei saa sügavus- ega ohuinfot üle kirjutada.
-TSS-i läbimine jääb v1-s alati nõuandvaks, sest positsioonipõhine otsing ei
-tõenda veel iga lõigu kohalikku sõidusuunda.
+Known land, insufficient depth, a buffered rock, obstacle, or wreck, an
+official traffic prohibition, or a passage that is too low or narrow is a hard
+barrier. Water with incomplete coverage is not considered safe by default: it
+can only be used at a high cost, the route is marked as advisory, and the user
+must confirm that it will be checked against an official nautical chart before
+navigating. An OpenSeaMap recommended route may be preferred in water known to
+be suitable, but it cannot override depth or hazard information. Passing
+through a TSS remains advisory in v1 because position-based search does not yet
+prove the local direction of travel for every segment.
 
-Automaatmarsruut on planeerimisabi, mitte sertifitseeritud ECDIS ega asenda
-ajakohast ametlikku merekaarti, mereteateid, kohapealset veetaset või kipri
-otsust. Tehniline prioriteedijärjekord ja API on kirjeldatud
-[`docs/routing.md`](docs/routing.md).
+Automatic routing is a planning aid, not a certified ECDIS, and does not
+replace an up-to-date official nautical chart, notices to mariners, the local
+water level, or the skipper's judgement. The technical priority order and API
+are documented in [`docs/routing.md`](docs/routing.md).
 
-### Liiklus ja kohad
+### Traffic and places
 
-- AIS-laevad tüübi, kursi ja võimalusel tegelike mõõtmetega;
-- sadamad ning ankrualad;
-- kasutaja asukoht koos asukohatäpsuse ringiga;
-- Photoni/OpenStreetMapi kohanime- ja sadamaotsing.
+- AIS vessels with type, course, and actual dimensions where available;
+- harbours and anchorages;
+- the user's location with an accuracy circle;
+- Photon/OpenStreetMap place-name and harbour search.
 
-## Tehnoloogiad
+## Technology
 
-Projekt on npm-workspaces monorepo:
+The project is an npm workspaces monorepo:
 
-- `web/` — React, TypeScript, Vite ja MapLibre GL;
-- `server/` — Fastify, TypeScript ja Vitest;
-- `shared/` — kliendi ja serveri ühised tüübid;
-- `docs/` — andmeallikate ja API-võtmete tehniline dokumentatsioon;
-- `deploy/` — näidised systemd ja Nginxiga juurutamiseks.
+- `web/` — React, TypeScript, Vite, and MapLibre GL;
+- `server/` — Fastify, TypeScript, and Vitest;
+- `shared/` — types shared between the client and server;
+- `docs/` — technical documentation for data sources and API keys;
+- `deploy/` — examples for deployment with systemd and Nginx.
 
-Nõutud on Node.js 22.12 või uuem ning npm.
+Node.js 22.12 or newer and npm are required.
 
-## Kohalik käivitamine
+## Running locally
 
 ```bash
 git clone https://github.com/rihokirss/SeaPro.git
@@ -198,70 +205,71 @@ npm install
 cp .env.example .env
 ```
 
-Muuda `.env` failis vähemalt `CONTACT_EMAIL`, sest MET Norway nõuab
-väljuvate päringute `User-Agent` päises tuvastatavat kontakti. AISStreami võti
-on valikuline; rakenduse põhifunktsioonid töötavad ka ilma selleta.
+Set at least `CONTACT_EMAIL` in the `.env` file because MET Norway requires an
+identifiable contact in the `User-Agent` header of outgoing requests. The
+AISStream key is optional; the application's core features work without it.
 
-Käivita arenduskeskkond:
+Start the development environment:
 
 ```bash
 npm run dev
 ```
 
-Veebirakendus avaneb aadressil <http://localhost:5173> ja API töötab aadressil
-<http://localhost:8080>. Vite suunab arenduses `/api` päringud serverile.
+The web application opens at <http://localhost:5173>, and the API runs at
+<http://localhost:8080>. During development, Vite proxies `/api` requests to
+the server.
 
-## Käsud
+## Commands
 
 ```bash
-npm run dev        # veeb ja server arendusrežiimis
-npm run typecheck  # TypeScripti kontroll
-npm test           # automaattestid
-npm run build      # tootmisbuild
-npm start          # valmis rakenduse käivitamine pordil 8080
+npm run dev        # web and server in development mode
+npm run typecheck  # TypeScript checks
+npm test           # automated tests
+npm run build      # production build
+npm start          # run the built application on port 8080
 ```
 
-Väliseid teenuseid päriselt kasutavad integratsioonitestid käivituvad eraldi:
+Integration tests that call external services run separately:
 
 ```bash
 npm run test:live
 ```
 
-## Konfiguratsioon ja andmeallikad
+## Configuration and data sources
 
-Seadistuste täielik näidis on failis [`.env.example`](.env.example). Täpsemad
-selgitused asuvad dokumentides:
+A complete configuration example is available in [`.env.example`](.env.example).
+More detailed explanations are available in:
 
-- [API võtmed ja turvalisus](docs/api-keys.md)
-- [andmeallikad, ühikud ja päringulimiidid](docs/data-sources.md)
-- [automaatmarsruudi andmekihid, ohutusreeglid ja API](docs/routing.md)
-- [tootmiskeskkonda paigaldamine](deploy/README.md)
+- [API keys and security](docs/api-keys.md)
+- [data sources, units, and request limits](docs/data-sources.md)
+- [automatic-routing data layers, safety rules, and API](docs/routing.md)
+- [production deployment](deploy/README.md)
 
-Rakendus kasutab mitut välist andme- ja kaarditeenust. Nende andmetele,
-kaartidele ja logodele võivad kehtida projekti GPL-litsentsist erinevad
-litsentsid ning kasutustingimused. Säilita kasutajaliideses olevad viited
-andmeallikatele.
+The application uses several external data and map services. Their data, maps,
+and logos may be subject to licences and terms of use that differ from the
+project's GPL licence. Keep the data-source attributions shown in the user
+interface.
 
-## Panustamine
+## Contributing
 
-Parandused ja uued ideed on teretulnud.
+Fixes and new ideas are welcome.
 
-1. Tee repost fork ja loo oma muudatusele eraldi haru.
-2. Tee võimalikult väike ning selge muudatus.
-3. Käivita `npm run typecheck` ja `npm test`.
-4. Kirjelda pull request'is, mida muutsid, miks seda vaja oli ja kuidas
-   tulemust kontrollisid.
+1. Fork the repository and create a separate branch for your change.
+2. Keep the change as small and clear as possible.
+3. Run `npm run typecheck` and `npm test`.
+4. Explain in the pull request what you changed, why it was needed, and how you
+   verified it.
 
-Vigadest teatades lisa võimalusel brauseri ja operatsioonisüsteemi versioon,
-probleemi kordamise sammud ning asjakohased serverilogid. Ära lisa issue'sse,
-commit'i ega pull request'i API-võtmeid või muid saladusi.
+When reporting a bug, include the browser and operating-system versions, steps
+to reproduce the problem, and relevant server logs where possible. Do not add
+API keys or other secrets to an issue, commit, or pull request.
 
-Projektile panustades nõustud, et sinu panus avaldatakse projekti
-GPL-3.0-only litsentsi tingimustel.
+By contributing to the project, you agree that your contribution will be
+published under the terms of the GPL-3.0-only licence.
 
-## Litsents
+## Licence
 
-SeaPro lähtekood on avaldatud [GNU General Public License v3.0 only](LICENSE)
-tingimustel. Lühidalt: koodi võib kasutada, uurida, muuta ja levitada, kuid
-levitatavad tuletatud versioonid peavad jääma sama litsentsi alla ning nende
-lähtekood peab olema kättesaadav.
+SeaPro's source code is released under the
+[GNU General Public License v3.0 only](LICENSE). In short, you may use, study,
+modify, and distribute the code, but distributed derivative versions must
+remain under the same licence and their source code must be made available.

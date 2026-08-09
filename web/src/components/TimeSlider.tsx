@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useI18n } from '../i18n';
+import { localeTag, useI18n } from '../i18n';
 import { addHours, floorToHour, formatDay, formatTime, hoursBetween, isSameLocalDay } from '../lib/time';
 
 interface Props {
@@ -120,7 +120,7 @@ export function TimeSlider({
         // liugur algab keset päeva, muidu jääks riba algus nimetuks.
         day:
           hour === 0 || i === 0
-            ? d.toLocaleDateString(lang === 'et' ? 'et-EE' : 'en-GB', {
+            ? d.toLocaleDateString(localeTag(lang), {
                 weekday: 'short',
                 day: 'numeric',
               })

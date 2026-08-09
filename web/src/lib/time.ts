@@ -1,4 +1,4 @@
-import type { Lang } from '../i18n';
+import { localeTag, type Lang } from '../i18n';
 
 /** Ümardab hetke täistunnini — kõik prognoosid on tunnisammuga. */
 export function floorToHour(d: Date = new Date()): Date {
@@ -21,7 +21,7 @@ export function hoursBetween(a: Date, b: Date): number {
  */
 export function formatTime(iso: string | Date, lang: Lang): string {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return d.toLocaleTimeString(lang === 'et' ? 'et-EE' : 'en-GB', {
+  return d.toLocaleTimeString(localeTag(lang), {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -29,7 +29,7 @@ export function formatTime(iso: string | Date, lang: Lang): string {
 
 export function formatDay(iso: string | Date, lang: Lang): string {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return d.toLocaleDateString(lang === 'et' ? 'et-EE' : 'en-GB', {
+  return d.toLocaleDateString(localeTag(lang), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',

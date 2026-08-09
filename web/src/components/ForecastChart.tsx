@@ -3,7 +3,7 @@ import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import type { TimeSeries, Variable } from '@seapro/shared';
 import { convertSpeed } from '@seapro/shared';
-import { useI18n } from '../i18n';
+import { localeTag, useI18n } from '../i18n';
 import { unitLabel, type SpeedUnit } from '../lib/units';
 
 interface Props {
@@ -139,7 +139,7 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
           values: (_u, splits) =>
             splits.map((v) => {
               const d = new Date(v * 1000);
-              const locale = lang === 'et' ? 'et-EE' : 'en-GB';
+              const locale = localeTag(lang);
               if (d.getHours() === 0 && d.getMinutes() === 0) {
                 return d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' });
               }
@@ -163,7 +163,7 @@ export function ForecastChart({ series, variable, speedUnit, selectedTime, onPic
           value: (_u, raw) =>
             raw == null
               ? '—'
-              : new Date(raw * 1000).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB', {
+              : new Date(raw * 1000).toLocaleString(localeTag(lang), {
                   weekday: 'short',
                   day: 'numeric',
                   month: 'short',

@@ -106,7 +106,7 @@ export function parsePhotonResults(input: unknown, query: string): SearchResult[
     .map(({ _score: _ignored, ...result }) => result);
 }
 
-export async function searchPlaces(query: string, lang: 'et' | 'en', viewbox?: BBox): Promise<SearchResult[]> {
+export async function searchPlaces(query: string, lang: 'et' | 'en' | 'fi', viewbox?: BBox): Promise<SearchResult[]> {
   const normalizedQuery = query.trim().replace(/\s+/g, ' ');
   const viewKey = viewbox?.map((n) => n.toFixed(2)).join(',') ?? '-';
   const key = `search:photon:v3:${lang}:${viewKey}:${normalized(normalizedQuery)}`;
@@ -118,7 +118,7 @@ export async function searchPlaces(query: string, lang: 'et' | 'en', viewbox?: B
     // sadam Photoni 13. tulemus ja jäi väiksema limiidi korral üldse nägemata.
     // Kliendile tagastab parser pärast merendusjärjestust endiselt kuni 12.
     url.searchParams.set('limit', '50');
-    if (lang === 'en') url.searchParams.set('lang', 'en');
+    if (lang !== 'et') url.searchParams.set('lang', lang);
     if (viewbox) {
       const [south, west, north, east] = viewbox;
       url.searchParams.set('lat', String((south + north) / 2));

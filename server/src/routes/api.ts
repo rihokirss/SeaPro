@@ -286,7 +286,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     if (query.length < 2 || query.length > 120) {
       return reply.code(400).send({ error: 'q pikkus peab olema 2–120 märki' });
     }
-    const lang = q.lang === 'en' ? 'en' : 'et';
+    const lang = q.lang === 'en' || q.lang === 'fi' ? q.lang : 'et';
     let viewbox: [number, number, number, number] | undefined;
     if (typeof q.bbox === 'string' && q.bbox) {
       const parts = q.bbox.split(',').map(Number);

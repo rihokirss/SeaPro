@@ -1,7 +1,7 @@
 import ReactDatePicker from 'react-datepicker';
-import { enGB, et } from 'date-fns/locale';
+import { enGB, et, fi } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useI18n } from '../i18n';
+import { localeTag, useI18n } from '../i18n';
 import 'react-datepicker/dist/react-datepicker.css';
 
 interface Props {
@@ -11,14 +11,13 @@ interface Props {
 
 export function LocalizedDateTimePicker({ value, onChange }: Props) {
   const { lang, t } = useI18n();
-  const dateLocale = lang === 'et' ? et : enGB;
-  const localeTag = lang === 'et' ? 'et-EE' : 'en-GB';
+  const dateLocale = lang === 'et' ? et : lang === 'fi' ? fi : enGB;
 
   return <ReactDatePicker
     selected={new Date(value)}
     onChange={(date: Date | null) => { if (date) onChange(date.toISOString()); }}
     locale={dateLocale}
-    dateFormat={lang === 'et' ? 'dd.MM.yyyy HH:mm' : 'dd/MM/yyyy HH:mm'}
+    dateFormat={lang === 'en' ? 'dd/MM/yyyy HH:mm' : 'dd.MM.yyyy HH:mm'}
     showTimeInput
     timeFormat="HH:mm"
     timeInputLabel={t('route.time')}
@@ -35,7 +34,7 @@ export function LocalizedDateTimePicker({ value, onChange }: Props) {
     nextMonthAriaLabel={t('route.nextMonth')}
     renderCustomHeader={({ date, decreaseMonth, increaseMonth, prevMonthButtonDisabled, nextMonthButtonDisabled }) => <div className="route-calendar__header">
       <button type="button" onClick={decreaseMonth} disabled={prevMonthButtonDisabled} aria-label={t('route.previousMonth')}><ChevronLeft size={19} aria-hidden="true" /></button>
-      <strong>{date.toLocaleDateString(localeTag, { month: 'long', year: 'numeric' })}</strong>
+      <strong>{date.toLocaleDateString(localeTag(lang), { month: 'long', year: 'numeric' })}</strong>
       <button type="button" onClick={increaseMonth} disabled={nextMonthButtonDisabled} aria-label={t('route.nextMonth')}><ChevronRight size={19} aria-hidden="true" /></button>
     </div>}
   />;

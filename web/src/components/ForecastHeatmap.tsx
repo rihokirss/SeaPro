@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import type { TimeSeries, Variable } from '@seapro/shared';
-import { useI18n } from '../i18n';
+import { localeTag, useI18n } from '../i18n';
 import { COLOR_SCALES, sampleScale } from '../map/colorScales';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 
@@ -116,7 +116,7 @@ export function ForecastHeatmap({ series, speedUnit, selectedTime, onSelectTime 
   const rows = ROWS.filter((variable) =>
     openMeteo.steps.some((step) => step.values[variable] != null),
   );
-  const locale = lang === 'et' ? 'et-EE' : 'en-GB';
+  const locale = localeTag(lang);
 
   return (
     <div className="heatmap">
