@@ -8,10 +8,11 @@ interface Props {
   placeholder: string;
   initialQuery?: string;
   filter?: (result: SearchResult) => boolean;
+  onFocus?: () => void;
   onChoose(result: SearchResult): void;
 }
 
-export function SearchPicker({ placeholder, initialQuery = '', filter, onChoose }: Props) {
+export function SearchPicker({ placeholder, initialQuery = '', filter, onFocus, onChoose }: Props) {
   const { lang, t } = useI18n();
   const request = useRef<AbortController | null>(null);
   const [query, setQuery] = useState(initialQuery);
@@ -50,6 +51,7 @@ export function SearchPicker({ placeholder, initialQuery = '', filter, onChoose 
         value={query}
         onChange={(event) => { setQuery(event.target.value); setResults([]); setStatus('idle'); }}
         onKeyDown={onKeyDown}
+        onFocus={onFocus}
         placeholder={placeholder}
         aria-label={placeholder}
       />

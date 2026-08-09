@@ -6,6 +6,7 @@ import { useI18n, type Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import type { VesselProfile } from '../lib/vesselProfile';
 import { SearchPicker } from './SearchPicker';
+import { isAutomaticRouteName, suggestedRouteName } from '../lib/routeName';
 
 const LocalizedDateTimePicker = lazy(async () => {
   const module = await import('./LocalizedDateTimePicker');
@@ -62,6 +63,12 @@ const SNAP_ORDER: SheetSnap[] = ['collapsed', 'half', 'expanded'];
 
 function viewportHeight(): number {
   return window.visualViewport?.height ?? window.innerHeight;
+}
+
+function viewportBottomInset(): number {
+  const viewport = window.visualViewport;
+  if (!viewport) return 0;
+  return Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
 }
 
 function cssPixels(name: string): number {
@@ -186,6 +193,14 @@ export function RoutePanel(props: Props) {
   }, []);
 
   useEffect(() => {
+    if (!props.open || !window.matchMedia('(max-width: 700px)').matches) return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !active.closest('.route-panel')) return;
+    const frame = window.requestAnimationFrame(() => active.scrollIntoView({ block: 'center' }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [viewportTick, props.open]);
+
+  useEffect(() => {
     if (props.open && !wasOpen.current) setSheetSnap(props.editing ? 'collapsed' : 'half');
     if (props.open && props.editing && !wasEditing.current) setSheetSnap('collapsed');
     if (props.open && !props.editing && wasEditing.current) setSheetSnap('half');
@@ -239,7 +254,10 @@ export function RoutePanel(props: Props) {
     : sheetHeights();
   void viewportTick;
   const currentHeight = dragHeight ?? heights[sheetSnap];
-  const sheetStyle = { '--route-sheet-height': `${currentHeight}px` } as CSSProperties;
+  const sheetStyle = {
+    '--route-sheet-height': `${currentHeight}px`,
+    '--route-sheet-bottom': `${typeof window === 'undefined' ? 0 : viewportBottomInset()}px`,
+  } as CSSProperties;
 
   const cycleSheet = (): void => {
     if (!window.matchMedia('(max-width: 700px)').matches) return;
@@ -368,7 +386,7 @@ export function RoutePanel(props: Props) {
           aria-label={t('route.resizePanel')}
         >
           <span className="route-panel__grip" aria-hidden="true" />
-          <span className="route-panel__titles"><strong>{t('route.title')}</strong><small>{props.endpointPicking ? t('route.auto.mapPickHint', { point: props.endpointPicking === 'start' ? 'A' : 'B' }) : props.route.name}</small></span>
+          <span className="route-panel__titles"><strong>{t('route.title')}</strong><small>{props.endpointPicking ? t('route.auto.mapPickHint', { point: props.endpointPicking === 'start' ? 'A' : 'B' }) : props.route.name || t('route.unnamed')}</small></span>
         </button>
         {!props.editing && props.route.waypoints.length >= 2 ? (
           <button
@@ -404,12 +422,12 @@ export function RoutePanel(props: Props) {
       <div className="route-panel__toolbar">
         <button onClick={props.onNew}>{t('route.new')}</button>
         <select value={props.savedRoutes.some((r) => r.id === props.route.id) ? props.route.id : ''} onChange={(e) => { const found = props.savedRoutes.find((r) => r.id === e.target.value); if (found) props.onLoad(found); }} aria-label={t('route.saved')}>
-          <option value="">{t('route.saved')}</option>{props.savedRoutes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          <option value="">{t('route.saved')}</option>{props.savedRoutes.map((r) => <option key={r.id} value={r.id}>{isAutomaticRouteName(r.name, r.waypoints) ? suggestedRouteName(r.waypoints) || t('route.unnamed') : r.name}</option>)}
         </select>
         {props.savedRoutes.some((r) => r.id === props.route.id) ? <button className="danger-link" onClick={() => props.onDelete(props.route.id)}>{t('action.delete')}</button> : null}
       </div>
       <div className="route-form">
-        <label>{t('route.name')}<input value={props.route.name} onChange={(e) => props.onChange({ ...props.route, name: e.target.value, updatedAt: new Date().toISOString() })} /></label>
+        <label>{t('route.name')}<input value={props.route.name} placeholder={t('route.namePlaceholder')} onChange={(e) => props.onChange({ ...props.route, name: e.target.value, updatedAt: new Date().toISOString() })} /></label>
         <label>{t('route.startTime')}<Suspense fallback={<input className="route-date-input" value={new Date(props.route.startTime).toLocaleString(lang === 'et' ? 'et-EE' : 'en-GB')} readOnly aria-busy="true" />}>
           <LocalizedDateTimePicker value={props.route.startTime} onChange={(startTime) => props.onChange({ ...props.route, startTime, updatedAt: new Date().toISOString() })} />
         </Suspense></label>
@@ -452,13 +470,16 @@ export function RoutePanel(props: Props) {
           {props.vesselProfile.homeHarbour ? <button type="button" onClick={() => props.onSetEndpoint(endpointKind, props.vesselProfile.homeHarbour!)}><Home size={18} aria-hidden="true" /> {t('route.auto.useHomeHarbour')}</button> : null}
         </div>
         {props.endpointPicking ? <p className="route-status route-map-pick" role="status">{t('route.auto.mapPickHint', { point: props.endpointPicking === 'start' ? 'A' : 'B' })}</p> : null}
-        <SearchPicker placeholder={t('route.auto.searchPlaceholder')} onChoose={(result) => props.onSetEndpoint(endpointKind, result)} />
+        <SearchPicker placeholder={t('route.auto.searchPlaceholder')} onFocus={() => setSheetSnap('expanded')} onChoose={(result) => props.onSetEndpoint(endpointKind, result)} />
         {props.route.waypoints.length > 2 ? <p className="route-status">{t('route.auto.endpointOnlyHint')}</p> : null}
         {(props.route.beamM ?? 0) <= 0 || (props.route.airDraughtM ?? 0) <= 0 ? <p className="route-status">{t('route.auto.dimensionsRequired')}</p> : null}
 
-        <button className="route-auto__calculate primary" type="button" onClick={props.onCalculatePlan} disabled={!canCalculatePlan}>
-          {props.planLoading ? t('route.auto.calculating') : acceptedPlan ? t('route.auto.recalculate') : t('route.auto.calculate')}
-        </button>
+        <div className="route-planning-actions">
+          <button className="route-auto__calculate primary" type="button" onClick={props.onCalculatePlan} disabled={!canCalculatePlan}>
+            {props.planLoading ? t('route.auto.calculating') : acceptedPlan ? t('route.auto.recalculate') : t('route.auto.calculate')}
+          </button>
+          <button type="button" onClick={props.onStartEdit}>{props.route.plan ? t('route.auto.editManually') : t('route.edit')}</button>
+        </div>
         {props.planError ? <p className="route-status is-error" role="alert">{props.planError}</p> : null}
 
         {shownPlan ? <div className={`route-plan-preview is-${shownPlanStatus}${props.planPreview ? ' is-preview' : ' is-accepted'}`}>
@@ -505,14 +526,14 @@ export function RoutePanel(props: Props) {
           </div> : null}
         </div> : null}
       </section> : null}
-      <div className="route-edit-actions">
-        {props.editing ? <>
+      {props.editing ? <div className="route-edit-actions">
+        <>
           <button onClick={props.onUndo} disabled={!props.canUndo} aria-label={t('action.undo')}><Undo2 size={20} aria-hidden="true" /></button><button onClick={props.onRedo} disabled={!props.canRedo} aria-label={t('action.redo')}><Redo2 size={20} aria-hidden="true" /></button>
           <button onClick={() => { if (selectedWaypoint) props.onDeleteWaypoint(selectedWaypoint.id); }} disabled={!selectedWaypoint}>{t('route.deletePoint')}</button>
           <button onClick={props.onUseLocation}>{t('route.useLocation')}</button>
           <button onClick={props.onCancelEdit}>{t('action.cancel')}</button><button className="primary" onClick={props.onFinishEdit} disabled={props.route.waypoints.length < 2} title={props.route.waypoints.length < 2 ? t('route.needTwoPoints') : undefined}>{t('action.done')}</button>
-        </> : <button className={props.route.plan ? '' : 'primary'} onClick={props.onStartEdit}>{props.route.plan ? t('route.auto.editManually') : t('route.edit')}</button>}
-      </div>
+        </>
+      </div> : null}
       {confirmNavigation ? <div
         className="route-navigation-confirm"
         role="alertdialog"

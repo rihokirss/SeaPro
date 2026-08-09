@@ -198,7 +198,7 @@
 .route-panel button.primary, .route-vessel-dialog button.primary { color: var(--on-accent); background: var(--accent-strong); border-color: var(--accent); }
 .route-panel button:disabled, .route-vessel-dialog button:disabled { opacity: .45; cursor: default; }
 .route-panel .danger-link { color: var(--danger); }
-.route-form { display: grid; gap: var(--s4); }
+.route-form { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(142px, .9fr); gap: var(--s3); }
 .route-form label { display: grid; gap: var(--s2); color: var(--text-dim); font-size: var(--t-sm); }
 .route-form__grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .route-form input { width: 100%; box-sizing: border-box; }
@@ -299,7 +299,9 @@
     box-shadow: var(--shadow-lg);
   }
 }
-.route-panel .route-auto__calculate { width: 100%; margin-top: var(--s3); }
+.route-planning-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--s2); margin-top: var(--s3); }
+.route-planning-actions button { min-width: 0; min-height: var(--touch); height: auto; padding: var(--s2) var(--s3); line-height: 1.25; }
+.route-panel .route-auto__calculate { width: 100%; }
 .route-plan-preview { margin-top: var(--s3); padding: var(--s3); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); }
 .route-plan-preview.is-preview { border-color: var(--accent); }
 .route-plan-preview__summary { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
@@ -411,10 +413,10 @@
     top: auto;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--route-sheet-bottom, 0px);
     width: auto;
     height: var(--route-sheet-height, 50dvh);
-    max-height: calc(100dvh - 72px - var(--safe-top));
+    max-height: calc(100dvh - 72px - var(--safe-top) - var(--route-sheet-bottom, 0px));
     padding: 0 var(--s4) var(--safe-bottom);
     color: var(--text);
     background: var(--surface-solid);
@@ -448,8 +450,9 @@
   .route-mobile-compact__summary { color: var(--text-dim); font-family: var(--num); font-size: var(--t-cap); white-space: nowrap; }
   .route-mobile-compact button { min-width: 38px; min-height: var(--touch); padding: 0 var(--s3); }
   .route-mobile-compact button.primary { min-width: 58px; }
-  .route-endpoint-actions.has-home { grid-template-columns: 1fr 1fr; }
-  .route-endpoint-actions.has-home button:last-child { grid-column: 1 / -1; }
+  .route-endpoint-actions.has-home { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .route-endpoint-actions.has-home button { gap: var(--s1); padding-inline: var(--s2); font-size: var(--t-cap); }
+  .route-endpoint-search input { scroll-margin-block: 96px; }
   .route-home-harbour-map-pick { grid-template-columns: auto minmax(0, 1fr); }
   .route-home-harbour-map-pick button { grid-column: 1 / -1; width: 100%; }
   .route-waypoints__list { max-height: 34dvh; }

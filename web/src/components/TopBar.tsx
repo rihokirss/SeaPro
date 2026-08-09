@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, Pencil, Route, ShipWheel, Star, Trash2 } from 'lucide-react';
+import { Menu, Pencil, Route, Ship, Star, Trash2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import type { GeoState } from '../lib/geolocation';
 import type { useFavorites } from '../lib/favorites';
@@ -78,7 +78,7 @@ export function TopBar({ onOpenLayers, onOpenRoutes, onOpenVesselSettings, geo, 
           aria-label={t('route.vessel.configure')}
           aria-haspopup="dialog"
         >
-          <ShipWheel size={20} aria-hidden="true" />
+          <Ship size={20} aria-hidden="true" />
         </button>
         <div className="topbar__fav">
           <button

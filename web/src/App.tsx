@@ -50,6 +50,7 @@ import { RoutePanel } from './components/RoutePanel';
 import { VesselSettingsDialog } from './components/VesselSettingsDialog';
 import { NavigationBar } from './components/NavigationBar';
 import { routeStore } from './lib/routeStore';
+import { isAutomaticRouteName, suggestedRouteName } from './lib/routeName';
 import {
   applyVesselProfile,
   loadVesselProfile,
@@ -393,7 +394,7 @@ const makeId = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}
 function newRoute(profile: VesselProfile): Route {
   const now = new Date().toISOString();
   return applyVesselProfile({
-    id: makeId(), name: 'Uus marsruut', waypoints: [], startTime: now,
+    id: makeId(), name: '', waypoints: [], startTime: now,
     speedKnots: 6, draughtM: 1.2, underKeelClearanceM: 0.5, fuelLitresPerHour: 5,
     createdAt: now, updatedAt: now,
   }, profile);
@@ -1151,7 +1152,10 @@ export function App() {
       } else {
         waypoints = [...current.waypoints.slice(0, -1), nextPoint];
       }
-      return { ...current, waypoints, plan: undefined, updatedAt: new Date().toISOString() };
+      const name = isAutomaticRouteName(current.name, current.waypoints)
+        ? suggestedRouteName(waypoints)
+        : current.name;
+      return { ...current, name, waypoints, plan: undefined, updatedAt: new Date().toISOString() };
     });
     setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null);
     mapRef.current?.easeTo({ center: [point.lon, point.lat], zoom: Math.max(mapRef.current.getZoom(), 10) });
@@ -1552,7 +1556,10 @@ export function App() {
           onNew={() => { cancelRoutePlanRequest(); setRoute(newRoute(vesselProfile)); setRouteAnalysis(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); }}
           onLoad={(next) => {
             cancelRoutePlanRequest();
-            const applied = applyVesselProfile(next, vesselProfile);
+            const named = isAutomaticRouteName(next.name, next.waypoints)
+              ? { ...next, name: suggestedRouteName(next.waypoints) }
+              : next;
+            const applied = applyVesselProfile(named, vesselProfile);
             setRoute(routePlanInputKey(next) === routePlanInputKey(applied) ? applied : { ...applied, plan: undefined, updatedAt: new Date().toISOString() });
             setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(false); setSelectedWaypointId(null);
           }}

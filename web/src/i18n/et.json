@@ -286,6 +286,8 @@
   "route.new": "Uus",
   "route.saved": "Salvestatud marsruudid",
   "route.name": "Nimi",
+  "route.unnamed": "Nimetu marsruut",
+  "route.namePlaceholder": "Näiteks Tallinn–Helsingi",
   "route.startTime": "Algusaeg",
   "route.time": "Kellaaeg",
   "route.previousMonth": "Eelmine kuu",

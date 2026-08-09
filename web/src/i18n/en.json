@@ -286,6 +286,8 @@
   "route.new": "New",
   "route.saved": "Saved routes",
   "route.name": "Name",
+  "route.unnamed": "Unnamed route",
+  "route.namePlaceholder": "For example Tallinn–Helsinki",
   "route.startTime": "Start time",
   "route.time": "Time",
   "route.previousMonth": "Previous month",
