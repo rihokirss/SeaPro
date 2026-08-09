@@ -92,7 +92,7 @@ adaptiivsel võrel. Rakendatav kuluhierarhia on:
 
 | Lahter | Kordaja |
 |---|---:|
-| sobiv ametlik või soovituslik koridor teadaolevalt läbitavas vees (mitte TSS) | 0,8× |
+| sobiv ametlik või soovituslik koridor teadaolevalt läbitavas vees (mitte TSS) | 0,7× |
 | teadaolevalt piisava sügavusega vesi | 1× |
 | alla 0,5 m lisavaru või kontrollitav läbipääsupiirang | 5× |
 | puuduv sügavus/veemask, teenindusmaskist väljumine või osaline ametlik ohukiht | 25× |

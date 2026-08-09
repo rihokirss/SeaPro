@@ -38,7 +38,10 @@ export interface RoutingGrid {
 }
 
 export const ROUTING_COST_MULTIPLIERS = Object.freeze({
-  preferred: 0.8,
+  // 0,7: märgitud tee järgimine tasub kuni ~43% pikema tee korral. 0,8
+  // (kuni +25%) oli liiga nõrk — pikal marsruudil läks trass väylä kõrvalt
+  // lahtisele veele ega järginud soovituslikke teid peaaegu üldse.
+  preferred: 0.7,
   clear: 1,
   lowClearance: 5,
   unknown: 25,

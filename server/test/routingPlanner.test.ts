@@ -7,6 +7,7 @@ import {
   type BuildRoutingCostSurfaceInput,
   type RoutingCostSurface,
 } from '../src/routing/costSurface.js';
+import { ROUTING_COST_MULTIPLIERS } from '../src/routing/engineTypes.js';
 import { isWithinRoutingServiceArea } from '../src/routing/coverage.js';
 import { RoutingDepthState, type RoutingDepthRaster } from '../src/routing/depthRaster.js';
 import {
@@ -98,7 +99,7 @@ describe('routing cost surface precedence', () => {
     const surface = surfaceFor({ depthM: 0.5, corridors: [corridor] });
     const cell = detailsNear(surface, 24.012, 59.006);
     expect(cell.blocked).toBe(false);
-    expect(cell.costMultiplier).toBeCloseTo(0.8);
+    expect(cell.costMultiplier).toBeCloseTo(ROUTING_COST_MULTIPLIERS.preferred, 1);
     expect(cell.reasons).toContain('official_corridor');
     expect(cell.reasons).not.toContain('known_shallow');
   });
