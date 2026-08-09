@@ -156,6 +156,15 @@ Ametliku väylä sees kehtib seejuures sama ruumiliselt piiratud ametliku
 haraussügavuse/projekteeritud süvise erand. Kontroll ei saa olla täpsem kui
 lähteraster ise.
 
+Kui esmane otsing annaks `no_route`, kontrollib planner enne vastamist odavalt,
+kas ühenduse võis sulgeda jämeda võreraku sees segunenud sügav ja madal proov.
+Ajutine kontroll ei ava ametlikku piirangut, ohtu ega täielikult madalat või
+maismaal asuvat rakku. Ainult võimaliku ühenduse korral korratakse kogu ranget
+otsingut sama snapshot'i peal kuni kaks korda väiksema lahtrisammuga (kuni
+2 400 000 lahtrit, alumine siht 37,5 m). Peenvõres kehtib endiselt üheksa
+proovi miinimum ning tulemus läbib sama 10 m lõppkontrolli; uut EMODneti
+võrgupäringut ei tehta. Edukas esmane marsruut peenvõre kulu ei maksa.
+
 ## Piirid ja konfiguratsioon
 
 Vaikeala ning ressursipiirid on `.env` kaudu muudetavad:

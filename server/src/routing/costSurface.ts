@@ -29,6 +29,7 @@ const BLOCK_DEPTH_LAND = 1 << 1;
 const BLOCK_SHALLOW = 1 << 2;
 const BLOCK_HAZARD = 1 << 3;
 const BLOCK_RESTRICTION = 1 << 4;
+const BASE_BLOCK_MASK = BLOCK_WATER_LAND | BLOCK_DEPTH_LAND | BLOCK_SHALLOW;
 
 export const ROUTING_REASON_CODES = [
   'depth_unknown',
@@ -112,6 +113,13 @@ export interface RoutingCostSurface extends RoutingGrid {
   toGrid(point: { lon: number; lat: number }): GridCoordinate;
   toPosition(point: GridCoordinate): Position;
   detailsAt(x: number, y: number): RoutingCellDetails;
+  /**
+   * Tõene ainult jämeda alusvõre segarakul, kus osa üheksast vee-/sügavusproovist
+   * blokeerib ja osa mitte ning ükski vektorpiirang ei blokeeri rakku. Planner
+   * kasutab seda ainult selleks, et otsustada, kas rangem peenvõre võiks
+   * `no_route` tulemust muuta; tavalises otsingus jääb rakk blokeerituks.
+   */
+  refinementCandidateAt?(x: number, y: number): boolean;
 }
 
 export interface BuildRoutingCostSurfaceInput {
@@ -147,6 +155,7 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
   const reasonMasks = new Uint32Array(size);
   const sourceMasks = new Uint32Array(size);
   const depths = new Float32Array(size);
+  const mixedBaseCells = new Uint8Array(size);
   depths.fill(Number.NaN);
   const sourceIds = collectSourceIds(input.vectors.sources);
   const sourceIndexes = new Map(sourceIds.map((source, index) => [source, index]));
@@ -204,6 +213,7 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
       let depthUnknown = false;
       let outsideOfficialCoverage = false;
       let minimumDepthM = Number.POSITIVE_INFINITY;
+      let blockedSampleCount = 0;
 
       for (const row of rowSamplers) {
         for (const dx of CELL_SAMPLE_OFFSETS) {
@@ -215,8 +225,16 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
           if (depthSample === DEPTH_SAMPLE_LAND) depthLand = true;
           if (depthSample < 0) depthUnknown = true;
           else minimumDepthM = Math.min(minimumDepthM, depthSample);
+          if (water === false || depthSample === DEPTH_SAMPLE_LAND
+            || (depthSample >= 0 && depthSample < requiredDepthM)) {
+            blockedSampleCount++;
+          }
           outsideOfficialCoverage ||= !row.service(lon);
         }
+      }
+
+      if (blockedSampleCount > 0 && blockedSampleCount < CELL_SAMPLE_OFFSETS.length ** 2) {
+        mixedBaseCells[index] = 1;
       }
 
       if (waterLand) {
@@ -346,6 +364,13 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
         sourceIds: sourcesFromMask(sourceMasks[index]!, sourceIds),
         depthM: Number.isFinite(depths[index]) ? depths[index]! : null,
       };
+    },
+    refinementCandidateAt(x, y) {
+      const index = cellIndex(projection, x, y);
+      const blockMask = blocks[index]!;
+      return mixedBaseCells[index] === 1
+        && blockMask !== 0
+        && (blockMask & ~BASE_BLOCK_MASK) === 0;
     },
   };
 

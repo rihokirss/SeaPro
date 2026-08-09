@@ -31,6 +31,7 @@ import type {
 import { routingWaterAt, type RoutingWaterMask } from '../src/routing/waterMask.js';
 
 const BBOX: BBox = [59, 24, 59.012, 24.024];
+const REFINEMENT_BBOX: BBox = [59, 24, 59.03, 24.08];
 const SOURCE: RoutePlanSource = {
   id: 'test',
   fetchedAt: '2026-08-08T12:00:00.000Z',
@@ -426,6 +427,95 @@ describe('route planner snapshot integration', () => {
     expect(result.distanceNm).toBeGreaterThan(0);
   });
 
+  it('retries a resolution-sensitive no_route on a strict two-times-finer grid', async () => {
+    const gapRow = 30;
+    const snapshot = refinementSnapshot({ barrierColumns: [80], gapRows: [gapRow] });
+    const gapLat = rasterRowLatitude(REFINEMENT_BBOX, 60, gapRow);
+    const request: RoutePlanRequest = {
+      ...routeRequest(),
+      start: { lat: gapLat, lon: 24.005 },
+      end: { lat: gapLat, lon: 24.075 },
+    };
+    const phases: string[] = [];
+
+    const result = await planRoute(request, {
+      snapshot,
+      bbox: REFINEMENT_BBOX,
+      instrumentation: { phase: (name) => phases.push(name) },
+    });
+
+    expect(result.status).not.toBe('no_route');
+    if (result.status === 'no_route') throw new Error('Expected the refined grid to find the narrow opening');
+    expect(phases).toContain('refinement_probe');
+    expect(phases).toContain('refinement.cost_surface');
+    expect(result.segments.every((segment) => segment.minDepthM === null || segment.minDepthM >= 1.7)).toBe(true);
+  });
+
+  it('does not build a fine grid when the optimistic probe cannot cross a solid shallow barrier', async () => {
+    const snapshot = refinementSnapshot({
+      barrierColumns: Array.from({ length: 10 }, (_, index) => 75 + index),
+    });
+    const request: RoutePlanRequest = {
+      ...routeRequest(),
+      start: { lat: 59.015, lon: 24.005 },
+      end: { lat: 59.015, lon: 24.075 },
+    };
+    const phases: string[] = [];
+
+    const result = await planRoute(request, {
+      snapshot,
+      bbox: REFINEMENT_BBOX,
+      instrumentation: { phase: (name) => phases.push(name) },
+    });
+
+    expect(result.status).toBe('no_route');
+    expect(phases).toContain('refinement_probe');
+    expect(phases).not.toContain('refinement.cost_surface');
+  });
+
+  it('never opens a hard vector hazard in the refinement probe', async () => {
+    const wall: RoutingHazard = {
+      id: 'solid-vector-wall',
+      kind: 'obstruction',
+      geometry: { type: 'LineString', coordinates: [[24.04, 59], [24.04, 59.03]] },
+      confidence: 'high',
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const snapshot = refinementSnapshot({ barrierColumns: [] });
+    snapshot.vectors = vectorData({ hazards: [wall] });
+    const request: RoutePlanRequest = {
+      ...routeRequest(),
+      start: { lat: 59.015, lon: 24.005 },
+      end: { lat: 59.015, lon: 24.075 },
+    };
+    const phases: string[] = [];
+
+    const result = await planRoute(request, {
+      snapshot,
+      bbox: REFINEMENT_BBOX,
+      instrumentation: { phase: (name) => phases.push(name) },
+    });
+
+    expect(result.status).toBe('no_route');
+    expect(phases).toContain('refinement_probe');
+    expect(phases).not.toContain('refinement.cost_surface');
+  });
+
+  it('does not add refinement work to a successful primary route', async () => {
+    const phases: string[] = [];
+    const result = await planRoute(routeRequest(), {
+      snapshot: snapshotFor({ depthM: 8 }),
+      bbox: BBOX,
+      instrumentation: { phase: (name) => phases.push(name) },
+    });
+
+    expect(result.status).toBe('route');
+    expect(phases).not.toContain('refinement_probe');
+    expect(phases.some((name) => name.startsWith('refinement.'))).toBe(false);
+  });
+
   it('reports a harbour registry limit as a warning instead of blocking the route', async () => {
     const request = routeRequest();
     const harbour: RoutingHarbour = {
@@ -800,6 +890,39 @@ function depthRaster(state: RoutingDepthState, depthM: number): RoutingDepthRast
     depths,
     source: { ...SOURCE, id: 'emodnet-depth' },
   };
+}
+
+function refinementSnapshot(options: {
+  barrierColumns: number[];
+  gapRows?: number[];
+}): RoutingSnapshot {
+  const width = 160;
+  const height = 60;
+  const states = new Uint8Array(width * height);
+  states.fill(RoutingDepthState.Water);
+  const depths = new Float32Array(width * height);
+  depths.fill(8);
+  const gapRows = new Set(options.gapRows ?? []);
+  for (let y = 0; y < height; y++) {
+    if (gapRows.has(y)) continue;
+    for (const x of options.barrierColumns) depths[y * width + x] = 0.5;
+  }
+  return {
+    depth: {
+      bbox: [REFINEMENT_BBOX[1], REFINEMENT_BBOX[0], REFINEMENT_BBOX[3], REFINEMENT_BBOX[2]],
+      width,
+      height,
+      states,
+      depths,
+      source: { ...SOURCE, id: 'emodnet-depth' },
+    },
+    water: waterMask(),
+    vectors: vectorData({}),
+  };
+}
+
+function rasterRowLatitude(bbox: BBox, height: number, row: number): number {
+  return bbox[2] - (row + 0.5) / height * (bbox[2] - bbox[0]);
 }
 
 function waterMask(rings: [number, number][][] = [globalWaterRing()]): RoutingWaterMask {
