@@ -1,5 +1,5 @@
 import type { BBox } from '@seapro/shared';
-import type { RoutingVectorData } from '../sourceTypes.js';
+import type { RoutingSourceId, RoutingSourceMeta, RoutingVectorData } from '../sourceTypes.js';
 import { loadEstonianRoutingData } from './estonia.js';
 import { loadEstonianRoutingWarnings } from './estoniaWarnings.js';
 import { loadFinnishRoutingData } from './finland.js';
@@ -63,11 +63,35 @@ export async function loadRoutingVectorData(
     throw new Error('departureTime peab olema kehtiv ISO 8601 aeg');
   }
 
+  // Iga allika kõva ajaeelarve: rippuv väline teenus (nt Overpassi ummik)
+  // ei tohi süüa kogu plaani tähtaega. Üle eelarve läheb allikas osalise
+  // katte režiimi — otsing muudab vastava ala tundmatuks, mitte ei sure —
+  // ja mahajäänud päring jookseb taustal lõpuni ning soojendab cache'i
+  // järgmiseks katseks.
   const [estonia, estonianWarnings, finland, osm] = await Promise.all([
-    loadEstonianRoutingData(bbox),
-    loadEstonianRoutingWarnings(bbox, departureTime),
-    loadFinnishRoutingData(bbox, departureTime),
-    loadOsmRoutingData(bbox),
+    withSourceBudget(loadEstonianRoutingData(bbox), () => ({
+      hazards: [], corridors: [], surveyAreas: [], harbours: [],
+      source: budgetExceededMeta('transpordiamet-his',
+        'Transpordiamet, Hüdrograafia infosüsteem',
+        'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer'),
+    })),
+    withSourceBudget(loadEstonianRoutingWarnings(bbox, departureTime), () => ({
+      warnings: [],
+      source: budgetExceededMeta('transpordiamet-warnings',
+        'Transpordiamet, navigatsioonihoiatused',
+        'https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer'),
+    })),
+    withSourceBudget(loadFinnishRoutingData(bbox, departureTime), () => ({
+      hazards: [], corridors: [], restrictions: [], warnings: [],
+      source: budgetExceededMeta('vaylavirasto-wfs',
+        'Väylävirasto avoin WFS', 'https://vayla.fi/vaylista/aineistot/avoindata'),
+    })),
+    withSourceBudget(loadOsmRoutingData(bbox), () => ({
+      hazards: [], corridors: [], restrictions: [], harbours: [],
+      source: budgetExceededMeta('openstreetmap-overpass',
+        '© OpenStreetMap contributors / OpenSeaMap seamarks',
+        'https://www.openstreetmap.org/copyright'),
+    })),
   ]);
 
   return {
@@ -84,4 +108,42 @@ export async function loadRoutingVectorData(
 
 function sortById<T extends { id: string }>(items: T[]): T[] {
   return items.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+const SOURCE_BUDGET_MS = 40_000;
+
+function withSourceBudget<T>(promise: Promise<T>, fallback: () => T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback()), SOURCE_BUDGET_MS);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(fallback());
+      });
+  });
+}
+
+function budgetExceededMeta(
+  source: RoutingSourceId,
+  attribution: string,
+  attributionUrl: string,
+): RoutingSourceMeta {
+  return {
+    id: source,
+    source,
+    status: 'unavailable',
+    stale: false,
+    fetchedAt: new Date().toISOString(),
+    ageSeconds: 0,
+    coverage: 'missing',
+    error: `Allika ajaeelarve (${SOURCE_BUDGET_MS / 1000} s) sai täis`,
+    tilesRequested: 1,
+    tilesLoaded: 0,
+    attribution,
+    attributionUrl,
+  };
 }

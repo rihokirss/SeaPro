@@ -31,6 +31,9 @@ const ENDPOINTS = [
 ];
 const SOURCE = 'openstreetmap-overpass' as const;
 const TTL_SECONDS = 24 * 3600;
+// Viimati vastanud endpoint proovitakse esimesena: kui üks peeglitest on
+// ummikus (aeglane 504), ei põleta iga paan tema timeouti uuesti läbi.
+let preferredEndpoint = 0;
 
 const HAZARD_TYPES = new Set(['rock', 'obstruction', 'wreck']);
 const RECOMMENDED_TYPES = new Set([
@@ -162,14 +165,18 @@ async function queryOverpass([south, west, north, east]: BBox): Promise<Overpass
 );
 out geom tags;`;
   let lastError: unknown;
-  for (const endpoint of ENDPOINTS) {
+  for (let attempt = 0; attempt < ENDPOINTS.length; attempt++) {
+    const index = (preferredEndpoint + attempt) % ENDPOINTS.length;
     try {
-      const response = await fetchJson<unknown>(endpoint, {
+      const response = await fetchJson<unknown>(ENDPOINTS[index]!, {
         form: { data: query },
-        timeoutMs: 90_000,
+        // Peab mahtuma plaani 90 s tähtaja sisse ka mitme paani ja kahe
+        // endpointi korral; aeglaselt rippuv peegel ei tohi plaani tappa.
+        timeoutMs: 15_000,
         retries: 0,
       });
       validateOverpassRoutingResponse(response);
+      preferredEndpoint = index;
       return response;
     } catch (error) {
       lastError = error;
