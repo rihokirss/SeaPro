@@ -243,6 +243,36 @@ function harbourChannel(
     midpoints.push(midpoint);
     narrowestM = Math.min(narrowestM, widthM);
   }
+  // Kui üks külg jätkub ühisosast kaugemale (nt Tilgu sissesõit kaardub
+  // punaste poidega edasi pärast rohelise rivi lõppu), järgib keskjoon
+  // seda serva sama poole-laiuse nihkega, mis kehtis viimases ühisjaamas.
+  const boundaryT = stations.at(-1);
+  if (boundaryT !== undefined && midpoints.length > 0) {
+    const portAtBoundary = sideLineAt(ports, boundaryT);
+    const starboardAtBoundary = sideLineAt(starboards, boundaryT);
+    const centreAtBoundary: Position = [
+      (portAtBoundary[0] + starboardAtBoundary[0]) / 2,
+      (portAtBoundary[1] + starboardAtBoundary[1]) / 2,
+    ];
+    const offsetOf = (side: ChainEntry[]): Position => {
+      const atBoundary = side === ports ? portAtBoundary : starboardAtBoundary;
+      return [centreAtBoundary[0] - atBoundary[0], centreAtBoundary[1] - atBoundary[1]];
+    };
+    const tails = [
+      ...ports.map((entry) => ({ entry, side: ports })),
+      ...starboards.map((entry) => ({ entry, side: starboards })),
+    ].filter(({ entry }) => entry.along > boundaryT + 1)
+      .sort((a, b) => a.entry.along - b.entry.along);
+    for (const { entry, side } of tails) {
+      const offset = offsetOf(side);
+      const midpoint: Position = [entry.position[0] + offset[0], entry.position[1] + offset[1]];
+      if (target && distanceToSegment(midpoint, endpoint, target).distanceM > MAX_GATE_DISTANCE_M / 2) {
+        continue;
+      }
+      if (distance(midpoint, midpoints.at(-1)!) < 20) continue;
+      midpoints.push(midpoint);
+    }
+  }
   if (midpoints.length === 0) return null;
 
   return {
