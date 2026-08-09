@@ -60,6 +60,16 @@ const SCENARIOS: Record<string, RoutePlanRequest> = {
     beamM: 3.5,
     airDraughtM: 4,
   },
+  'tilgu-hanko-nw': {
+    start: { lat: 59.455377, lon: 24.487996 },
+    end: { lat: 59.902571, lon: 22.521439 },
+    departureTime: '2026-08-09T09:00:00+03:00',
+    speedKnots: 8,
+    draughtM: 1.2,
+    underKeelClearanceM: 0.5,
+    beamM: 3.5,
+    airDraughtM: 4,
+  },
   'short-tallinn-bay': {
     start: { lat: 59.49, lon: 24.66 },
     end: { lat: 59.57, lon: 24.62 },

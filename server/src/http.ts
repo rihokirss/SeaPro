@@ -26,6 +26,8 @@ interface FetchOptions {
   timeoutMs?: number;
   /** Mitu korda proovida uuesti võrgu/5xx vea korral. Vaikimisi 2. */
   retries?: number;
+  /** Väline katkestus (nt allika ajaeelarve); ei käivita kordusi. */
+  signal?: AbortSignal;
 }
 
 const DEFAULT_TIMEOUT = 15_000;
@@ -55,8 +57,12 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
   const safeUrl = redactUrlSecrets(url);
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (opts.signal?.aborted) {
+      throw lastError ?? new Error(`Päring katkestati: ${safeUrl}`);
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const signal = opts.signal ? AbortSignal.any([controller.signal, opts.signal]) : controller.signal;
 
     try {
       const headers: Record<string, string> = {
@@ -77,7 +83,7 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
         method: opts.method ?? (opts.form ? 'POST' : 'GET'),
         headers,
         body,
-        signal: controller.signal,
+        signal,
         redirect: 'follow',
       });
 

@@ -111,7 +111,18 @@ export interface OsmRoutingData {
 
 export async function loadOsmRoutingData(bbox: BBox): Promise<OsmRoutingData> {
   const tiles = adaptiveBboxTiles(bbox, 1, 16);
-  const settled = await settleMapLimit(tiles, 2, loadTile);
+  // Sisemine eelarve on allika 40 s välispiirist väiksem: eelarve täitumisel
+  // katkestatakse ka pooleliolevad päringud, nii et juba laaditud paanid
+  // jõuavad osalise kattena alati kohale, mitte ei kuku kõik korraga välja.
+  // Concurrency 2 on avaliku Overpassi viisakuspiir; rohkem toob 429 kaela.
+  const budget = new AbortController();
+  const budgetTimer = setTimeout(() => budget.abort(), 30_000);
+  const settled = await settleMapLimit(
+    tiles,
+    2,
+    (tile) => loadTile(tile, budget.signal),
+    30_000,
+  ).finally(() => clearTimeout(budgetTimer));
   const loaded = settled.flatMap((result): LoadedTile<OverpassRoutingResponse>[] =>
     result.status === 'fulfilled' ? [result.value] : []);
   const errors = settled.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
@@ -139,9 +150,9 @@ function withinBbox<T extends { geometry: Parameters<typeof routingGeometryInter
   return features.filter((feature) => routingGeometryIntersectsBbox(feature.geometry, bbox));
 }
 
-async function loadTile(tile: BBox): Promise<LoadedTile<OverpassRoutingResponse>> {
+async function loadTile(tile: BBox, signal?: AbortSignal): Promise<LoadedTile<OverpassRoutingResponse>> {
   const key = `routing:openstreetmap-overpass:v3:${tile.join(',')}`;
-  const result = await cache.get(key, TTL_SECONDS, () => queryOverpass(expandBbox(tile, 0.25)));
+  const result = await cache.get(key, TTL_SECONDS, () => queryOverpass(expandBbox(tile, 0.25), signal));
   // Kontrolli ka stale cache-väärtust: osaline HTTP 200 vastus ei tohi muutuda
   // järgmisel laadimisel vaikimisi "täielikuks" tühjaks ohukihiks.
   validateOverpassRoutingResponse(result.value);
@@ -152,7 +163,10 @@ async function loadTile(tile: BBox): Promise<LoadedTile<OverpassRoutingResponse>
   };
 }
 
-async function queryOverpass([south, west, north, east]: BBox): Promise<OverpassRoutingResponse> {
+async function queryOverpass(
+  [south, west, north, east]: BBox,
+  signal?: AbortSignal,
+): Promise<OverpassRoutingResponse> {
   const types = QUERY_TYPES.join('|');
   const query = `[out:json][timeout:60];
 (
@@ -168,12 +182,15 @@ out geom tags;`;
   for (let attempt = 0; attempt < ENDPOINTS.length; attempt++) {
     const index = (preferredEndpoint + attempt) % ENDPOINTS.length;
     try {
+      if (signal?.aborted) break;
       const response = await fetchJson<unknown>(ENDPOINTS[index]!, {
         form: { data: query },
         // Peab mahtuma plaani 90 s tähtaja sisse ka mitme paani ja kahe
         // endpointi korral; aeglaselt rippuv peegel ei tohi plaani tappa.
-        timeoutMs: 15_000,
+        // Saarestiku 1-kraadine paan on samas päriselt raske päring.
+        timeoutMs: 25_000,
         retries: 0,
+        signal,
       });
       validateOverpassRoutingResponse(response);
       preferredEndpoint = index;

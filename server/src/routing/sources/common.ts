@@ -145,11 +145,17 @@ export async function settleMapLimit<T, R>(
   items: readonly T[],
   concurrency: number,
   worker: (item: T) => Promise<R>,
+  budgetMs?: number,
 ): Promise<PromiseSettledResult<R>[]> {
   const results = new Array<PromiseSettledResult<R>>(items.length);
+  const startedAt = performance.now();
   let cursor = 0;
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
     while (cursor < items.length) {
+      // Ajaeelarve ületamisel ei alusta uusi töid: juba laaditud paanid
+      // jäävad alles ja allikas raporteerib osalise katte, mitte ei kuku
+      // tervikuna välja.
+      if (budgetMs !== undefined && performance.now() - startedAt >= budgetMs) break;
       const index = cursor++;
       try {
         results[index] = { status: 'fulfilled', value: await worker(items[index]!) };
@@ -158,6 +164,11 @@ export async function settleMapLimit<T, R>(
       }
     }
   }));
+  for (let index = 0; index < results.length; index++) {
+    if (results[index] === undefined) {
+      results[index] = { status: 'rejected', reason: new Error('Allika ajaeelarve sai täis') };
+    }
+  }
   return results;
 }
 
