@@ -54,31 +54,91 @@ export function routeDistanceNm(points: Array<{ lat: number; lon: number }>): nu
   return metres / METRES_PER_NM;
 }
 
-/** Proov vähemalt pöördepunktides ning max 10 NM / 1 h sammuga. */
+const ROUTE_SAMPLE_INTERVAL_MINUTES = [30, 60, 120, 180, 240, 360, 480, 720, 1440] as const;
+const MAX_TIME_SAMPLES = 10;
+const DISTANCE_EPSILON_NM = 1e-6;
+
+interface RouteSampleTarget {
+  distanceNm: number;
+  waypointIndex?: number;
+}
+
+/** Väikseim mugav ajasamm, mis ei lisa marsruudile üle kümne ajaproovi. */
+export function routeSampleIntervalMinutes(durationHours: number): number {
+  if (!Number.isFinite(durationHours) || durationHours <= 0) return ROUTE_SAMPLE_INTERVAL_MINUTES[0];
+  const durationMinutes = durationHours * 60;
+  for (const interval of ROUTE_SAMPLE_INTERVAL_MINUTES) {
+    if (Math.ceil(durationMinutes / interval) - 1 <= MAX_TIME_SAMPLES) return interval;
+  }
+  return Math.ceil(durationMinutes / MAX_TIME_SAMPLES / 1440) * 1440;
+}
+
+/**
+ * Proov marsruudi alguses, iga jala lõpus ja ühtlase ajasammuga.
+ *
+ * Ajapunktid käivad üle terve marsruudi, mitte ei alga igal jalal uuesti.
+ * Nii ei teki pika jala sisse juhusliku vahega ridu ega lühikeste jalgade
+ * piiridele topeltpunkte. Jala otspunkt võidab samale ajale sattunud tavalise
+ * ajaproovi, et UI saaks selle arusaadavalt märgistada.
+ */
 export function sampleRoute(request: Pick<RouteAnalysisRequest, 'waypoints' | 'startTime' | 'speedKnots'>): RouteSamplePoint[] {
   const startMs = new Date(request.startTime).getTime();
   if (request.waypoints.length < 2 || !Number.isFinite(startMs) || request.speedKnots <= 0) return [];
-  const maxStepNm = Math.min(10, request.speedKnots); // ühe tunni tee või 10 NM
-  const out: RouteSamplePoint[] = [{ ...request.waypoints[0]!, distanceNm: 0, time: new Date(startMs).toISOString(), waypointIndex: 0 }];
-  let cumulativeNm = 0;
+
+  const cumulativeDistances = [0];
   for (let i = 1; i < request.waypoints.length; i++) {
     const a = request.waypoints[i - 1]!;
     const b = request.waypoints[i]!;
     const segmentNm = distanceMetres(a, b) / METRES_PER_NM;
-    const steps = Math.max(1, Math.ceil(segmentNm / maxStepNm));
-    for (let step = 1; step <= steps; step++) {
-      const position = interpolatePosition(a, b, step / steps);
-      const distanceNm = cumulativeNm + segmentNm * step / steps;
-      out.push({
-        ...position,
-        distanceNm,
-        time: new Date(startMs + distanceNm / request.speedKnots * 3_600_000).toISOString(),
-        ...(step === steps ? { waypointIndex: i } : {}),
-      });
-    }
-    cumulativeNm += segmentNm;
+    cumulativeDistances.push(cumulativeDistances.at(-1)! + segmentNm);
   }
-  return out;
+  const totalDistanceNm = cumulativeDistances.at(-1)!;
+  const intervalMinutes = routeSampleIntervalMinutes(totalDistanceNm / request.speedKnots);
+  const intervalDistanceNm = request.speedKnots * intervalMinutes / 60;
+  const targets: RouteSampleTarget[] = cumulativeDistances.map((distanceNm, waypointIndex) => ({
+    distanceNm,
+    waypointIndex,
+  }));
+  for (let distanceNm = intervalDistanceNm; distanceNm < totalDistanceNm - DISTANCE_EPSILON_NM; distanceNm += intervalDistanceNm) {
+    targets.push({ distanceNm });
+  }
+  targets.sort((a, b) => a.distanceNm - b.distanceNm);
+
+  const mergedTargets: RouteSampleTarget[] = [];
+  for (const target of targets) {
+    const previous = mergedTargets.at(-1);
+    if (previous && Math.abs(previous.distanceNm - target.distanceNm) <= DISTANCE_EPSILON_NM) {
+      if (previous.waypointIndex === undefined && target.waypointIndex !== undefined) {
+        previous.waypointIndex = target.waypointIndex;
+      }
+      continue;
+    }
+    mergedTargets.push({ ...target });
+  }
+
+  let segmentIndex = 0;
+  return mergedTargets.map((target) => {
+    while (
+      segmentIndex < request.waypoints.length - 2
+      && target.distanceNm > cumulativeDistances[segmentIndex + 1]! + DISTANCE_EPSILON_NM
+    ) segmentIndex++;
+    const segmentStartNm = cumulativeDistances[segmentIndex]!;
+    const segmentEndNm = cumulativeDistances[segmentIndex + 1]!;
+    const segmentNm = segmentEndNm - segmentStartNm;
+    const position = target.waypointIndex !== undefined
+      ? request.waypoints[target.waypointIndex]!
+      : interpolatePosition(
+        request.waypoints[segmentIndex]!,
+        request.waypoints[segmentIndex + 1]!,
+        segmentNm <= DISTANCE_EPSILON_NM ? 1 : (target.distanceNm - segmentStartNm) / segmentNm,
+      );
+    return {
+      ...position,
+      distanceNm: target.distanceNm,
+      time: new Date(startMs + target.distanceNm / request.speedKnots * 3_600_000).toISOString(),
+      ...(target.waypointIndex !== undefined ? { waypointIndex: target.waypointIndex } : {}),
+    };
+  });
 }
 
 /** Equirectangular lähendus lühikese merelõigu ristkauguseks. */

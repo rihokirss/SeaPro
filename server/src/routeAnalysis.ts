@@ -1,5 +1,5 @@
 import type { RouteAnalysis, RouteAnalysisRequest, RouteWeatherSample, TimeStep, Variable } from '@seapro/shared';
-import { crossTrackDistanceMetres, distanceMetres, routeDistanceNm, sampleRoute } from '@seapro/shared';
+import { crossTrackDistanceMetres, distanceMetres, routeDistanceNm, routeSampleIntervalMinutes, sampleRoute } from '@seapro/shared';
 import { analyseRouteDepth } from './depthContours.js';
 import { getProvider } from './providers/registry.js';
 import { fetchOfficialHarbours, fetchOfficialNavigation } from './navigation/arcgis.js';
@@ -42,7 +42,11 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 export async function analyseRoute(request: RouteAnalysisRequest): Promise<RouteAnalysis> {
   const pathPoints = request.path?.coordinates.map(([lon, lat]) => ({ lat, lon }))
     ?? request.waypoints;
-  const samples = sampleRoute({ ...request, waypoints: pathPoints });
+  // `path` sisaldab ka riskialade ja võrerakkude tehnilisi murdepunkte. Need
+  // on sügavusanalüüsi jaoks vajalikud, kuid ei ole navigatsioonijalad ega
+  // tohi tekitada tabelisse sadat rida. Ilma- ja tabeliproovid seome eraldi
+  // päris navigatsioonipunktidega, mille klient saadab `waypoints` väljal.
+  const samples = sampleRoute(request);
   const distanceNm = routeDistanceNm(pathPoints);
   const durationSeconds = distanceNm / request.speedKnots * 3600;
   const requiredDepthM = request.draughtM + request.underKeelClearanceM;
@@ -93,7 +97,7 @@ export async function analyseRoute(request: RouteAnalysisRequest): Promise<Route
       const limit = fairway.shipDraughtM ?? fairway.depthM;
       if (limit == null || limit >= request.draughtM) continue;
       const lines = fairway.geometry.type === 'LineString' ? [fairway.geometry.coordinates] : fairway.geometry.coordinates;
-      const close = lines.some((line) => line.slice(1).some((p, i) => samples.some((sample) => crossTrackDistanceMetres(sample, { lon: line[i]![0], lat: line[i]![1] }, { lon: p[0], lat: p[1] }) <= Math.max(100, (fairway.widthM ?? 0) / 2))));
+      const close = lines.some((line) => line.slice(1).some((p, i) => pathPoints.some((point) => crossTrackDistanceMetres(point, { lon: line[i]![0], lat: line[i]![1] }, { lon: p[0], lat: p[1] }) <= Math.max(100, (fairway.widthM ?? 0) / 2))));
       if (close) restrictions.push({ kind: 'fairway', name: fairway.name, maxDraughtM: limit });
     }
     const endpoints = [pathPoints[0]!, pathPoints.at(-1)!];
@@ -115,7 +119,7 @@ export async function analyseRoute(request: RouteAnalysisRequest): Promise<Route
     };
   });
   return {
-    distanceNm, durationSeconds,
+    distanceNm, durationSeconds, sampleIntervalMinutes: routeSampleIntervalMinutes(durationSeconds / 3600),
     arrivalTime: new Date(new Date(request.startTime).getTime() + durationSeconds * 1000).toISOString(),
     estimatedFuelLitres: durationSeconds / 3600 * request.fuelLitresPerHour,
     requiredDepthM, samples: resultSamples, depthSegments, warnings, restrictions,

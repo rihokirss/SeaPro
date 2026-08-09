@@ -612,7 +612,11 @@ export function App() {
     const ac = new AbortController();
     const timer = window.setTimeout(() => {
       api.routeAnalysis({
-        waypoints: route.waypoints, startTime: route.startTime, speedKnots: route.speedKnots,
+        // Planeerija detailne geomeetria sisaldab palju riskipiire ja
+        // võremurdeid. Tabeli jalgadeks on kaardil nummerdatud
+        // navigatsioonipunktid, mitte need tehnilised murdepunktid.
+        waypoints: route.plan?.navigationWaypoints ?? route.waypoints,
+        startTime: route.startTime, speedKnots: route.speedKnots,
         path: route.plan?.geometry,
         draughtM: route.draughtM, underKeelClearanceM: route.underKeelClearanceM,
         fuelLitresPerHour: route.fuelLitresPerHour,
@@ -622,7 +626,7 @@ export function App() {
       }).finally(() => { if (!ac.signal.aborted) setRouteLoading(false); });
     }, 500);
     return () => { window.clearTimeout(timer); ac.abort(); };
-  }, [route.waypoints, route.plan?.geometry, route.startTime, route.speedKnots, route.draughtM, route.underKeelClearanceM, route.fuelLitresPerHour, routeEditing, activeModel, activeWaveModel, t]);
+  }, [route.waypoints, route.plan?.geometry, route.plan?.navigationWaypoints, route.startTime, route.speedKnots, route.draughtM, route.underKeelClearanceM, route.fuelLitresPerHour, routeEditing, activeModel, activeWaveModel, t]);
 
   useEffect(() => {
     if (routeEditing || route.waypoints.length < 2) return;

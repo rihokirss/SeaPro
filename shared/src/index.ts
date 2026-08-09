@@ -705,6 +705,8 @@ export interface RouteWeatherSample {
   lon: number;
   time: string;
   distanceNm: number;
+  /** Marsruudijala otspunkt; puudub ühtlasel ajaproovil. */
+  waypointIndex?: number;
   values: Partial<Record<
     'wind_speed' | 'wind_gust' | 'wind_dir' | 'wave_height' | 'wave_period' | 'wave_dir',
     number | null
@@ -717,6 +719,8 @@ export interface RouteWeatherSample {
 export interface RouteAnalysis {
   distanceNm: number;
   durationSeconds: number;
+  /** UI tabeli ajapõhiste vahepunktide samm; jalgade otspunktid lisanduvad alati. */
+  sampleIntervalMinutes: number;
   arrivalTime: string;
   estimatedFuelLitres: number;
   requiredDepthM: number;
@@ -727,8 +731,9 @@ export interface RouteAnalysis {
 }
 
 export interface RouteAnalysisRequest {
+  /** Käsitsi marsruudi pöördepunktid või automaatmarsruudi navigatsioonipunktid. */
   waypoints: Array<Pick<RouteWaypoint, 'lat' | 'lon'>>;
-  /** Automaatmarsruudi tegelik joon; puudumisel kasutatakse `waypoints` väärtust. */
+  /** Automaatmarsruudi detailne joon sügavus- ja vahemaa-analüüsiks. */
   path?: RouteLineString;
   startTime: string;
   speedKnots: number;

@@ -385,11 +385,18 @@
 .route-summary strong { font-size: var(--t-num); font-variant-numeric: tabular-nums; }
 .route-summary span { color: var(--text-dim); font-size: var(--t-sm); }
 .route-chart-block { margin-top: var(--s4); color: var(--text-dim); font-size: var(--t-sm); }
-.route-chart { display: block; width: 100%; height: 72px; margin-top: var(--s2); background: rgba(0,0,0,.12); border-radius: var(--r-sm); }
+.route-chart { width: 100%; height: 78px; box-sizing: border-box; display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: stretch; margin-top: var(--s2); padding: 6px 8px 6px 0; overflow: hidden; background: rgba(0,0,0,.12); border-radius: var(--r-sm); }
+.route-chart__axis { display: flex; flex-direction: column; justify-content: space-between; padding: 1px var(--s2) 1px 0; color: var(--text-dim); font-family: var(--num); font-size: var(--t-micro); line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.route-chart__plot { display: block; width: 100%; height: 100%; overflow: hidden; }
+.route-chart__grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; }
 .route-chart__empty { padding: var(--s5); }
+.route-table__hint { margin: var(--s4) 0 0; color: var(--text-dim); font-size: var(--t-cap); line-height: 1.4; }
 .route-table-wrap { overflow-x: auto; margin-top: var(--s4); }
 .route-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); white-space: nowrap; }
 .route-table th, .route-table td { padding: var(--s3); text-align: left; border-bottom: 1px solid var(--line); }
+.route-table__time span, .route-table__time small { display: block; }
+.route-table__time small { margin-top: 2px; color: var(--text-dim); font-size: var(--t-micro); }
+.route-table tr.is-leg-end { background: rgba(53, 167, 216, .045); }
 .route-table tr.risk-danger td:last-child { color: var(--danger); font-weight: var(--w-bold); }
 .route-table tr.risk-caution td:last-child { color: var(--warn); }
 

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { AlertTriangle, Check, Crosshair, GripVertical, Home, LocateFixed, Play, Redo2, Settings2, Trash2, Undo2, X } from 'lucide-react';
 import type { Route, RouteAnalysis, RoutePlan, RouteWaypoint } from '@seapro/shared';
-import { degreesToCompass, routeDistanceNm } from '@seapro/shared';
+import { convertSpeed, degreesToCompass, routeDistanceNm } from '@seapro/shared';
 import { localeTag, useI18n, type Translate } from '../i18n';
 import { formatValue, unitLabel, type SpeedUnit } from '../lib/units';
 import type { VesselProfile } from '../lib/vesselProfile';
@@ -91,13 +91,70 @@ function nearestSnap(height: number, heights: SheetHeights): SheetSnap {
   'collapsed');
 }
 
-function WeatherSparkline({ analysis, field, color }: { analysis: RouteAnalysis; field: 'wind_speed' | 'wave_height'; color: string }) {
-  const values = analysis.samples.map((s) => s.values[field] ?? null);
+type RouteChartField = 'wind_speed' | 'wave_height';
+
+function niceChartMaximum(value: number, field: RouteChartField, speedUnit: SpeedUnit): number {
+  if (field === 'wind_speed' && speedUnit === 'bft') {
+    return Math.min(12, Math.max(2, Math.ceil(value / 2) * 2));
+  }
+  if (value <= 0) return field === 'wave_height' ? 0.1 : 0.5;
+  const exponent = Math.floor(Math.log10(value));
+  const magnitude = 10 ** exponent;
+  return Math.ceil(value / (magnitude / 2)) * magnitude / 2;
+}
+
+function formatChartTick(value: number, field: RouteChartField, speedUnit: SpeedUnit): string {
+  if (value === 0) return '0';
+  if (field === 'wind_speed' && speedUnit === 'bft') return String(Math.round(value));
+  const decimals = value >= 10 ? 0 : value >= 1 ? 1 : 2;
+  return value.toFixed(decimals).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1');
+}
+
+function WeatherSparkline({
+  analysis,
+  field,
+  color,
+  speedUnit,
+  label,
+}: {
+  analysis: RouteAnalysis;
+  field: RouteChartField;
+  color: string;
+  speedUnit: SpeedUnit;
+  label: string;
+}) {
+  const values = analysis.samples.map((sample) => {
+    const value = sample.values[field];
+    if (value == null || !Number.isFinite(value)) return null;
+    return field === 'wind_speed' ? convertSpeed(value, speedUnit) : value;
+  });
   const present = values.filter((v): v is number => v !== null);
   if (present.length < 2) return <div className="route-chart__empty">—</div>;
-  const max = Math.max(...present, 0.1);
-  const points = values.map((v, i) => `${i / Math.max(1, values.length - 1) * 100},${36 - (v ?? 0) / max * 32}`).join(' ');
-  return <svg className="route-chart" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polyline points={points} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" /></svg>;
+  const max = niceChartMaximum(Math.max(...present), field, speedUnit);
+  const plotTop = 4;
+  const plotBottom = 60;
+  const sampleDistanceNm = analysis.samples.at(-1)?.distanceNm ?? analysis.distanceNm;
+  let drawing = false;
+  const path = values.map((value, index) => {
+    if (value === null) { drawing = false; return ''; }
+    const distance = analysis.samples[index]?.distanceNm ?? 0;
+    const x = Math.max(0, Math.min(100, sampleDistanceNm > 0 ? distance / sampleDistanceNm * 100 : 0));
+    const y = Math.max(plotTop, Math.min(plotBottom, plotBottom - value / max * (plotBottom - plotTop)));
+    const command = drawing ? 'L' : 'M';
+    drawing = true;
+    return `${command}${x.toFixed(2)},${y.toFixed(2)}`;
+  }).filter(Boolean).join(' ');
+  const ticks = [max, max / 2, 0];
+  const unit = unitLabel(field, speedUnit);
+  return <div className="route-chart" role="img" aria-label={`${label}: 0–${formatChartTick(max, field, speedUnit)} ${unit}`}>
+    <div className="route-chart__axis" aria-hidden="true">
+      {ticks.map((tick) => <span key={tick}>{formatChartTick(tick, field, speedUnit)}</span>)}
+    </div>
+    <svg className="route-chart__plot" viewBox="0 0 100 64" preserveAspectRatio="none" aria-hidden="true">
+      {[plotTop, (plotTop + plotBottom) / 2, plotBottom].map((y) => <line key={y} x1="0" x2="100" y1={y} y2={y} className="route-chart__grid" vectorEffect="non-scaling-stroke" />)}
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  </div>;
 }
 
 function unknownDistanceNm(plan: RoutePlan | undefined): number {
@@ -609,10 +666,22 @@ export function RoutePanel(props: Props) {
         </p> : null}
         {props.analysis.warnings.map((warning) => <p className="route-status is-error" key={warning}>{t(`route.warning.${warning}`)}</p>)}
         {props.analysis.restrictions.map((item) => <p className="route-depth-alert" key={`${item.kind}-${item.name}`}>{t('route.restriction', { name: item.name, depth: item.maxDraughtM.toFixed(1) })}</p>)}
-        <div className="route-chart-block"><span>{t('route.wind')} ({unitLabel('wind_speed', props.speedUnit)})</span><WeatherSparkline analysis={props.analysis} field="wind_speed" color="#35a7d8" /></div>
-        <div className="route-chart-block"><span>{t('route.waves')}</span><WeatherSparkline analysis={props.analysis} field="wave_height" color="#c88728" /></div>
+        <div className="route-chart-block"><span>{t('route.wind')} ({unitLabel('wind_speed', props.speedUnit)})</span><WeatherSparkline analysis={props.analysis} field="wind_speed" color="#35a7d8" speedUnit={props.speedUnit} label={t('route.wind')} /></div>
+        <div className="route-chart-block"><span>{t('route.waves')} (m)</span><WeatherSparkline analysis={props.analysis} field="wave_height" color="#c88728" speedUnit={props.speedUnit} label={t('route.waves')} /></div>
+        <p className="route-table__hint">{t('route.samplesHint', { interval: props.analysis.sampleIntervalMinutes < 60
+          ? `${props.analysis.sampleIntervalMinutes} min`
+          : `${props.analysis.sampleIntervalMinutes / 60} h` })}</p>
         <div className="route-table-wrap"><table className="route-table"><thead><tr><th>{t('chart.time')}</th><th>NM</th><th>{t('route.wind')}</th><th>{t('route.waves')}</th><th>{t('route.depth')}</th></tr></thead><tbody>
-          {props.analysis.samples.map((s, i) => <tr key={`${s.time}-${i}`} className={`risk-${s.depthRisk}`}><td>{fmt(s.time)}</td><td>{s.distanceNm.toFixed(1)}</td><td>{s.values.wind_speed == null ? '—' : `${formatValue('wind_speed', s.values.wind_speed, props.speedUnit)} ${unitLabel('wind_speed', props.speedUnit)} ${s.values.wind_dir == null ? '' : degreesToCompass(s.values.wind_dir)}`}</td><td>{s.values.wave_height == null ? '—' : `${s.values.wave_height.toFixed(1)} m`}</td><td>{s.depthM == null ? '—' : `${s.depthM.toFixed(1)} m`}</td></tr>)}
+          {props.analysis.samples.map((s, i) => {
+            const pointLabel = i === 0
+              ? t('route.sample.start')
+              : i === props.analysis!.samples.length - 1
+                ? t('route.sample.end')
+                : s.waypointIndex !== undefined
+                  ? t('route.sample.legEnd', { n: s.waypointIndex })
+                  : null;
+            return <tr key={`${s.time}-${i}`} className={`risk-${s.depthRisk}${pointLabel ? ' is-leg-end' : ''}`}><td className="route-table__time"><span>{fmt(s.time)}</span>{pointLabel ? <small>{pointLabel}</small> : null}</td><td>{s.distanceNm.toFixed(1)}</td><td>{s.values.wind_speed == null ? '—' : `${formatValue('wind_speed', s.values.wind_speed, props.speedUnit)} ${unitLabel('wind_speed', props.speedUnit)} ${s.values.wind_dir == null ? '' : degreesToCompass(s.values.wind_dir)}`}</td><td>{s.values.wave_height == null ? '—' : `${s.values.wave_height.toFixed(1)} m`}</td><td>{s.depthM == null ? '—' : `${s.depthM.toFixed(1)} m`}</td></tr>;
+          })}
         </tbody></table></div>
         <p className="route-safety">{t('route.depthDisclaimer')}</p>
       </section> : null}
