@@ -112,7 +112,8 @@ kasutuspoliitikat. Tehniline taust on kirjas ka
 - sama laev liidetakse MMSI järgi üheks kirjeks ja kaardile jõuab värskeim
   positsioon;
 - **Transpordiameti Nutimeri** annab ametlikud navigatsioonimärgid,
-  faarvaatrid, navigatsioonihoiatused, vrakid ja sadamaregistri andmed;
+  faarvaatrid, Eesti navigatsioonihoiatused, vrakid ja sadamaregistri andmed;
+- **Traficomi** avalik WFS annab Soome kehtivad navigatsioonihoiatused;
 - **OpenStreetMapi** sadamaandmeid rikastatakse ametliku sadamaregistri
   väljadega ning AIS AtoN sõnumid täiendavad navigatsioonimärke.
 
@@ -140,7 +141,8 @@ SeaPro pakub sellele nii heledat kui tumedat merekasutuseks kohandatud stiili.
 - Eestis Maa- ja Ruumiameti ning Soomes Traficomi ametlikud sügavusjooned ja
   -punktid ühest staatilisest vektorarhiivist; väljaspool nende ühendkatvust
   EMODneti vektorjooned ja mudelsügavused;
-- kehtivad navigatsioonihoiatused ning vrakid;
+- Eesti ja Soome kehtivad ametlikud navigatsioonihoiatused ühe SeaPro
+  tingmärgi-, joone-, ala- ja hüpikaknasüsteemiga ning teadaolevad vrakid;
 - OpenStreetMapi liikluseraldusskeemid eraldi vektorkihina, ilma ametlikke
   navigatsioonimärke dubleerivate poideta;
 - EMODneti batümeetria;

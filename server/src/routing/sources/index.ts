@@ -2,6 +2,7 @@ import type { BBox } from '@seapro/shared';
 import type { RoutingSourceId, RoutingSourceMeta, RoutingVectorData } from '../sourceTypes.js';
 import { loadEstonianRoutingData } from './estonia.js';
 import { loadEstonianRoutingWarnings } from './estoniaWarnings.js';
+import { loadFinnishRoutingWarnings } from './finlandWarnings.js';
 import { loadFinnishRoutingData } from './finland.js';
 import { loadOsmRoutingData } from './osm.js';
 
@@ -39,6 +40,12 @@ export {
   type EstonianRoutingWarnings,
 } from './estoniaWarnings.js';
 export {
+  finnishWarningsSourceMeta,
+  loadFinnishRoutingWarnings,
+  parseFinnishNavigationWarnings,
+  type FinnishRoutingWarnings,
+} from './finlandWarnings.js';
+export {
   loadFinnishRoutingData,
   parseFinnishRoutingData,
   type FinnishRoutingCollections,
@@ -68,7 +75,7 @@ export async function loadRoutingVectorData(
   // katte režiimi — otsing muudab vastava ala tundmatuks, mitte ei sure —
   // ja mahajäänud päring jookseb taustal lõpuni ning soojendab cache'i
   // järgmiseks katseks.
-  const [estonia, estonianWarnings, finland, osm] = await Promise.all([
+  const [estonia, estonianWarnings, finland, finnishWarnings, osm] = await Promise.all([
     withSourceBudget(loadEstonianRoutingData(bbox), () => ({
       hazards: [], corridors: [], surveyAreas: [], harbours: [],
       source: budgetExceededMeta('transpordiamet-his',
@@ -86,6 +93,12 @@ export async function loadRoutingVectorData(
       source: budgetExceededMeta('vaylavirasto-wfs',
         'Väylävirasto avoin WFS', 'https://vayla.fi/vaylista/aineistot/avoindata'),
     })),
+    withSourceBudget(loadFinnishRoutingWarnings(bbox, departureTime), () => ({
+      warnings: [],
+      source: budgetExceededMeta('traficom-warnings',
+        'Traficom / Fintraffic, navigational warnings',
+        'https://julkinen.traficom.fi/inspirepalvelu/avoin/wfs'),
+    })),
     withSourceBudget(loadOsmRoutingData(bbox), () => ({
       hazards: [], corridors: [], restrictions: [], harbours: [],
       source: budgetExceededMeta('openstreetmap-overpass',
@@ -99,10 +112,20 @@ export async function loadRoutingVectorData(
     hazards: sortById([...estonia.hazards, ...finland.hazards, ...osm.hazards]),
     corridors: sortById([...estonia.corridors, ...finland.corridors, ...osm.corridors]),
     restrictions: sortById([...finland.restrictions, ...osm.restrictions]),
-    warnings: sortById([...estonianWarnings.warnings, ...finland.warnings]),
+    warnings: sortById([
+      ...estonianWarnings.warnings,
+      ...finland.warnings,
+      ...finnishWarnings.warnings,
+    ]),
     surveyAreas: sortById(estonia.surveyAreas),
     harbours: sortById([...estonia.harbours, ...osm.harbours]),
-    sources: [estonia.source, estonianWarnings.source, finland.source, osm.source],
+    sources: [
+      estonia.source,
+      estonianWarnings.source,
+      finland.source,
+      finnishWarnings.source,
+      osm.source,
+    ],
   };
 }
 

@@ -374,13 +374,19 @@ export interface NavigationWarning {
   id: string;
   geometry: NavigationGeometry;
   number?: number;
+  /** Algallikas; kaardi kujundus on allikast sõltumata SeaPro ühine stiil. */
+  source?: 'transpordiamet' | 'traficom';
   titleEt?: string;
   titleEn?: string;
+  titleFi?: string;
   textEt?: string;
   textEn?: string;
+  textFi?: string;
   areaEt?: string;
   areaEn?: string;
+  areaFi?: string;
   charts?: string;
+  publishedAt?: string;
   validFrom?: string;
   validTo?: string;
   documentUrl?: string;

@@ -3,6 +3,7 @@ import type { BBox } from '@seapro/shared';
 export type RoutingSourceId =
   | 'transpordiamet-his'
   | 'transpordiamet-warnings'
+  | 'traficom-warnings'
   | 'vaylavirasto-wfs'
   | 'openstreetmap-overpass';
 

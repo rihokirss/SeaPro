@@ -356,13 +356,14 @@ kaart sadamas seisvat laeva 102-sõlmese kiirusega.
 
 ## Navigatsiooniohutus ja ametlikud merendusobjektid
 
-Transpordiameti avalikud ArcGIS-teenused täiendavad merekaarti nelja valikulise
-andmerühmaga. `/api/navigation` võtab alati bbox'i ja `include` loendi, nii et
-server ei tõmba ega saada väljalülitatud kihte.
+Ametlikud Eesti ja Soome teenused täiendavad merekaarti valikuliste
+ohutusandmetega. `/api/navigation` võtab alati bbox'i ja `include` loendi, nii
+et server ei tõmba ega saada väljalülitatud kihte.
 
 | Kiht | Allikas | Uuendamine |
 |---|---|---|
-| Navigatsioonihoiatused | `Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer`, kihid 7–9 | 2 min vahemälu; aegunud hoiatused filtreeritakse välja |
+| Eesti navigatsioonihoiatused | `Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer`, kihid 7–9 | 2 min vahemälu; aegunud hoiatused filtreeritakse välja |
+| Soome navigatsioonihoiatused | Traficomi avalik WFS, `navigational_warnings_p`, `_l` ja `_a` | 2 min vahemälu; teenus väljastab ainult kehtivad hoiatused |
 | AIS navigatsioonimärgid | `AIS-aton-stream-out/StreamServer/subscribe` | püsiv WebSocket; klient küsib serveri registrit iga 30 s |
 | Vrakid | `HIS/HIS_avalik/MapServer`, kiht 7 | 24 h vahemälu |
 | Ametlikud laevateed ja püsi-, ujuv- ning hooajalised märgid | `Nutimeri/pohiandmed/MapServer`, kihid 0–3 | 24 h vahemälu |
@@ -385,6 +386,12 @@ mudelisse nagu Nutimeri märgid. `navigointilajikoodi` 1–9 tõlgitakse IALA
 lateraal-, kardinaal-, üksikohu-, ohutu vee ja erimärkideks, mistõttu klient
 kasutab mõlema riigi jaoks samu ikoone ja popupisüsteemi. Väga laias vaates
 WFS-i ei küsita, sest märgikiht ilmub kaardile alles lähisuumis.
+
+Traficomi hoiatused normaliseeritakse samasse `NavigationWarning` mudelisse
+nagu Transpordiameti hoiatused. WFS-i MultiPoint-geomeetria jagatakse
+punktideks ning jooned ja alad säilitatakse vektoritena. Klient ei kasuta
+Traficomi WMS-stiili: mõlema riigi punktid, jooned, alad, lüliti ja hüpikaken
+on üks SeaPro kiht ühe kujundusega. Algallikas on hüpikakna all eraldi näha.
 
 Automaatmarsruut kasutab samade organisatsioonide detailsemaid masinloetavaid
 routingukihte eraldi snapshot'ina: Transpordiameti HIS-i kivid, takistused,

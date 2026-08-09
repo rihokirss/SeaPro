@@ -64,6 +64,7 @@ export async function fetchNavigationWarningsWithMeta(
           id: `warning:${index + 7}:${stringValue(p.objectid) ?? feature.id ?? 'unknown'}`,
           geometry: feature.geometry,
           number: numberValue(p.warning_number),
+          source: 'transpordiamet',
           titleEt: clean(p.ntfct_title_est),
           titleEn: clean(p.ntfct_title_eng),
           textEt: plainText(p.ntfct_text_est),

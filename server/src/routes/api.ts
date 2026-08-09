@@ -41,6 +41,7 @@ import {
 import { aisAtons } from '../navigation/aisAton.js';
 import { mergeHarbours, mergeNavigationAids } from '../navigation/merge.js';
 import { fetchFinnishNavigationAids } from '../navigation/vaylavirasto.js';
+import { fetchFinnishNavigationWarnings } from '../navigation/traficomWarnings.js';
 import { fetchTrafficSchemes } from '../navigation/osmTraffic.js';
 import {
   coversPoint,
@@ -536,8 +537,15 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const wantWrecks = requested.has('wrecks');
     const wantOfficial = requested.has('official');
     const wantAisAids = requested.has('aids');
-    const [warningResult, wreckResult, officialResult, finnishAidResult] = await Promise.allSettled([
+    const [
+      estonianWarningResult,
+      finnishWarningResult,
+      wreckResult,
+      officialResult,
+      finnishAidResult,
+    ] = await Promise.allSettled([
       wantWarnings ? fetchNavigationWarnings(bbox) : Promise.resolve([]),
+      wantWarnings ? fetchFinnishNavigationWarnings(bbox) : Promise.resolve([]),
       wantWrecks ? fetchWrecks(bbox) : Promise.resolve([]),
       // AIS-märk vajab registri vastet ka siis, kui ametlik kiht pole nähtav:
       // sealt tuleb täpne märgitüüp ja tingmärk. ArcGIS vastus on vahemälus.
@@ -562,16 +570,25 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     );
 
     return {
-      warnings: warningResult.status === 'fulfilled' ? warningResult.value : [],
+      warnings: [
+        ...(estonianWarningResult.status === 'fulfilled' ? estonianWarningResult.value : []),
+        ...(finnishWarningResult.status === 'fulfilled' ? finnishWarningResult.value : []),
+      ],
       wrecks: wreckResult.status === 'fulfilled' ? wreckResult.value : [],
       fairways: wantOfficial ? official.fairways : [],
       trafficSchemes: [],
       aids: wantOfficial
         ? mergedAids
         : mergedAids.filter((aid) => aid.sources.includes('ais')),
-      errors: [warningResult, wreckResult, officialResult, finnishAidResult]
+      errors: [
+        estonianWarningResult,
+        finnishWarningResult,
+        wreckResult,
+        officialResult,
+        finnishAidResult,
+      ]
         .map((result, index) => result.status === 'rejected'
-          ? ['warnings', 'wrecks', 'official', 'finnish-aids'][index]
+          ? ['estonian-warnings', 'finnish-warnings', 'wrecks', 'official', 'finnish-aids'][index]
           : null)
         .filter(Boolean),
     };

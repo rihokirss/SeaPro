@@ -736,7 +736,7 @@ function navigationTipHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   const p = f.properties as Record<string, unknown>;
   const kind = String(p.featureKind ?? '');
   const title = kind === 'warning'
-    ? localized(p.titleEt, p.titleEn, ctx) || ctx.t('navigation.warning')
+    ? localizedWarning(p.titleEt, p.titleEn, p.titleFi, ctx) || ctx.t('navigation.warning')
     : String(p.name ?? '').trim() || ctx.t(`navigation.${kind}`);
   return tipHtml({ title, note: ctx.t(`navigation.${kind}`) });
 }
@@ -752,14 +752,18 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   let message = '';
 
   if (kind === 'warning') {
-    title = localized(p.titleEt, p.titleEn, ctx) || t('navigation.warning');
+    title = localizedWarning(p.titleEt, p.titleEn, p.titleFi, ctx) || t('navigation.warning');
     kindLabel = t('navigation.warning');
     const number = nullableNumber(p.number);
     if (number !== null) rows.push(row(t('navigation.warningNumber'), String(number), ''));
-    const text = localized(p.textEt, p.textEn, ctx);
+    const text = localizedWarning(p.textEt, p.textEn, p.textFi, ctx);
     if (text) message = multiline(text);
+    const area = localizedWarning(p.areaEt, p.areaEn, p.areaFi, ctx);
+    if (area) rows.push(row(t('navigation.area'), escapeHtml(area), ''));
     const validity = formatDateRange(String(p.validFrom ?? ''), String(p.validTo ?? ''), ctx.lang);
     if (validity) rows.push(row(t('navigation.validity'), escapeHtml(validity), ''));
+    const published = formatDateRange(String(p.publishedAt ?? ''), '', ctx.lang);
+    if (published) rows.push(row(t('navigation.publishedAt'), escapeHtml(published), ''));
     const charts = String(p.charts ?? '').trim();
     if (charts) rows.push(row(t('navigation.charts'), escapeHtml(charts), ''));
   } else if (kind === 'wreck') {
@@ -834,7 +838,9 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
 
   const source = kind === 'aid'
     ? navigationAidSource(String(p.sources ?? '').trim())
-    : 'Transpordiamet · Nutimeri';
+    : kind === 'warning'
+      ? navigationWarningSource(String(p.source ?? '').trim())
+      : 'Transpordiamet · Nutimeri';
 
   return `
     <div class="popup">
@@ -855,6 +861,26 @@ function navigationAidSource(sources: string): string {
   if (sources.includes('vaylavirasto')) labels.push('Väylävirasto');
   if (sources.includes('ais')) labels.push('AIS');
   return labels.join(' + ') || 'AIS';
+}
+
+function navigationWarningSource(source: string): string {
+  return source === 'traficom'
+    ? 'Traficom · Fintraffic'
+    : 'Transpordiamet · Nutimeri';
+}
+
+function localizedWarning(
+  et: unknown,
+  en: unknown,
+  fi: unknown,
+  ctx: PopupContext,
+): string {
+  const values = ctx.lang === 'et' ? [et, en, fi] : [en, et, fi];
+  for (const value of values) {
+    const result = String(value ?? '').trim();
+    if (result) return result;
+  }
+  return '';
 }
 
 function localized(et: unknown, en: unknown, ctx: PopupContext): string {

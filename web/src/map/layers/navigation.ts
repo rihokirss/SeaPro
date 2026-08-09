@@ -61,13 +61,18 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
         featureKind: 'warning',
         id: warning.id,
         number: warning.number ?? null,
+        source: warning.source ?? 'transpordiamet',
         titleEt: warning.titleEt ?? '',
         titleEn: warning.titleEn ?? '',
+        titleFi: warning.titleFi ?? '',
         textEt: warning.textEt ?? '',
         textEn: warning.textEn ?? '',
+        textFi: warning.textFi ?? '',
         areaEt: warning.areaEt ?? '',
         areaEn: warning.areaEn ?? '',
+        areaFi: warning.areaFi ?? '',
         charts: warning.charts ?? '',
+        publishedAt: warning.publishedAt ?? '',
         validFrom: warning.validFrom ?? '',
         validTo: warning.validTo ?? '',
         documentUrl: warning.documentUrl ?? '',
@@ -165,7 +170,7 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
   else map.addSource(SOURCE_ID, {
     type: 'geojson',
     data: collection,
-    attribution: '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+    attribution: '<a href="https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer">Transpordiamet</a> · <a href="https://www.traficom.fi/en/maritime-transport-regulation-and-digitalisation/digitalisation-maritime-sector/e-navigation-and-s-100">Traficom</a> · <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
   });
 
   ensureLayers(map);

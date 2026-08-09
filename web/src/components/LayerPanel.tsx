@@ -192,6 +192,7 @@ export function LayerPanel({
               checked={layers.navigationWarnings}
               onChange={(v) => set({ navigationWarnings: v })}
               label={t('layer.navigationWarnings')}
+              hint={t('layer.navigationWarnings.hint')}
             />
             <Toggle
               checked={layers.wrecks}

@@ -76,6 +76,7 @@ tagastab API 503 `data_unavailable`; tühi vastus ei lähe kunagi arvesse kui
 | Prioriteet | Andmed | Kasutus |
 |---|---|---|
 | 1 | Transpordiameti HIS: kivid, takistused, vrakid, füüsilised märgid, laevateed ja mõõtealad | Ametlik oht blokeerib; ruumiliselt piiritletud ja laevale sobiv ametlik sügavus võib üldistatud DTM-i täpsustada. |
+| 1 | Transpordiameti ja Traficomi kehtivad navigatsioonihoiatused | Eesti ja Soome punkt-, joon- ning alahoiatused lisavad marsruudile ettevaatusjälje; sulgemise, keelu või ohuna sõnastatud teade märgitakse kriitiliseks. Mõlemat allikat värskendatakse kahe minuti kaupa. |
 | 1 | Väylävirasto WFS: väyläalad ja navigatsioonijooned, piirangud, `taitorakenteet:silta` veetee kõrgus, kanalirajatised, märgid ja AToN rikked | Laeva süvise, laiuse ja kõrguse kontroll; aktiivsed keelud ning ajutised rikked. Rikked värskendatakse staatilistest kihtidest eraldi kahe minuti kaupa. `mitoitussyvays` on projekteeritud süvis, mitte mõõdetud sügavus; füüsiliseks haraussügavuseks loetakse ainult `haraussyvyys`. |
 | 2 | EMODnet Bathymetry WCS `emodnet:mean` | Põhiline sügavusvõre. NoData säilib eraldi seisundina. |
 | 2 | OpenFreeMap/OpenMapTiles `water` vektor | Maa/vee mask koos rannajoone ja saarte aukudega. |

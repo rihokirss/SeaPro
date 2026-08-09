@@ -13,6 +13,10 @@ import {
   parseEstonianNavigationWarnings,
 } from '../src/routing/sources/estoniaWarnings.js';
 import {
+  finnishWarningsSourceMeta,
+  parseFinnishNavigationWarnings,
+} from '../src/routing/sources/finlandWarnings.js';
+import {
   parseFinnishRoutingData,
   type FinnishRoutingCollections,
 } from '../src/routing/sources/finland.js';
@@ -206,6 +210,46 @@ describe('routing-andmeallikate parserid', () => {
       geometry: { type: 'Point', coordinates: [24.2, 59.2] },
       titleEt: 'Aegunud hoiatus',
     }], ESTONIA_STAMP.fetchedAt, '2026-08-08T12:00:00Z', true);
+
+    expect(source).toMatchObject({ status: 'stale', stale: true, coverage: 'complete' });
+    expect(warnings[0]?.stale).toBe(true);
+  });
+
+  it('lisab Traficomi aktiivse hoiatuse Soome marsruudi ettevaatuskihti', () => {
+    const warnings = parseFinnishNavigationWarnings([{
+      id: 'traficom-warning:86',
+      geometry: { type: 'Point', coordinates: [24.94, 60.17] },
+      number: 86,
+      source: 'traficom',
+      titleFi: 'Väylä suljettu',
+      titleEn: 'Fairway closed',
+      textFi: 'Veneilijöitä kehotetaan varovaisuuteen.',
+      textEn: 'Yachtsmen are advised to navigate with caution.',
+      publishedAt: '2026-08-08T09:00:00Z',
+    }], FINLAND_STAMP.fetchedAt, '2026-08-08T12:00:00Z');
+
+    expect(warnings).toEqual([expect.objectContaining({
+      id: 'traficom-warnings:traficom-warning:86',
+      kind: 'navigation_warning',
+      name: 'Fairway closed',
+      severity: 'critical',
+      reportedAt: '2026-08-08T09:00:00Z',
+      source: 'traficom-warnings',
+    })]);
+  });
+
+  it("säilitab aegunud Traficomi hoiatusallika stale meta ja feature stamp'i", () => {
+    const source = finnishWarningsSourceMeta(
+      'stale',
+      FINLAND_STAMP.fetchedAt,
+      'värskendamine ebaõnnestus',
+      600,
+    );
+    const warnings = parseFinnishNavigationWarnings([{
+      id: 'traficom-warning:stale',
+      geometry: { type: 'Point', coordinates: [24.94, 60.17] },
+      titleEn: 'Stale warning',
+    }], FINLAND_STAMP.fetchedAt, '2026-08-08T12:00:00Z', true);
 
     expect(source).toMatchObject({ status: 'stale', stale: true, coverage: 'complete' });
     expect(warnings[0]?.stale).toBe(true);
