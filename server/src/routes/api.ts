@@ -19,7 +19,7 @@ import { usageMeter } from '../usage.js';
 import { vessels } from '../ais/registry.js';
 import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
-import { searchPlaces } from '../search/photon.js';
+import { reversePlace, searchPlaces } from '../search/photon.js';
 import { fetchRadarTimeline } from '../radar.js';
 import {
   fetchDepthContours,
@@ -302,6 +302,17 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const results: SearchResult[] = await searchPlaces(query, lang, viewbox);
     reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=604800');
     return { results };
+  });
+
+  /** Kaardilt või GPS-ist valitud marsruudi otspunktile lähim sadam/asula. */
+  app.get('/api/reverse-place', async (req, reply) => {
+    const q = req.query as Record<string, unknown>;
+    const lat = parseCoord(q.lat, 'lat', -90, 90);
+    const lon = parseCoord(q.lon, 'lon', -180, 180);
+    const lang = q.lang === 'en' || q.lang === 'fi' ? q.lang : 'et';
+    const result = await reversePlace(lat, lon, lang);
+    reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    return { result };
   });
 
   /** Ajarida ühe punkti kohta, mitmelt allikalt korraga. */

@@ -511,6 +511,15 @@ export function App() {
     [selectedTime, radarTimeline],
   );
 
+  const routeEndpointLookups = useMemo(() => {
+    const start = route.waypoints[0];
+    const end = route.waypoints.length >= 2 ? route.waypoints.at(-1) : undefined;
+    return [
+      ...(start ? [{ kind: 'start' as const, id: start.id, lat: start.lat, lon: start.lon, name: start.name }] : []),
+      ...(end ? [{ kind: 'end' as const, id: end.id, lat: end.lat, lon: end.lon, name: end.name }] : []),
+    ];
+  }, [route.waypoints]);
+
   useEffect(() => {
     saveLayerState(layers);
   }, [layers]);
@@ -518,6 +527,56 @@ export function App() {
   useEffect(() => {
     routeStore.listRoutes().then((items) => setSavedRoutes(items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const unnamed = routeEndpointLookups.filter((endpoint) => !endpoint.name?.trim());
+    if (unnamed.length === 0) return;
+    const controllers = unnamed.map(() => new AbortController());
+
+    // Punkti lohistamine saadab kümneid vahekoordinaate. Ootame, kuni käsi
+    // peatub, et pöördotsingusse läheks ainult lõplik asukoht.
+    const timer = window.setTimeout(() => {
+      void Promise.all(unnamed.map(async (endpoint, index) => {
+        try {
+          const { result } = await api.reversePlace(
+            { lat: endpoint.lat, lon: endpoint.lon, lang },
+            controllers[index]!.signal,
+          );
+          return { endpoint, result };
+        } catch {
+          // Pöördotsing on mugavusfunktsioon; koordinaat jääb toimivaks varulahenduseks.
+          return { endpoint, result: null };
+        }
+      })).then((resolved) => {
+        if (!resolved.some(({ result }) => result !== null)) return;
+        setRoute((current) => {
+          const automaticName = isAutomaticRouteName(current.name, current.waypoints);
+          let waypoints = current.waypoints;
+          for (const { endpoint, result } of resolved) {
+            if (!result) continue;
+            const pointIndex = endpoint.kind === 'start' ? 0 : waypoints.length - 1;
+            const point = waypoints[pointIndex];
+            if (!point || point.id !== endpoint.id || point.name
+              || point.lat !== endpoint.lat || point.lon !== endpoint.lon) continue;
+            if (waypoints === current.waypoints) waypoints = [...current.waypoints];
+            waypoints[pointIndex] = { ...point, name: result.name };
+          }
+          if (waypoints === current.waypoints) return current;
+          return {
+            ...current,
+            waypoints,
+            name: automaticName ? suggestedRouteName(waypoints) : current.name,
+            updatedAt: new Date().toISOString(),
+          };
+        });
+      });
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timer);
+      controllers.forEach((controller) => controller.abort());
+    };
+  }, [routeEndpointLookups, lang]);
 
   useEffect(() => () => routePlanRequest.current?.abort(), []);
 
@@ -1128,7 +1187,13 @@ export function App() {
     cancelRoutePlanRequest();
     setUndoRoutes((items) => [...items.slice(-49), route.waypoints]); setRedoRoutes([]);
     setRoutePlanPreview(null); setRoutePlanError(null);
-    setRoute((current) => ({ ...current, waypoints, plan: undefined, updatedAt: new Date().toISOString() }));
+    setRoute((current) => ({
+      ...current,
+      waypoints,
+      name: isAutomaticRouteName(current.name, current.waypoints) ? suggestedRouteName(waypoints) : current.name,
+      plan: undefined,
+      updatedAt: new Date().toISOString(),
+    }));
   }, [route.waypoints, cancelRoutePlanRequest]);
 
   const setRouteEndpoint = useCallback((kind: 'start' | 'end', point: Pick<RouteWaypoint, 'lat' | 'lon' | 'name'>) => {
@@ -1254,7 +1319,24 @@ export function App() {
   const moveRouteWaypoint = useCallback((id: string, lat: number, lon: number) => {
     cancelRoutePlanRequest();
     setRoutePlanPreview(null); setRoutePlanError(null);
-    setRoute((current) => ({ ...current, plan: undefined, updatedAt: new Date().toISOString(), waypoints: current.waypoints.map((p) => p.id === id ? { ...p, lat, lon } : p) }));
+    setRoute((current) => {
+      const automaticName = isAutomaticRouteName(current.name, current.waypoints);
+      const waypoints = current.waypoints.map((point, index) => point.id === id
+        ? {
+          ...point,
+          lat,
+          lon,
+          ...((index === 0 || index === current.waypoints.length - 1) ? { name: undefined } : {}),
+        }
+        : point);
+      return {
+        ...current,
+        waypoints,
+        name: automaticName ? suggestedRouteName(waypoints) : current.name,
+        plan: undefined,
+        updatedAt: new Date().toISOString(),
+      };
+    });
   }, [cancelRoutePlanRequest]);
 
   const insertRouteWaypoint = useCallback((index: number, lat: number, lon: number) => {

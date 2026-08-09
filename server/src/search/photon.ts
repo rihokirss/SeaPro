@@ -1,4 +1,4 @@
-import type { BBox, SearchResult } from '@seapro/shared';
+import { distanceMetres, type BBox, type SearchResult } from '@seapro/shared';
 import { cache } from '../cache.js';
 import { config } from '../config.js';
 import { fetchJson } from '../http.js';
@@ -9,8 +9,10 @@ interface PhotonFeature {
     osm_id?: number;
     osm_key?: string;
     osm_value?: string;
+    type?: string;
     name?: string;
     street?: string;
+    locality?: string;
     district?: string;
     city?: string;
     county?: string;
@@ -27,6 +29,8 @@ interface PhotonResponse {
 }
 
 const HARBOUR_VALUES = new Set(['marina', 'harbour', 'port', 'dock']);
+const PLACE_VALUES = new Set(['city', 'town', 'village', 'hamlet', 'island', 'islet', 'locality', 'municipality']);
+const MAX_NEARBY_HARBOUR_DISTANCE_M = 5_000;
 let nextRequestAt = 0;
 let requestQueue: Promise<void> = Promise.resolve();
 
@@ -106,6 +110,80 @@ export function parsePhotonResults(input: unknown, query: string): SearchResult[
     .map(({ _score: _ignored, ...result }) => result);
 }
 
+interface ReverseCandidate {
+  feature: PhotonFeature;
+  lat: number;
+  lon: number;
+  distanceM: number;
+  index: number;
+}
+
+function reverseCandidate(feature: PhotonFeature, index: number, lat: number, lon: number): ReverseCandidate | null {
+  const coordinates = feature.geometry?.coordinates;
+  const featureLon = Number(coordinates?.[0]);
+  const featureLat = Number(coordinates?.[1]);
+  if (!feature.properties || !Number.isFinite(featureLat) || !Number.isFinite(featureLon)) return null;
+  return {
+    feature,
+    lat: featureLat,
+    lon: featureLon,
+    distanceM: distanceMetres({ lat, lon }, { lat: featureLat, lon: featureLon }),
+    index,
+  };
+}
+
+function reverseResult(candidate: ReverseCandidate, name: string, kind: SearchResult['kind']): SearchResult {
+  const p = candidate.feature.properties!;
+  const subtitleParts = [p.locality, p.district, p.city, p.county, p.state, p.country]
+    .filter((part, i, all): part is string => Boolean(part) && part !== name && all.indexOf(part) === i);
+  return {
+    id: p.osm_type && p.osm_id ? `${p.osm_type}${p.osm_id}` : `photon-reverse-${candidate.index}`,
+    name,
+    subtitle: subtitleParts.join(', ') || undefined,
+    kind,
+    lat: candidate.lat,
+    lon: candidate.lon,
+    zoom: kind === 'harbour' ? 14 : 11,
+  };
+}
+
+/**
+ * Valib pöördotsingu vastusest navigatsiooni jaoks arusaadava nime. Lähedal
+ * asuv sadam on kõige kasulikum orientiir; muidu kasutame asulat või lähima
+ * objekti aadressihierarhia kõige täpsemat kohanime, mitte maja/tee nime.
+ */
+export function parsePhotonReverse(input: unknown, lat: number, lon: number): SearchResult | null {
+  const response = input as PhotonResponse;
+  if (!response || !Array.isArray(response.features)) throw new Error('Photoni vastuse kuju muutus');
+  const candidates = response.features
+    .map((feature, index) => reverseCandidate(feature, index, lat, lon))
+    .filter((candidate): candidate is ReverseCandidate => candidate !== null)
+    .sort((a, b) => a.distanceM - b.distanceM);
+
+  const harbour = candidates.find((candidate) => {
+    const p = candidate.feature.properties!;
+    return Boolean(p.name?.trim())
+      && HARBOUR_VALUES.has(p.osm_value ?? '')
+      && candidate.distanceM <= MAX_NEARBY_HARBOUR_DISTANCE_M;
+  });
+  if (harbour) return reverseResult(harbour, harbour.feature.properties!.name!.trim(), 'harbour');
+
+  const explicitPlace = candidates.find((candidate) => {
+    const p = candidate.feature.properties!;
+    return Boolean(p.name?.trim())
+      && (p.osm_key === 'place' || PLACE_VALUES.has(p.osm_value ?? '') || p.type === 'city' || p.type === 'locality');
+  });
+  if (explicitPlace) return reverseResult(explicitPlace, explicitPlace.feature.properties!.name!.trim(), 'location');
+
+  for (const candidate of candidates) {
+    const p = candidate.feature.properties!;
+    const name = [p.locality, p.district, p.city, p.county]
+      .find((part): part is string => Boolean(part?.trim()))?.trim();
+    if (name) return reverseResult(candidate, name, 'location');
+  }
+  return null;
+}
+
 export async function searchPlaces(query: string, lang: 'et' | 'en' | 'fi', viewbox?: BBox): Promise<SearchResult[]> {
   const normalizedQuery = query.trim().replace(/\s+/g, ' ');
   const viewKey = viewbox?.map((n) => n.toFixed(2)).join(',') ?? '-';
@@ -129,6 +207,23 @@ export async function searchPlaces(query: string, lang: 'et' | 'en' | 'fi', view
     return parsePhotonResults(
       await fetchJson<PhotonResponse>(url.toString(), { retries: 0 }),
       normalizedQuery,
+    );
+  }));
+  return value;
+}
+
+export async function reversePlace(lat: number, lon: number, lang: 'et' | 'en' | 'fi'): Promise<SearchResult | null> {
+  const key = `search:photon:reverse:v1:${lang}:${lat.toFixed(3)}:${lon.toFixed(3)}`;
+  const { value } = await cache.get(key, config.ttl.search, () => rateLimited(async () => {
+    const url = new URL('/reverse', config.photonUrl);
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lon));
+    url.searchParams.set('limit', '20');
+    if (lang !== 'et') url.searchParams.set('lang', lang);
+    return parsePhotonReverse(
+      await fetchJson<PhotonResponse>(url.toString(), { retries: 0 }),
+      lat,
+      lon,
     );
   }));
   return value;

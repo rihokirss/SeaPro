@@ -99,6 +99,18 @@ export const api = {
     return get<{ results: SearchResult[] }>(`/api/search?${p}`, signal);
   },
 
+  reversePlace(
+    opts: { lat: number; lon: number; lang: 'et' | 'en' | 'fi' },
+    signal?: AbortSignal,
+  ) {
+    const p = new URLSearchParams({
+      lat: opts.lat.toFixed(5),
+      lon: opts.lon.toFixed(5),
+      lang: opts.lang,
+    });
+    return get<{ result: SearchResult | null }>(`/api/reverse-place?${p}`, signal);
+  },
+
   point(
     opts: {
       lat: number;
