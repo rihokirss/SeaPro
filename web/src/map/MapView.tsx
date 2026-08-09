@@ -544,7 +544,8 @@ export function MapView({
     addDepthContours(map, before);
     addOfficialDepth(
       map,
-      new URL('/data/official-depth.pmtiles', window.location.href).href,
+      // Versiooniparameeter väldib eelmise arhiivi 24 h Range-cache'i osi.
+      new URL('/data/official-depth.pmtiles?v=ee-fi-lod-v2', window.location.href).href,
       before,
     );
 

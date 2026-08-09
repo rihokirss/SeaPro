@@ -53,26 +53,7 @@ export function addOfficialDepth(map: MapLibreMap, archiveUrl: string, beforeId?
       },
       paint: {
         'line-color': '#0878a8',
-        // Eesti allikas jätkab sügavas vees 5 m sammuga, Soome kasutab seal
-        // peamiselt 30/50/100/200 m tasemeid. Kogu Soome lahe vaates peidame
-        // Eesti vahekontuurid; z8–z9 vahel ilmuvad need sujuvalt tagasi.
-        'line-opacity': [
-          'interpolate', ['linear'], ['zoom'],
-          8,
-          [
-            'case',
-            [
-              'all',
-              ['==', ['get', 'country'], 'EE'],
-              ['>', ['get', 'depth'], 20],
-              ['!', ['in', ['get', 'depth'], ['literal', [30, 50, 100, 200]]]],
-            ],
-            0,
-            0.82,
-          ],
-          9,
-          0.82,
-        ],
+        'line-opacity': 0.82,
         'line-width': [
           'interpolate', ['linear'], ['zoom'],
           OFFICIAL_DEPTH_MIN_ZOOM, 0.8,

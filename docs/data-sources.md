@@ -457,7 +457,12 @@ EMODneti jooned ja mudelsügavused maski seest välja, jättes sinna ainult
 ametliku PMTilesi sisu.
 
 PMTilesi paanid on z7–z12; suuremal suumil ülessuumitakse säilinud
-vektorgeomeetriat. Ligikaudu 55 MB arhiiv on piisavalt täpne lähteandmete
+vektorgeomeetriat. Paanides on päris zoomipõhine detailsus: z7–z8 kasutab
+Eesti poolel ainult 2/10/20/30/50/100 m põhitasemeid, z9–z10 lisab kõik kuni
+20 m madala vee jooned ning z11-st kogu ametliku kontuurikomplekti.
+Sügavuspunktid lisatakse paanidesse alles z12-st. Nii ei pea brauser peitma
+ülevaatesuumil tarbetult kaasa saadetud objekte ning Eesti ja Soome lahe pooled
+on sarnase visuaalse tihedusega. Ligikaudu 52 MB arhiiv on piisavalt täpne lähteandmete
 kuvamiseks ka lähisuumis, kuid ei ole navigatsiooniandmestik. Brauser loeb
 faili HTTP Range päringutega ja Vite PWA ei lisa seda eellaaditavasse
 vahemällu. Tootmisserver või CDN peab seetõttu toetama byte range'e.

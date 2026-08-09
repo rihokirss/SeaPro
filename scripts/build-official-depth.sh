@@ -9,6 +9,11 @@ set -euo pipefail
 
 readonly MAPSHAPER_VERSION='0.7.51'
 readonly TIPPECANOE_VERSION='0.3.4'
+# Paanide päris LOD, mitte brauseripoolne peitmine. Eesti sügava vee 5 m
+# vahekontuurid lisanduvad alles z11-st; z9-z10 säilitavad kogu madala vee
+# detaili ning z7-z8 ainult ühised põhitasemed. Sügavuspunktid on vajalikud
+# alles nende kuvamise algsuumis z12.
+readonly DEPTH_FEATURE_FILTER='{"depth_contours":["any",[">=","$zoom",11],["!=","country","EE"],["==","depth",2],["==","depth",10],["==","depth",20],["==","depth",30],["==","depth",50],["==","depth",100],["==","depth",200],["all",[">=","$zoom",9],["<=","depth",20]]],"depth_soundings":[">=","$zoom",12]}'
 readonly EE_CONTOUR_URL='https://teenus.maaamet.ee/ows/horisontaalid?service=WFS&version=2.0.0&request=GetFeature&typeNames=ms:samasygavusjooned&outputFormat=SHAPEZIP'
 readonly EE_SOUNDING_URL='https://teenus.maaamet.ee/ows/horisontaalid?service=WFS&version=2.0.0&request=GetFeature&typeNames=ms:sygavuspunktid&outputFormat=SHAPEZIP'
 readonly EE_SURVEY_URL='https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer/9/query?f=geojson&where=1%20%3D%201&outFields=objectid&returnGeometry=true&outSR=4326&resultRecordCount=100000'
@@ -147,7 +152,7 @@ npx --yes "mapshaper@$MAPSHAPER_VERSION" \
   -merge-layers force \
   -o format=geojson precision=0.0000001 "$work_dir/soundings.geojson"
 
-printf 'Ehitan ühise PMTilesi (z7-z12; lähisuumis vektori ülessuumimine)...\n'
+printf 'Ehitan ühise PMTilesi (z7-z12; zoomipõhine LOD)...\n'
 npx --yes "@bikehopper/node-tippecanoe@$TIPPECANOE_VERSION" \
   --output="$work_dir/official-depth.pmtiles" \
   --force \
@@ -158,6 +163,7 @@ npx --yes "@bikehopper/node-tippecanoe@$TIPPECANOE_VERSION" \
   --include=depth \
   --include=country \
   --attribute-type=depth:float \
+  --feature-filter="$DEPTH_FEATURE_FILTER" \
   --name='Estonia and Finland official depth contours and soundings' \
   --description='Official display vectors from Maa- ja Ruumiamet / Transpordiamet HIS and Traficom' \
   --attribution='Maa- ja Ruumiamet; Transpordiamet HIS; Finnish Transport and Communications Agency Traficom' \
