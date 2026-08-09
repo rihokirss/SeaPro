@@ -200,14 +200,19 @@ function harbourChannel(
     .filter((aid) => aid.navigationRole === role)
     .map((aid) => ({ aid, position: positionOf(aid), along: along(positionOf(aid)) }))
     .sort((a, b) => a.along - b.along || a.aid.id.localeCompare(b.aid.id));
-  const ports = chainOf('lateral-port');
-  const starboards = chainOf('lateral-starboard');
-  if (ports.length === 0 || starboards.length === 0) return null;
+  const rawPorts = chainOf('lateral-port');
+  const rawStarboards = chainOf('lateral-starboard');
+  if (rawPorts.length === 0 || rawStarboards.length === 0) return null;
+  // Sama külje märgid peaaegu samal telje-kõrgusel (nt poi ja muulipealne
+  // tulepaak kõrvuti) teeksid servajoone ENDA siksakiliseks. Klastrist jääb
+  // kanalile ehk vastasservale lähem märk — kitsam serv on ohutum.
+  const ports = dedupeAbeam(rawPorts, rawStarboards);
+  const starboards = dedupeAbeam(rawStarboards, rawPorts);
 
-  // Jaamad ainult seal, kus MÕLEMAD servad on defineeritud (külgede
-  // ulatuste ühisosa): klambris serv tõmbaks keskjoone külgsuunas
-  // vingerdama. Kui ühisosa puudub (kummalgi küljel üks märk eri
-  // kõrgustel), jääb üks jaam nende vahele. Sadama tagune (t <= 0)
+  // Jaam iga märgi telje-kõrgusel, aga ainult seal, kus MÕLEMAD servad on
+  // defineeritud (ulatuste ühisosa): klambris serv tõmbaks keskjoone
+  // külgsuunas vingerdama. Kui ühisosa puudub (nt kummalgi küljel üks märk
+  // eri kõrgustel), jääb üks jaam nende vahele. Sadama tagune (t <= 0)
   // jäetakse välja; otsad katavad sadamapunkt ja mere-pikendus.
   const overlapStart = Math.max(ports[0]!.along, starboards[0]!.along);
   const overlapEnd = Math.min(ports.at(-1)!.along, starboards.at(-1)!.along);
@@ -233,9 +238,8 @@ function harbourChannel(
     if (target && distanceToSegment(midpoint, endpoint, target).distanceM > MAX_GATE_DISTANCE_M / 2) {
       continue;
     }
-    // Pool võrelahtrit on jaamade mõistlik miinimumsamm: tihedamad sunnitud
-    // punktid jäävad ühe lahtri sisse ega anna teed, ainult vingerdusi.
-    if (midpoints.length > 0 && distance(midpoint, midpoints.at(-1)!) < 45) continue;
+    // Sama koha duplikaadist piisab ühest; märkide loomulikku sammu ei muuda.
+    if (midpoints.length > 0 && distance(midpoint, midpoints.at(-1)!) < 20) continue;
     midpoints.push(midpoint);
     narrowestM = Math.min(narrowestM, widthM);
   }
@@ -244,8 +248,33 @@ function harbourChannel(
   return {
     midpoints,
     widthM: narrowestM,
-    boundaryAidIds: [...ports, ...starboards].map((entry) => entry.aid.id),
+    // Ka klastripuhastuses kõrvale jäänud märgid ääristavad sama kanalit
+    // ega tohi selle lahtreid takistusena sulgeda.
+    boundaryAidIds: [...rawPorts, ...rawStarboards].map((entry) => entry.aid.id),
   };
+}
+
+/**
+ * Eemaldab ketist märgid, mis on eelmisega peaaegu samal telje-kõrgusel
+ * (< 25 m): klastrist jääb vastasserva joonele lähim.
+ */
+function dedupeAbeam(chain: ChainEntry[], opposite: ChainEntry[]): ChainEntry[] {
+  const result: ChainEntry[] = [];
+  let group: ChainEntry[] = [];
+  const flush = (): void => {
+    if (group.length === 0) return;
+    const best = group.reduce((a, b) =>
+      distance(b.position, sideLineAt(opposite, b.along))
+        < distance(a.position, sideLineAt(opposite, a.along)) ? b : a);
+    result.push(best);
+    group = [];
+  };
+  for (const entry of chain) {
+    if (group.length > 0 && entry.along - group.at(-1)!.along >= 25) flush();
+    group.push(entry);
+  }
+  flush();
+  return result;
 }
 
 /**
