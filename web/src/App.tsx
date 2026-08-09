@@ -456,6 +456,7 @@ export function App() {
   const [routePlanError, setRoutePlanError] = useState<string | null>(null);
   const [selectedPlanSegmentIndex, setSelectedPlanSegmentIndex] = useState<number | null>(null);
   const [routeEndpointPicking, setRouteEndpointPicking] = useState<'start' | 'end' | null>(null);
+  const [pendingRouteEnd, setPendingRouteEnd] = useState<RouteWaypoint | null>(null);
   const mapPointPicking = routeEndpointPicking !== null || homeHarbourPicking;
   const clearHomeHarbourMapPoint = useCallback(() => setHomeHarbourMapPoint(null), []);
   const routePlanRequest = useRef<AbortController | null>(null);
@@ -577,6 +578,27 @@ export function App() {
       controllers.forEach((controller) => controller.abort());
     };
   }, [routeEndpointLookups, lang]);
+
+  useEffect(() => {
+    if (!pendingRouteEnd || pendingRouteEnd.name?.trim()) return;
+    const controller = new AbortController();
+    const endpoint = pendingRouteEnd;
+    const timer = window.setTimeout(() => {
+      api.reversePlace({ lat: endpoint.lat, lon: endpoint.lon, lang }, controller.signal)
+        .then(({ result }) => {
+          if (!result) return;
+          setPendingRouteEnd((current) => current?.id === endpoint.id
+            && current.lat === endpoint.lat && current.lon === endpoint.lon
+            ? { ...current, name: result.name }
+            : current);
+        })
+        .catch(() => { /* Kohanimi on mugavusfunktsioon; valitud koordinaat jääb alles. */ });
+    }, 400);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [pendingRouteEnd, lang]);
 
   useEffect(() => () => routePlanRequest.current?.abort(), []);
 
@@ -1198,6 +1220,18 @@ export function App() {
 
   const setRouteEndpoint = useCallback((kind: 'start' | 'end', point: Pick<RouteWaypoint, 'lat' | 'lon' | 'name'>) => {
     cancelRoutePlanRequest();
+    if (kind === 'end' && route.waypoints.length === 0) {
+      setPendingRouteEnd((current) => ({
+        id: current?.id ?? makeId(),
+        lat: point.lat,
+        lon: point.lon,
+        ...(point.name ? { name: point.name } : {}),
+      }));
+      setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null);
+      mapRef.current?.easeTo({ center: [point.lon, point.lat], zoom: Math.max(mapRef.current.getZoom(), 10) });
+      return;
+    }
+    const pendingEnd = kind === 'start' ? pendingRouteEnd : null;
     setRoute((current) => {
       const nextPoint: RouteWaypoint = {
         id: kind === 'start'
@@ -1209,9 +1243,9 @@ export function App() {
       };
       let waypoints: RouteWaypoint[];
       if (kind === 'start') {
-        waypoints = current.waypoints.length ? [nextPoint, ...current.waypoints.slice(1)] : [nextPoint];
-      } else if (current.waypoints.length === 0) {
-        return current;
+        waypoints = current.waypoints.length
+          ? [nextPoint, ...current.waypoints.slice(1)]
+          : pendingEnd ? [nextPoint, pendingEnd] : [nextPoint];
       } else if (current.waypoints.length === 1) {
         waypoints = [...current.waypoints, nextPoint];
       } else {
@@ -1222,9 +1256,10 @@ export function App() {
         : current.name;
       return { ...current, name, waypoints, plan: undefined, updatedAt: new Date().toISOString() };
     });
+    if (pendingEnd) setPendingRouteEnd(null);
     setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null);
     mapRef.current?.easeTo({ center: [point.lon, point.lat], zoom: Math.max(mapRef.current.getZoom(), 10) });
-  }, [cancelRoutePlanRequest]);
+  }, [cancelRoutePlanRequest, pendingRouteEnd, route.waypoints.length]);
 
   const useLocationForEndpoint = useCallback((kind: 'start' | 'end') => {
     const apply = (position: { lat: number; lon: number }): void => setRouteEndpoint(kind, position);
@@ -1617,6 +1652,7 @@ export function App() {
           planLoading={routePlanLoading}
           planError={routePlanError}
           endpointPicking={routeEndpointPicking}
+          pendingEnd={pendingRouteEnd}
           selectedPlanSegmentIndex={selectedPlanSegmentIndex}
           editing={routeEditing}
           selectedWaypointId={selectedWaypointId}
@@ -1635,7 +1671,7 @@ export function App() {
             setRoute(invalidatesPlan ? { ...next, plan: undefined } : next);
             if (invalidatesPlan) { cancelRoutePlanRequest(); setRoutePlanPreview(null); setRoutePlanError(null); }
           }}
-          onNew={() => { cancelRoutePlanRequest(); setRoute(newRoute(vesselProfile)); setRouteAnalysis(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); }}
+          onNew={() => { cancelRoutePlanRequest(); setRoute(newRoute(vesselProfile)); setRouteAnalysis(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setPendingRouteEnd(null); setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); }}
           onLoad={(next) => {
             cancelRoutePlanRequest();
             const named = isAutomaticRouteName(next.name, next.waypoints)
@@ -1643,13 +1679,13 @@ export function App() {
               : next;
             const applied = applyVesselProfile(named, vesselProfile);
             setRoute(routePlanInputKey(next) === routePlanInputKey(applied) ? applied : { ...applied, plan: undefined, updatedAt: new Date().toISOString() });
-            setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(false); setSelectedWaypointId(null);
+            setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setPendingRouteEnd(null); setUndoRoutes([]); setRedoRoutes([]); setRouteEditing(false); setSelectedWaypointId(null);
           }}
-          onDelete={(id) => { cancelRoutePlanRequest(); routeStore.deleteRoute(id).then(() => routeStore.listRoutes()).then(setSavedRoutes).catch(() => {}); setRoute(newRoute(vesselProfile)); setRouteAnalysis(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setSelectedWaypointId(null); }}
+          onDelete={(id) => { cancelRoutePlanRequest(); routeStore.deleteRoute(id).then(() => routeStore.listRoutes()).then(setSavedRoutes).catch(() => {}); setRoute(newRoute(vesselProfile)); setRouteAnalysis(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setPendingRouteEnd(null); setSelectedWaypointId(null); }}
           onStartEdit={() => {
             editStart.current = structuredClone(route);
             cancelRoutePlanRequest();
-            setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null);
+            setUndoRoutes([]); setRedoRoutes([]); setSelectedWaypointId(null); setRoutePlanPreview(null); setRoutePlanError(null); setRouteEndpointPicking(null); setPendingRouteEnd(null);
             setRoute((current) => current.plan ? { ...current, waypoints: current.plan.navigationWaypoints, plan: undefined, updatedAt: new Date().toISOString() } : current);
             setRouteEditing(true);
           }}

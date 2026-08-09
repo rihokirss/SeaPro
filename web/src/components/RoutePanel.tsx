@@ -24,6 +24,7 @@ interface Props {
   planLoading: boolean;
   planError: string | null;
   endpointPicking: 'start' | 'end' | null;
+  pendingEnd: RouteWaypoint | null;
   selectedPlanSegmentIndex: number | null;
   editing: boolean;
   selectedWaypointId: string | null;
@@ -233,7 +234,7 @@ export function RoutePanel(props: Props) {
 
   useEffect(() => {
     if (props.route.waypoints.length === 0) setEndpointKind('start');
-  }, [props.route.waypoints.length]);
+  }, [props.route.waypoints.length, props.pendingEnd]);
 
   useEffect(() => {
     if (props.open && wasEndpointPicking.current && !props.endpointPicking) setSheetSnap('half');
@@ -448,13 +449,13 @@ export function RoutePanel(props: Props) {
 
         <div className="route-endpoint-tabs" role="group" aria-label={t('route.auto.chooseEndpoint')}>
           {(['start', 'end'] as const).map((kind) => {
-            const point = kind === 'start' ? props.route.waypoints[0] : props.route.waypoints.length >= 2 ? props.route.waypoints.at(-1) : undefined;
-            const disabled = kind === 'end' && props.route.waypoints.length === 0;
+            const point = kind === 'start'
+              ? props.route.waypoints[0]
+              : props.route.waypoints.length >= 2 ? props.route.waypoints.at(-1) : props.pendingEnd ?? undefined;
             return <button
               key={kind}
               type="button"
               className={endpointKind === kind ? 'is-active' : ''}
-              disabled={disabled}
               onClick={() => setEndpointKind(kind)}
               aria-pressed={endpointKind === kind}
             >
@@ -478,7 +479,7 @@ export function RoutePanel(props: Props) {
           {props.vesselProfile.homeHarbour ? <button type="button" onClick={() => props.onSetEndpoint(endpointKind, props.vesselProfile.homeHarbour!)}><Home size={18} aria-hidden="true" /> {t('route.auto.useHomeHarbour')}</button> : null}
         </div>
         {props.endpointPicking ? <p className="route-status route-map-pick" role="status">{t('route.auto.mapPickHint', { point: props.endpointPicking === 'start' ? 'A' : 'B' })}</p> : null}
-        <SearchPicker placeholder={t('route.auto.searchPlaceholder')} onFocus={() => setSheetSnap('expanded')} onChoose={(result) => props.onSetEndpoint(endpointKind, result)} />
+        <SearchPicker key={endpointKind} placeholder={t('route.auto.searchPlaceholder')} onFocus={() => setSheetSnap('expanded')} onChoose={(result) => props.onSetEndpoint(endpointKind, result)} />
         {props.route.waypoints.length > 2 ? <p className="route-status">{t('route.auto.endpointOnlyHint')}</p> : null}
         {(props.route.beamM ?? 0) <= 0 || (props.route.airDraughtM ?? 0) <= 0 ? <p className="route-status">{t('route.auto.dimensionsRequired')}</p> : null}
 
