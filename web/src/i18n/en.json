@@ -42,7 +42,7 @@
   "layer.officialNavigation": "Clickable fairways and aids",
   "layer.officialNavigation.hint": "Estonian and Finnish registry data; partly duplicates the nautical chart",
   "layer.depthDetails": "Depth contours and model depths",
-  "layer.depthDetails.hint": "Official 1:10,000 Estonian vectors in Estonia, EMODnet elsewhere; not a substitute for a nautical chart",
+  "layer.depthDetails.hint": "Official depth vectors in Estonia and Finland, EMODnet elsewhere; not a substitute for a nautical chart",
   "navigation.warning": "Navigational warning",
   "navigation.warningNumber": "Warning number",
   "navigation.validity": "Validity",

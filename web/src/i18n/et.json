@@ -42,7 +42,7 @@
   "layer.officialNavigation": "Klikitavad laevateed ja märgid",
   "layer.officialNavigation.hint": "Eesti ja Soome registriandmed; dubleerivad osaliselt navigatsioonikaarti",
   "layer.depthDetails": "Samasügavusjooned ja mudelsügavused",
-  "layer.depthDetails.hint": "Eestis Maa- ja Ruumiameti 1 : 10 000 vektorandmed, mujal EMODnet; ei asenda navigatsioonikaarti",
+  "layer.depthDetails.hint": "Eestis ja Soomes ametlikud sügavusvektorid, mujal EMODnet; ei asenda navigatsioonikaarti",
   "navigation.warning": "Navigatsioonihoiatus",
   "navigation.warningNumber": "Hoiatuse number",
   "navigation.validity": "Kehtivus",

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   DepthCoverage,
-  clipDepthContoursOutsideEstonia,
-  estoniaDepthCoverage,
-  filterDepthSamplesOutsideEstonia,
+  clipDepthContoursOutsideOfficialCoverage,
+  filterDepthSamplesOutsideOfficialCoverage,
+  officialDepthCoverage,
 } from '../src/depthCoverage.js';
 
 describe('depth coverage clipping', () => {
@@ -41,21 +41,24 @@ describe('depth coverage clipping', () => {
         geometry: { type: 'LineString', coordinates: [[19, 58], [20, 58]] },
       }],
     };
-    const clipped = clipDepthContoursOutsideEstonia(data) as typeof data;
+    const clipped = clipDepthContoursOutsideOfficialCoverage(data) as typeof data;
     expect(clipped.type).toBe('FeatureCollection');
     expect(clipped.features.length).toBeLessThanOrEqual(1);
   });
 
-  it('knows the generated HIS coverage and removes model sample labels in it', () => {
-    // Tallinna lahe regulaarsete mõõdistuste ala.
+  it('knows the generated Estonian and Finnish coverage and removes model labels', () => {
+    // Tallinna ja Helsingi lahe ametlikud sügavusalad.
     const tallinnBay: [number, number] = [24.75, 59.5];
-    expect(estoniaDepthCoverage.contains(tallinnBay)).toBe(true);
+    const helsinkiBay: [number, number] = [24.9, 60.1];
+    expect(officialDepthCoverage.contains(tallinnBay)).toBe(true);
+    expect(officialDepthCoverage.contains(helsinkiBay)).toBe(true);
     const samples = {
       features: [
         { geometry: { type: 'Point' as const, coordinates: tallinnBay } },
+        { geometry: { type: 'Point' as const, coordinates: helsinkiBay } },
         { geometry: { type: 'Point' as const, coordinates: [19, 58] as [number, number] } },
       ],
     };
-    expect(filterDepthSamplesOutsideEstonia(samples).features).toHaveLength(1);
+    expect(filterDepthSamplesOutsideOfficialCoverage(samples).features).toHaveLength(1);
   });
 });

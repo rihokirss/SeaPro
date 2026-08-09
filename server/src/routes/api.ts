@@ -28,9 +28,9 @@ import {
   type DepthContourBbox,
 } from '../depthContours.js';
 import {
-  clipDepthContoursOutsideEstonia,
-  ESTONIA_DEPTH_MIN_ZOOM,
-  filterDepthSamplesOutsideEstonia,
+  clipDepthContoursOutsideOfficialCoverage,
+  filterDepthSamplesOutsideOfficialCoverage,
+  OFFICIAL_DEPTH_MIN_ZOOM,
 } from '../depthCoverage.js';
 import {
   fetchNavigationWarnings,
@@ -244,15 +244,15 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     if (zoom >= 11 && bbox[2]! - bbox[0]! <= 1.5 && bbox[3]! - bbox[1]! <= 1.5) {
       const data = await fetchDenseDepthContours(typedBbox);
       reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-      return clipDepthContoursOutsideEstonia(data);
+      return clipDepthContoursOutsideOfficialCoverage(data);
     }
 
     const body = await fetchDepthContours(typedBbox);
     reply.type('application/geo+json');
     reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
     const data = JSON.parse(body) as unknown;
-    return zoom >= ESTONIA_DEPTH_MIN_ZOOM
-      ? clipDepthContoursOutsideEstonia(data)
+    return zoom >= OFFICIAL_DEPTH_MIN_ZOOM
+      ? clipDepthContoursOutsideOfficialCoverage(data)
       : data;
   });
 
@@ -271,7 +271,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Vigane bbox või zoom' });
     }
 
-    const data = filterDepthSamplesOutsideEstonia(
+    const data = filterDepthSamplesOutsideOfficialCoverage(
       await fetchDepthSamples(bbox as DepthContourBbox, zoom),
     );
     reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');

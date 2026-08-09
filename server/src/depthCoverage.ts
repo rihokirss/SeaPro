@@ -1,4 +1,4 @@
-import estoniaDepthCoverageData from './data/estonia-depth-coverage.json';
+import officialDepthCoverageData from './data/official-depth-coverage.json';
 
 type Position = [number, number];
 type Ring = Position[];
@@ -39,7 +39,7 @@ interface GeoJsonFeatureCollection {
 
 const LATITUDE_BUCKET_SIZE = 0.02;
 const EPSILON = 1e-10;
-export const ESTONIA_DEPTH_MIN_ZOOM = 9;
+export const OFFICIAL_DEPTH_MIN_ZOOM = 7;
 
 /**
  * Ettevalmistatud hulknurk, mis oskab kontuurjooni mõõtealade seest välja
@@ -179,30 +179,30 @@ export class DepthCoverage {
   }
 }
 
-const coverageGeometry = estoniaDepthCoverageData.features[0]?.geometry as MultiPolygonGeometry;
+const coverageGeometry = officialDepthCoverageData.features[0]?.geometry as MultiPolygonGeometry;
 if (!coverageGeometry || coverageGeometry.type !== 'MultiPolygon') {
-  throw new Error('Eesti sügavusandmete katvusmask peab olema MultiPolygon');
+  throw new Error('Ametlike sügavusandmete katvusmask peab olema MultiPolygon');
 }
 
-export const estoniaDepthCoverage = new DepthCoverage(
+export const officialDepthCoverage = new DepthCoverage(
   coverageGeometry.coordinates as MultiPolygonCoordinates,
 );
 
-/** Eemaldab EMODneti LineString/MultiLineString-osad ametlike mõõtealade seest. */
-export function clipDepthContoursOutsideEstonia(data: unknown): unknown {
+/** Eemaldab EMODneti jooned Eesti ja Soome ametliku ühendkatvuse seest. */
+export function clipDepthContoursOutsideOfficialCoverage(data: unknown): unknown {
   if (!isFeatureCollection(data)) return data;
 
   const features = data.features.flatMap((feature): GeoJsonFeature[] => {
     const geometry = feature.geometry;
     if (!geometry || geometry.type === 'LineString') {
       if (!geometry || !Array.isArray(geometry.coordinates)) return [feature];
-      const lines = estoniaDepthCoverage.clipLineOutside(geometry.coordinates as number[][]);
+      const lines = officialDepthCoverage.clipLineOutside(geometry.coordinates as number[][]);
       if (lines.length === 0) return [];
       return [{ ...feature, geometry: { type: 'MultiLineString', coordinates: lines } }];
     }
     if (geometry.type !== 'MultiLineString' || !Array.isArray(geometry.coordinates)) return [feature];
     const lines = (geometry.coordinates as number[][][])
-      .flatMap((line) => estoniaDepthCoverage.clipLineOutside(line));
+      .flatMap((line) => officialDepthCoverage.clipLineOutside(line));
     if (lines.length === 0) return [];
     return [{ ...feature, geometry: { type: 'MultiLineString', coordinates: lines } }];
   });
@@ -211,13 +211,13 @@ export function clipDepthContoursOutsideEstonia(data: unknown): unknown {
 }
 
 /** EMODneti mudelisildid ei dubleeri ametliku PMTilesi sügavuspunkte. */
-export function filterDepthSamplesOutsideEstonia<T extends {
+export function filterDepthSamplesOutsideOfficialCoverage<T extends {
   features: Array<{ geometry: { type: 'Point'; coordinates: [number, number] } }>;
 }>(data: T): T {
   return {
     ...data,
     features: data.features.filter((feature) =>
-      !estoniaDepthCoverage.contains(feature.geometry.coordinates)),
+      !officialDepthCoverage.contains(feature.geometry.coordinates)),
   };
 }
 
