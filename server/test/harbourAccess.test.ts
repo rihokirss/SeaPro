@@ -53,6 +53,34 @@ describe('harbour endpoint access corridors', () => {
     });
   });
 
+  it('derives a monotonic centreline from unequal side lines', () => {
+    // Märgid ei ole päriselt paaris: siin on kaks vasakut ja kaks paremat
+    // eri kõrgustel. Keskjoon tuleb külgjoonte vahelt ja peab liikuma
+    // sadamast monotoonselt mere poole, mitte siksakima.
+    const hazards: RoutingHazard[] = [
+      aid('p1', 'Tilgu sadama 4', 'lateral-port', [24.48950, 59.45520]),
+      aid('s1', 'Tilgu sadama 3', 'lateral-starboard', [24.48950, 59.45560]),
+      aid('p2', 'Tilgu sadama 6', 'lateral-port', [24.49030, 59.45515]),
+      aid('s2', 'Tilgu sadama 5', 'lateral-starboard', [24.49120, 59.45590]),
+    ];
+    const result = deriveHarbourAccess(
+      { lon: 24.48658, lat: 59.45518 },
+      vessel({ draughtM: 0.5, underKeelClearanceM: 0.1, beamM: 2 }),
+      vectors({ harbours: [tilgu], hazards }),
+      'start',
+    );
+
+    expect(result.status).toBe('access');
+    if (result.status !== 'access') throw new Error('Expected access');
+    // Mõlema külje KÕIK märgid osalevad servajoontes.
+    expect([...result.access.corridor.boundaryAidIds ?? []].sort()).toEqual(['p1', 'p2', 's1', 's2']);
+    expect(result.access.waypoints.length).toBeGreaterThanOrEqual(3);
+    // Kett liigub sadamapunktist ühtlaselt ida (mere) suunas.
+    for (let index = 1; index < result.access.waypoints.length; index++) {
+      expect(result.access.waypoints[index]![0]).toBeGreaterThan(result.access.waypoints[index - 1]![0]);
+    }
+  });
+
   it('does not override the published harbour draught limit', () => {
     const result = deriveHarbourAccess(
       { lon: 24.48658, lat: 59.45518 },

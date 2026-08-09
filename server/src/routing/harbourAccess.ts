@@ -59,13 +59,13 @@ export function deriveHarbourAccess(
 
   const requiredDepthM = vessel.draughtM + vessel.underKeelClearanceM;
   const target = nearestSuitableOfficialCorridor(position, vectors.corridors, vessel, requiredDepthM);
-  const gates = harbourGates(harbour, position, vectors.hazards, vessel.beamM, target?.point);
-  if (!target && gates.length === 0) return { status: 'none' };
+  const channel = harbourChannel(harbour, position, vectors.hazards, vessel.beamM, target?.point);
+  if (!target && !channel) return { status: 'none' };
   // Ilma avaldatud väylä sügavuse või sadama lubatud süviseta ei tohi
   // tuletatud joon EMODneti teadaolevat madalust avada.
   if (!target && harbour.maxDraughtM === undefined) return { status: 'none' };
 
-  const waypoints: Position[] = [position, ...gates.map((gate) => gate.midpoint)];
+  const waypoints: Position[] = [position, ...(channel?.midpoints ?? [])];
   if (target) {
     appendDistinct(waypoints, target.point);
     const interiorPoint = corridorContinuationPoint(position, target.point, target.corridor.geometry);
@@ -77,14 +77,12 @@ export function deriveHarbourAccess(
   }
   if (waypoints.length < 2) return { status: 'none' };
 
-  const gateWidthM = gates.length
-    ? Math.min(...gates.map((gate) => gate.widthM))
-    : 30;
+  const gateWidthM = channel?.widthM ?? 30;
   const widthM = Math.max(vessel.beamM + 4, Math.min(60, gateWidthM - 4));
   const targetDepthM = target?.corridor.sweptDepthM ?? target?.corridor.depthM;
   const targetDraughtM = target?.corridor.maxDraughtM;
   const maxDraughtM = minimumDefined(harbour.maxDraughtM, targetDraughtM);
-  const boundaryAidIds = [...new Set(gates.flatMap((gate) => [gate.port.id, gate.starboard.id]))];
+  const boundaryAidIds = channel?.boundaryAidIds ?? [];
   const source = target?.corridor.source ?? harbour.source;
   const corridor: RoutingCorridor = {
     id: `derived:harbour-access:${endpointId}:${harbour.id}`,
@@ -144,61 +142,134 @@ function nearestSuitableOfficialCorridor(
     && candidate.distanceM <= closest.distanceM + 250) ?? closest;
 }
 
-interface HarbourGate {
-  port: RoutingHazard;
-  starboard: RoutingHazard;
-  midpoint: Position;
+interface HarbourChannel {
+  /** Sadamast mere suunas järjestatud keskjoone punktid. */
+  midpoints: Position[];
+  /** Kitsaim mõõdetud laius külgjoonte vahel. */
   widthM: number;
+  boundaryAidIds: string[];
 }
 
-function harbourGates(
+interface ChainEntry {
+  aid: RoutingHazard;
+  position: Position;
+  /** Kaugus meetrites piki sadamast-merele telge. */
+  along: number;
+}
+
+/**
+ * Kanal tuletatakse külgede JOONTEST, mitte märgipaaridest: vasaku külje
+ * märgid moodustavad ühe serva, parema külje märgid teise, ja keskjoon
+ * jookseb joonte vahel. Märgid ei ole päriselt paaris ja külgede arvud
+ * võivad erineda — kumbagi serva interpoleeritakse eraldi ning keskjoone
+ * jaam võetakse iga märgi kõrguselt. Nii ei teki tiheda märgistusega
+ * sadamas diagonaalseid "väravaid" üle basseini ega siksakitavat ketti.
+ */
+function harbourChannel(
   harbour: RoutingHarbour,
   endpoint: Position,
   hazards: readonly RoutingHazard[],
   beamM: number,
   target?: Position,
-): HarbourGate[] {
+): HarbourChannel | null {
   const aids = hazards.filter((hazard) => hazard.kind === 'physical_aid'
     && hazard.geometry.type === 'Point'
     && hazard.operational !== false
     && (hazard.navigationRole === 'lateral-port' || hazard.navigationRole === 'lateral-starboard')
     && distance(positionOf(hazard), endpoint) <= MAX_GATE_DISTANCE_M
     && aidMatchesHarbour(hazard, harbour));
-  const ports = aids.filter((aid) => aid.navigationRole === 'lateral-port');
-  const starboards = aids.filter((aid) => aid.navigationRole === 'lateral-starboard');
-  const pairs = new Map<string, HarbourGate>();
+  if (aids.length === 0) return null;
 
-  const addNearest = (aid: RoutingHazard, others: RoutingHazard[]): void => {
-    const candidates = others.map((other) => ({
-      other,
-      widthM: distance(positionOf(aid), positionOf(other)),
-    })).filter(({ widthM }) => widthM >= beamM + 4 && widthM <= MAX_GATE_WIDTH_M)
-      .sort((a, b) => a.widthM - b.widthM || a.other.id.localeCompare(b.other.id));
-    const nearest = candidates[0];
-    if (!nearest) return;
-    const port = aid.navigationRole === 'lateral-port' ? aid : nearest.other;
-    const starboard = aid.navigationRole === 'lateral-starboard' ? aid : nearest.other;
-    const a = positionOf(port);
-    const b = positionOf(starboard);
-    const key = [port.id, starboard.id].sort().join('\0');
-    pairs.set(key, {
-      port,
-      starboard,
-      midpoint: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
-      widthM: nearest.widthM,
-    });
+  // Telg: sadamapunktist ametliku laevatee ühenduspunkti või märkide
+  // keskme poole. Selle peale projitseerituna saab mõlema külje märgid
+  // ühtsesse "sadamast merele" järjekorda.
+  const positions = aids.map(positionOf);
+  const axisTarget: Position = target ?? [
+    positions.reduce((sum, p) => sum + p[0], 0) / positions.length,
+    positions.reduce((sum, p) => sum + p[1], 0) / positions.length,
+  ];
+  const metresPerLon = 111_320 * Math.cos(endpoint[1] * Math.PI / 180);
+  const axisX = (axisTarget[0] - endpoint[0]) * metresPerLon;
+  const axisY = (axisTarget[1] - endpoint[1]) * 111_320;
+  const axisLength = Math.hypot(axisX, axisY);
+  if (axisLength <= 1e-6) return null;
+  const along = (p: Position): number =>
+    ((p[0] - endpoint[0]) * metresPerLon * axisX + (p[1] - endpoint[1]) * 111_320 * axisY) / axisLength;
+
+  const chainOf = (role: 'lateral-port' | 'lateral-starboard'): ChainEntry[] => aids
+    .filter((aid) => aid.navigationRole === role)
+    .map((aid) => ({ aid, position: positionOf(aid), along: along(positionOf(aid)) }))
+    .sort((a, b) => a.along - b.along || a.aid.id.localeCompare(b.aid.id));
+  const ports = chainOf('lateral-port');
+  const starboards = chainOf('lateral-starboard');
+  if (ports.length === 0 || starboards.length === 0) return null;
+
+  // Jaamad ainult seal, kus MÕLEMAD servad on defineeritud (külgede
+  // ulatuste ühisosa): klambris serv tõmbaks keskjoone külgsuunas
+  // vingerdama. Kui ühisosa puudub (kummalgi küljel üks märk eri
+  // kõrgustel), jääb üks jaam nende vahele. Sadama tagune (t <= 0)
+  // jäetakse välja; otsad katavad sadamapunkt ja mere-pikendus.
+  const overlapStart = Math.max(ports[0]!.along, starboards[0]!.along);
+  const overlapEnd = Math.min(ports.at(-1)!.along, starboards.at(-1)!.along);
+  const stations = (overlapStart > overlapEnd
+    ? [(overlapStart + overlapEnd) / 2]
+    : [...new Set([...ports, ...starboards]
+      .map((entry) => entry.along)
+      .filter((t) => t >= overlapStart && t <= overlapEnd))])
+    .filter((t) => t > 1)
+    .sort((a, b) => a - b);
+
+  const midpoints: Position[] = [];
+  let narrowestM = Number.POSITIVE_INFINITY;
+  for (const station of stations) {
+    const portSide = sideLineAt(ports, station);
+    const starboardSide = sideLineAt(starboards, station);
+    const widthM = distance(portSide, starboardSide);
+    if (widthM < beamM + 4 || widthM > MAX_GATE_WIDTH_M) continue;
+    const midpoint: Position = [
+      (portSide[0] + starboardSide[0]) / 2,
+      (portSide[1] + starboardSide[1]) / 2,
+    ];
+    if (target && distanceToSegment(midpoint, endpoint, target).distanceM > MAX_GATE_DISTANCE_M / 2) {
+      continue;
+    }
+    // Pool võrelahtrit on jaamade mõistlik miinimumsamm: tihedamad sunnitud
+    // punktid jäävad ühe lahtri sisse ega anna teed, ainult vingerdusi.
+    if (midpoints.length > 0 && distance(midpoint, midpoints.at(-1)!) < 45) continue;
+    midpoints.push(midpoint);
+    narrowestM = Math.min(narrowestM, widthM);
+  }
+  if (midpoints.length === 0) return null;
+
+  return {
+    midpoints,
+    widthM: narrowestM,
+    boundaryAidIds: [...ports, ...starboards].map((entry) => entry.aid.id),
   };
-  ports.forEach((aid) => addNearest(aid, starboards));
-  starboards.forEach((aid) => addNearest(aid, ports));
+}
 
-  const result = [...pairs.values()]
-    .filter((gate) => !target
-      || distanceToSegment(gate.midpoint, endpoint, target).distanceM <= MAX_GATE_DISTANCE_M / 2)
-    .sort((a, b) => distance(endpoint, a.midpoint) - distance(endpoint, b.midpoint)
-      || a.port.id.localeCompare(b.port.id));
-  // Mitme sama koha duplikaadi korral piisab ühest keskpunktist.
-  return result.filter((gate, index) => index === 0
-    || distance(gate.midpoint, result[index - 1]!.midpoint) >= 15);
+/**
+ * Külgjoone punkt telje-kõrgusel t: ketiotstest väljaspool hoiab viimast
+ * märki (konstantne jätk), vahepeal interpoleerib naabermärkide vahel.
+ */
+function sideLineAt(chain: ChainEntry[], t: number): Position {
+  const first = chain[0]!;
+  if (t <= first.along) return first.position;
+  const last = chain.at(-1)!;
+  if (t >= last.along) return last.position;
+  for (let index = 1; index < chain.length; index++) {
+    const a = chain[index - 1]!;
+    const b = chain[index]!;
+    if (t > b.along) continue;
+    const span = b.along - a.along;
+    if (span <= 1e-6) return a.position;
+    const ratio = (t - a.along) / span;
+    return [
+      a.position[0] + (b.position[0] - a.position[0]) * ratio,
+      a.position[1] + (b.position[1] - a.position[1]) * ratio,
+    ];
+  }
+  return last.position;
 }
 
 function aidMatchesHarbour(aid: RoutingHazard, harbour: RoutingHarbour): boolean {
