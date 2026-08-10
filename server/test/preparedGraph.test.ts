@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BBox } from '@seapro/shared';
 import {
   buildPreparedRoutingGraph,
+  nearestPreparedGraphTerminal,
   preparedGraphGeoJson,
 } from '../src/routing/preparedGraph.js';
 import type {
@@ -14,6 +15,16 @@ const BBOX: BBox = [58.9, 23.9, 59.2, 24.3];
 const FETCHED_AT = '2026-08-09T12:00:00.000Z';
 
 describe('prepared routing graph', () => {
+  it('indexes nearby source terminals without changing the stored graph format', () => {
+    const graph = buildPreparedRoutingGraph([
+      corridor('terminal', [[24, 59], [24.1, 59]], true),
+    ], BBOX, FETCHED_AT, { maxEdgeLengthM: Number.POSITIVE_INFINITY });
+
+    expect(nearestPreparedGraphTerminal({ lat: 59, lon: 24.1001 }, graph, 20))
+      .toEqual([24.1, 59]);
+    expect(Object.keys(graph)).not.toContain('terminals');
+  });
+
   it('stores the compact harbour endpoint support beside the route graph', () => {
     const harbour: RoutingHarbour = {
       id: 'test-harbour',

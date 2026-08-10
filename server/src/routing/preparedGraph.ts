@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import type { BBox } from '@seapro/shared';
+import { distanceMetres, type BBox } from '@seapro/shared';
 import { config } from '../config.js';
 import {
   TRUSTED_ROUTE_CLEARED_REASONS,
@@ -28,6 +28,7 @@ const EPSILON = 1e-10;
 // Valitud keskjoon peab võitma ka soovitusliku ala (preferred = 0.7); väiksem
 // väärtus hoiab lihtsustuse joone peal ega lase tal üldisele rastrile hüpata.
 const TRUSTED_PATH_COST_MULTIPLIER = 0.55;
+const DEFAULT_ENDPOINT_ACCESS_M = 100;
 
 export interface PreparedRoutingGraphNode {
   id: number;
@@ -62,6 +63,49 @@ export interface PreparedRoutingGraph {
     intersections: number;
     snappedEndpoints: number;
   };
+}
+
+interface PreparedGraphTerminal {
+  node: PreparedRoutingGraphNode;
+  edge: PreparedRoutingGraphEdge;
+}
+
+// Failis hoitav graaf on muutumatu. Lõppsõlmede indeks on runtime'i detail,
+// seega ei lisa me seda serialiseeritud formaati ega muuda graafi versiooni.
+const terminalCache = new WeakMap<PreparedRoutingGraph, PreparedGraphTerminal[]>();
+
+/** Leiab algse valmis graafi tegeliku lõppsõlme kasutaja otspunkti lähedalt. */
+export function nearestPreparedGraphTerminal(
+  endpoint: { lat: number; lon: number },
+  graph: PreparedRoutingGraph,
+  maxDistanceM = DEFAULT_ENDPOINT_ACCESS_M,
+): Position | null {
+  let terminals = terminalCache.get(graph);
+  if (!terminals) {
+    const degrees = new Uint16Array(graph.nodes.length);
+    const adjacentEdges = new Map<number, PreparedRoutingGraphEdge>();
+    for (const edge of graph.edges) {
+      degrees[edge.from] = Math.min(65_535, degrees[edge.from]! + 1);
+      degrees[edge.to] = Math.min(65_535, degrees[edge.to]! + 1);
+      adjacentEdges.set(edge.from, edge);
+      adjacentEdges.set(edge.to, edge);
+    }
+    terminals = graph.nodes.flatMap((node) => degrees[node.id] === 1
+      ? [{ node, edge: adjacentEdges.get(node.id)! }]
+      : []);
+    terminalCache.set(graph, terminals);
+  }
+
+  const nearest = terminals.flatMap(({ node, edge }) => {
+    const distanceM = distanceMetres(endpoint, {
+      lon: node.position[0],
+      lat: node.position[1],
+    });
+    return distanceM <= maxDistanceM ? [{ node, edge, distanceM }] : [];
+  }).sort((left, right) => left.distanceM - right.distanceM
+    || Number(right.edge.official) - Number(left.edge.official)
+    || left.node.id - right.node.id)[0];
+  return nearest ? [...nearest.node.position] : null;
 }
 
 export interface PreparedPathLine {

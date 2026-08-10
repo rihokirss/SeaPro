@@ -41,6 +41,7 @@ import { findPath } from './search.js';
 import {
   eligibleCorridor,
   loadPreparedRoutingGraph,
+  nearestPreparedGraphTerminal,
   trustPreparedPathOnSurface,
   type PreparedPathLine,
   type PreparedRoutingGraph,
@@ -80,11 +81,6 @@ const PREPARED_GRAPH_MAX_CELLS = 1_200_000;
 const REFINED_MAX_CELLS = 2_400_000;
 const REFINED_MIN_CELL_SIZE_M = 37.5;
 const MAX_PRIMARY_ROUTE_STRETCH = 1.1;
-const MAX_PREPARED_GRAPH_ENDPOINT_ACCESS_M = 100;
-const preparedGraphTerminals = new WeakMap<PreparedRoutingGraph, Array<{
-  node: PreparedRoutingGraph['nodes'][number];
-  edge: PreparedRoutingGraph['edges'][number];
-}>>();
 
 export interface RoutingSnapshot {
   depth: RoutingDepthRaster;
@@ -174,12 +170,6 @@ export async function planRoute(
     && isSmallCraftRoutingProfile(request);
   const derivedStartAccess = accessFromResult(startAccessResult);
   const derivedEndAccess = accessFromResult(endAccessResult);
-  const preparedStartTerminal = preparedSmallCraft && !derivedStartAccess
-    ? nearestPreparedGraphTerminal(request.start, snapshot.preparedGraph!)
-    : null;
-  const preparedEndTerminal = preparedSmallCraft && !derivedEndAccess
-    ? nearestPreparedGraphTerminal(request.end, snapshot.preparedGraph!)
-    : null;
   // Graafi kuuluvad keskjooned tulevad kulupinnale valmis graafist; sama
   // sobivusreegel elab preparedGraph.ts-is, et graaf ja filter ei lahkneks.
   const routingVectors: RoutingVectorData = {
@@ -229,8 +219,6 @@ export async function planRoute(
     preparedGraph: snapshot.preparedGraph ?? null,
     derivedStartAccess,
     derivedEndAccess,
-    preparedStartTerminal,
-    preparedEndTerminal,
     limitIssues,
     deadline,
     instrumentation,
@@ -250,6 +238,7 @@ export async function planRoute(
     request,
     derivedStartAccess,
     derivedEndAccess,
+    preparedSmallCraft ? snapshot.preparedGraph! : null,
     deadline.checkpoint,
   );
   instrumentation?.phase('refinement_probe', performance.now() - probeStartedAt, {
@@ -291,8 +280,6 @@ export async function planRoute(
     preparedGraph: snapshot.preparedGraph ?? null,
     derivedStartAccess,
     derivedEndAccess,
-    preparedStartTerminal,
-    preparedEndTerminal,
     limitIssues,
     deadline,
     instrumentation: prefixedInstrumentation(instrumentation, 'refinement.'),
@@ -318,8 +305,6 @@ interface RouteSurfaceAttemptInput {
   preparedGraph: PreparedRoutingGraph | null;
   derivedStartAccess: HarbourAccess | null;
   derivedEndAccess: HarbourAccess | null;
-  preparedStartTerminal: Position | null;
-  preparedEndTerminal: Position | null;
   limitIssues: RoutePlanIssue[];
   deadline: PlanningDeadline;
   instrumentation?: RoutingInstrumentation;
@@ -344,36 +329,27 @@ async function attemptRouteOnSurface(
     preparedGraph,
     derivedStartAccess,
     derivedEndAccess,
-    preparedStartTerminal,
-    preparedEndTerminal,
     limitIssues,
     deadline,
     instrumentation,
   } = input;
 
-  // Pika marsruudi jämedas võres võib väga väike saare- või sadamabassein
-  // moodustada näiliselt avatud, kuid merest eraldatud komponendi. Sellist
-  // tuletatud ligipääsu ei sunnita marsruudile; otspunkt kleebitakse siis
-  // lähimasse sama avamere komponendi lahtrisse.
   const snapStartedAt = performance.now();
-  const connectedStartAccess = connectedHarbourAccess(surface, derivedStartAccess);
-  const connectedEndAccess = connectedHarbourAccess(surface, derivedEndAccess);
-  const startAccess = navigableHarbourAccess(surface, connectedStartAccess);
-  const endAccess = navigableHarbourAccess(surface, connectedEndAccess);
-  // Tuletatud kanali tugipunkt võib sattuda blokeeritud lahtrisse (nt
-  // geomeetriline väravapaar võõra märgi puhvri kõrval). Siis ei sunni me
-  // kanalit marsruudile ega blokeeri kogu tulemust, vaid kleebime otspunkti
-  // tavalise veepunktina ja ütleme põhjuse hoiatusega.
-  const accessDropIssues: RoutePlanIssue[] = [
-    ...(derivedStartAccess && connectedStartAccess && !startAccess
-      ? [{ code: 'harbour_access_not_navigable', severity: 'warning' as const, details: { endpoint: 'start' } }]
-      : []),
-    ...(derivedEndAccess && connectedEndAccess && !endAccess
-      ? [{ code: 'harbour_access_not_navigable', severity: 'warning' as const, details: { endpoint: 'end' } }]
-      : []),
-  ];
-  const start = snapRouteEndpoint(surface, request.start, startAccess, preparedStartTerminal);
-  let end = snapRouteEndpoint(surface, request.end, endAccess, preparedEndTerminal);
+  const resolvedEndpoints = resolveSurfaceEndpoints(
+    surface,
+    request,
+    derivedStartAccess,
+    derivedEndAccess,
+    preparedGraph && isSmallCraftRoutingProfile(request) ? preparedGraph : null,
+  );
+  const {
+    startAccess,
+    endAccess,
+    accessDropIssues,
+  } = resolvedEndpoints;
+  const start = resolvedEndpoints.start;
+  let end = resolvedEndpoints.end;
+  let requiredAnchors = resolvedEndpoints.anchors;
   instrumentation?.phase('endpoint_snap', performance.now() - snapStartedAt);
   if (!start || !end) {
     return {
@@ -390,7 +366,6 @@ async function attemptRouteOnSurface(
     };
   }
 
-  let requiredAnchors = requiredHarbourAnchors(surface, start, end, startAccess, endAccess);
   if (!requiredAnchors) {
     return {
       response: {
@@ -891,47 +866,57 @@ interface SnappedRouteEndpoint {
   distanceM: number;
 }
 
-function accessFromResult(result: HarbourAccessResult): HarbourAccess | null {
-  return result.status === 'access' ? result.access : null;
+interface ResolvedSurfaceEndpoints {
+  startAccess: HarbourAccess | null;
+  endAccess: HarbourAccess | null;
+  start: SnappedRouteEndpoint | null;
+  end: SnappedRouteEndpoint | null;
+  anchors: GridPoint[] | null;
+  accessDropIssues: RoutePlanIssue[];
 }
 
 /**
- * Valmis graafi terminal on avaldatud keskjoone tegelik sadamaots. Kui
- * kasutaja valitud sadamapunkt on sellele väga lähedal, võib samasse
- * võrerakku sattunud täpne sihtpunkt terminali esindada. Nii ei kleebi
- * üldistatud rannajoon marsruuti sadu meetreid enne sadamat (Rosala).
+ * Lahendab ühe konkreetse kulupinna otspunktid ühes kohas. Põhiotsing ja
+ * peenvõrgu eelfilter võivad kasutada eri pinnavaadet, kuid sadamakanali,
+ * valmis graafi terminali ja kohustuslike ankrute reeglid peavad olema samad.
  */
-export function nearestPreparedGraphTerminal(
-  endpoint: { lat: number; lon: number },
-  graph: PreparedRoutingGraph,
-): Position | null {
-  let terminals = preparedGraphTerminals.get(graph);
-  if (!terminals) {
-    const degrees = new Uint16Array(graph.nodes.length);
-    const adjacentEdges = new Map<number, PreparedRoutingGraph['edges'][number]>();
-    for (const edge of graph.edges) {
-      degrees[edge.from] = Math.min(65_535, degrees[edge.from]! + 1);
-      degrees[edge.to] = Math.min(65_535, degrees[edge.to]! + 1);
-      adjacentEdges.set(edge.from, edge);
-      adjacentEdges.set(edge.to, edge);
-    }
-    terminals = graph.nodes.flatMap((node) => degrees[node.id] === 1
-      ? [{ node, edge: adjacentEdges.get(node.id)! }]
-      : []);
-    preparedGraphTerminals.set(graph, terminals);
-  }
-  const nearest = terminals.flatMap(({ node, edge }) => {
-    const distanceM = distanceMetres(endpoint, {
-      lon: node.position[0],
-      lat: node.position[1],
-    });
-    return distanceM <= MAX_PREPARED_GRAPH_ENDPOINT_ACCESS_M
-      ? [{ node, edge, distanceM }]
-      : [];
-  }).sort((left, right) => left.distanceM - right.distanceM
-    || Number(right.edge.official) - Number(left.edge.official)
-    || left.node.id - right.node.id)[0];
-  return nearest ? [...nearest.node.position] : null;
+function resolveSurfaceEndpoints(
+  surface: RoutingCostSurface,
+  request: Pick<RoutePlanRequest, 'start' | 'end'>,
+  derivedStartAccess: HarbourAccess | null,
+  derivedEndAccess: HarbourAccess | null,
+  preparedGraph: PreparedRoutingGraph | null,
+): ResolvedSurfaceEndpoints {
+  // Pika marsruudi jämedas võres võib väike sadamabassein näida merest
+  // eraldatud. Sellist tuletatud kanalit ei sunnita antud pinnal marsruudile.
+  const connectedStartAccess = connectedHarbourAccess(surface, derivedStartAccess);
+  const connectedEndAccess = connectedHarbourAccess(surface, derivedEndAccess);
+  const startAccess = navigableHarbourAccess(surface, connectedStartAccess);
+  const endAccess = navigableHarbourAccess(surface, connectedEndAccess);
+  const accessDropIssues: RoutePlanIssue[] = [
+    ...(derivedStartAccess && connectedStartAccess && !startAccess
+      ? [{ code: 'harbour_access_not_navigable', severity: 'warning' as const, details: { endpoint: 'start' } }]
+      : []),
+    ...(derivedEndAccess && connectedEndAccess && !endAccess
+      ? [{ code: 'harbour_access_not_navigable', severity: 'warning' as const, details: { endpoint: 'end' } }]
+      : []),
+  ];
+  const preparedStartTerminal = !startAccess && preparedGraph
+    ? nearestPreparedGraphTerminal(request.start, preparedGraph)
+    : null;
+  const preparedEndTerminal = !endAccess && preparedGraph
+    ? nearestPreparedGraphTerminal(request.end, preparedGraph)
+    : null;
+  const start = snapRouteEndpoint(surface, request.start, startAccess, preparedStartTerminal);
+  const end = snapRouteEndpoint(surface, request.end, endAccess, preparedEndTerminal);
+  const anchors = start && end
+    ? requiredHarbourAnchors(surface, start, end, startAccess, endAccess)
+    : null;
+  return { startAccess, endAccess, start, end, anchors, accessDropIssues };
+}
+
+function accessFromResult(result: HarbourAccessResult): HarbourAccess | null {
+  return result.status === 'access' ? result.access : null;
 }
 
 function harbourLimitIssues(
@@ -998,17 +983,22 @@ function hasRefinementConnection(
   request: RoutePlanRequest,
   derivedStartAccess: HarbourAccess | null,
   derivedEndAccess: HarbourAccess | null,
+  preparedGraph: PreparedRoutingGraph | null,
   checkpoint: () => void,
 ): boolean {
   if (!surface.refinementCandidateAt) return false;
   const probe = withRefinementCandidatesOpen(surface);
-  const startAccess = navigableHarbourAccess(probe, connectedHarbourAccess(probe, derivedStartAccess));
-  const endAccess = navigableHarbourAccess(probe, connectedHarbourAccess(probe, derivedEndAccess));
-  const start = snapRouteEndpoint(probe, request.start, startAccess);
-  let end = snapRouteEndpoint(probe, request.end, endAccess);
+  const resolved = resolveSurfaceEndpoints(
+    probe,
+    request,
+    derivedStartAccess,
+    derivedEndAccess,
+    preparedGraph,
+  );
+  const { startAccess, endAccess, start } = resolved;
+  let { end, anchors } = resolved;
   if (!start || !end) return false;
 
-  let anchors = requiredHarbourAnchors(probe, start, end, startAccess, endAccess);
   if (anchors && anchorsConnected(probe, anchors, checkpoint)) return true;
   if (endAccess) return false;
 
@@ -1329,38 +1319,15 @@ function prepareRouteCandidate(
 
   const exactBackbonePositions = exactBackbone.flatMap((point) =>
     point.position ? [point.position] : []);
-  let positionedGeometryPath = withExactHarbourPositions(
+  const positionedGeometryPath = composeExactRouteGeometry(
     surface,
     geometryPath,
+    exactBackbonePositions,
     start,
     end,
     startAccess,
     endAccess,
   );
-  if (exactBackbonePositions.length > 0) {
-    positionedGeometryPath = overlayExactPositions(
-      surface,
-      positionedGeometryPath,
-      exactBackbonePositions,
-      0,
-    );
-  }
-  // Exact-backbone overlay lõpeb algallika terminalis. Kui kasutaja täpne
-  // sadamapunkt jagab terminaliga sama usaldatud võrerakku, peab väljundi
-  // viimane koordinaat siiski olema kasutaja siht, mitte 22 m eemal olev
-  // lähtevektori ots.
-  if (!startAccess && positionedGeometryPath.length > 0) {
-    positionedGeometryPath[0] = {
-      ...positionedGeometryPath[0]!,
-      position: [...start.position],
-    };
-  }
-  if (!endAccess && positionedGeometryPath.length > 0) {
-    positionedGeometryPath[positionedGeometryPath.length - 1] = {
-      ...positionedGeometryPath.at(-1)!,
-      position: [...end.position],
-    };
-  }
   if (positionedGeometryPath.length > MAX_GEOMETRY_POINTS) {
     return { status: 'invalid', code: 'route_geometry_too_complex' };
   }
@@ -1580,9 +1547,15 @@ function navigationPointPosition(
   return point.position ?? surface.toPosition(point);
 }
 
-function withExactHarbourPositions(
+/**
+ * Koostab täpse väljundgeomeetria ühe kindla prioriteediga: võrerada, algsed
+ * graafipöörded, sadamakanal ja lõpuks lahendatud otspunktid. Viimane aste on
+ * vajalik, kui graafi terminal ning kasutaja sadamapunkt jagavad sama võrerakku.
+ */
+function composeExactRouteGeometry(
   surface: RoutingCostSurface,
   path: readonly GridPoint[],
+  exactBackbonePositions: readonly Position[],
   start: SnappedRouteEndpoint,
   end: SnappedRouteEndpoint,
   startAccess: HarbourAccess | null,
@@ -1590,11 +1563,13 @@ function withExactHarbourPositions(
 ): PositionedGridPoint[] {
   let positioned: PositionedGridPoint[] = path.map((point) => ({ ...point }));
 
+  if (exactBackbonePositions.length > 0) {
+    positioned = overlayExactPositions(surface, positioned, exactBackbonePositions, 0);
+  }
+
   if (startAccess) {
     const startPositions = harbourPositionsFromStart(startAccess, start.position);
     positioned = overlayExactPositions(surface, positioned, startPositions, 0);
-  } else if (positioned.length > 0) {
-    positioned[0] = { ...positioned[0]!, position: [...start.position] };
   }
 
   if (endAccess) {
@@ -1603,10 +1578,12 @@ function withExactHarbourPositions(
     const outerIndex = findLastGridPointIndex(positioned, outerPoint);
     if (outerIndex < 0) throw new Error('End harbour outer anchor is missing from the path');
     positioned = overlayExactPositions(surface, positioned, endPositions, outerIndex);
-  } else if (positioned.length > 0) {
+  }
+
+  if (positioned.length > 0) {
+    positioned[0] = { ...positioned[0]!, position: [...start.position] };
     positioned[positioned.length - 1] = {
-      ...positioned.at(-1)!,
-      position: [...end.position],
+      ...positioned.at(-1)!, position: [...end.position],
     };
   }
 

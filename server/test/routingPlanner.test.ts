@@ -10,9 +10,11 @@ import {
 import { ROUTING_COST_MULTIPLIERS } from '../src/routing/engineTypes.js';
 import { isWithinRoutingServiceArea } from '../src/routing/coverage.js';
 import { RoutingDepthState, type RoutingDepthRaster } from '../src/routing/depthRaster.js';
-import { buildPreparedRoutingGraph } from '../src/routing/preparedGraph.js';
 import {
+  buildPreparedRoutingGraph,
   nearestPreparedGraphTerminal,
+} from '../src/routing/preparedGraph.js';
+import {
   planRoute,
   fineRevalidateSegments,
   RoutingDataUnavailableError,
@@ -459,6 +461,39 @@ describe('route planner snapshot integration', () => {
     expect(terminal).toEqual([24.0107, 59.0073]);
   });
 
+  it('keeps the resolved endpoint after overlaying an exact prepared backbone', async () => {
+    const request: RoutePlanRequest = {
+      ...routeRequest(),
+      draughtM: 0.7,
+      underKeelClearanceM: 0,
+      beamM: 2.5,
+    };
+    const terminal: [number, number] = [request.end.lon - 0.0002, request.end.lat];
+    const corridor: RoutingCorridor = {
+      id: 'prepared-terminal-overlay',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[request.start.lon, request.start.lat], terminal],
+      },
+      official: true,
+      source: 'vaylavirasto-wfs',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+
+    const result = await planRoute(request, {
+      snapshot: snapshotFor({ depthM: 8, corridors: [corridor] }),
+      bbox: BBOX,
+    });
+
+    expect(result.status).not.toBe('no_route');
+    if (result.status === 'no_route') throw new Error('Expected prepared terminal route');
+    expect(result.geometry.coordinates.at(-1)).toEqual([request.end.lon, request.end.lat]);
+    expect(result.endpoints.end.distanceM).toBe(0);
+  });
+
   it('returns a revalidated route and navigation waypoints on known water', async () => {
     const request = routeRequest();
     const snapshot = snapshotFor({ depthM: 8 });
@@ -654,8 +689,11 @@ describe('route planner snapshot integration', () => {
     expect(result.status).not.toBe('no_route');
     if (result.status === 'no_route') throw new Error('Expected prepared harbour access route');
     expect(result.issues).toContainEqual(expect.objectContaining({ code: 'harbour_access_inferred' }));
-    expect(result.geometry.coordinates.some(([lon, lat]) =>
-      Math.abs(lon - 24.006) < 0.0001 && Math.abs(lat - 59.003) < 0.0001)).toBe(true);
+    const gateIndex = result.geometry.coordinates.findIndex(([lon, lat]) =>
+      Math.abs(lon - 24.006) < 0.0001 && Math.abs(lat - 59.003) < 0.0001);
+    expect(gateIndex).toBeGreaterThan(0);
+    expect(result.geometry.coordinates[0]).toEqual([request.start.lon, request.start.lat]);
+    expect(result.geometry.coordinates.at(-1)).toEqual([request.end.lon, request.end.lat]);
   });
 
   it('retries a resolution-sensitive no_route on a strict two-times-finer grid', async () => {

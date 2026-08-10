@@ -1161,33 +1161,15 @@ function remoteCandidates(
   opposite: GridPoint,
   physicalGraphScores: ReadonlyMap<number, number>,
 ): number[] {
-  const directCells = Math.max(1, Math.hypot(opposite.x - remote.x, opposite.y - remote.y));
   // Kauge ühendus võib graafi siseneda suvalises keskjoone punktis. Valmis
   // graafi servad on kuni 150 m pikkused, seega sõlm on sisuliselt servale
   // projitseerimine selle täpsuse piires. Ainult terminalide kasutamine sunnib
   // avamerelt enne sobivast väilast mööda sõitma ja otspunkti kaudu tagasi
   // pöörama (Tilgu–Jussarö kolmnurk).
-  const ranked = [...physicalGraphScores].flatMap(([id, physicalGraphCost]) => {
-    const point = graph.points.get(id);
-    if (!point) return [];
-    const distance = Math.hypot(point.x - remote.x, point.y - remote.y);
-    if (distance > directCells * 1.25) return [];
-    // Kandidaadi valikul kasutame päris pikkust, mitte graafi 0,75× eelist.
-    // Soodustus otsustab võrgu sees võrdsete ohutute harude vahel, kuid ei tohi
-    // õigustada pikemat avamere ühendust ega terminaliringi.
-    return [{ id, point, score: distance + physicalGraphCost }];
-  }).sort((a, b) => a.score - b.score || a.id - b.id);
-
-  const selected: Array<{ id: number; point: GridPoint }> = [];
-  for (const candidate of ranked) {
-    if (selected.some((other) => Math.hypot(
-      other.point.x - candidate.point.x,
-      other.point.y - candidate.point.y,
-    ) < REMOTE_CANDIDATE_SPACING_CELLS)) continue;
-    selected.push(candidate);
-    if (selected.length >= MAX_REMOTE_CANDIDATES) break;
-  }
-  return selected.map((candidate) => candidate.id);
+  // Kandidaadi valikul kasutame päris pikkust, mitte graafi 0,75× eelist.
+  // Soodustus otsustab võrgu sees võrdsete ohutute harude vahel, kuid ei tohi
+  // õigustada pikemat avamere ühendust ega terminaliringi.
+  return rankRemoteCandidates(graph, remote, opposite, physicalGraphScores);
 }
 
 /**
@@ -1203,9 +1185,26 @@ function remoteFallbackTerminalCandidates(
   graphScores: ReadonlyMap<number, number>,
   graphParents: ReadonlyMap<number, number>,
 ): number[] {
+  return rankRemoteCandidates(
+    graph,
+    remote,
+    opposite,
+    graphScores,
+    (id) => graph.terminals.has(id) && graphParents.get(id) !== -1,
+  );
+}
+
+/** Ühine kaugusfilter, kogukulu järjestus ja ruumiline hajutamine. */
+function rankRemoteCandidates(
+  graph: CorridorGraph,
+  remote: GridPoint,
+  opposite: GridPoint,
+  graphCosts: ReadonlyMap<number, number>,
+  eligible: (id: number) => boolean = () => true,
+): number[] {
   const directCells = Math.max(1, Math.hypot(opposite.x - remote.x, opposite.y - remote.y));
-  const ranked = [...graphScores].flatMap(([id, graphCost]) => {
-    if (!graph.terminals.has(id) || graphParents.get(id) === -1) return [];
+  const ranked = [...graphCosts].flatMap(([id, graphCost]) => {
+    if (!eligible(id)) return [];
     const point = graph.points.get(id);
     if (!point) return [];
     const distance = Math.hypot(point.x - remote.x, point.y - remote.y);
