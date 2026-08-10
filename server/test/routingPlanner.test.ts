@@ -23,7 +23,7 @@ import {
   snapToReachableCell,
   type RoutingSnapshot,
 } from '../src/routing/planner.js';
-import type { HarbourAccess } from '../src/routing/harbourAccess.js';
+import { deriveHarbourAccess, type HarbourAccess } from '../src/routing/harbourAccess.js';
 import type {
   RoutingCorridor,
   RoutingHarbour,
@@ -680,9 +680,18 @@ describe('route planner snapshot integration', () => {
       stale: false,
     };
     const snapshot = snapshotFor({ depthM: 8 });
+    const harbourAccessSupport = { harbours: [harbour], hazards: aids, corridors: [] };
     snapshot.preparedGraph = buildPreparedRoutingGraph([centreline], BBOX, SOURCE.fetchedAt, {
-      harbourAccessSupport: { harbours: [harbour], hazards: aids, corridors: [] },
+      harbourAccessSupport,
     });
+    const derived = deriveHarbourAccess(
+      request.start,
+      request,
+      vectorData({ harbours: [harbour], hazards: aids }),
+      'start',
+    );
+    expect(derived.status).toBe('access');
+    if (derived.status !== 'access') throw new Error('Expected derived harbour access');
 
     const result = await planRoute(request, { snapshot, bbox: BBOX });
 
@@ -692,6 +701,12 @@ describe('route planner snapshot integration', () => {
     const gateIndex = result.geometry.coordinates.findIndex(([lon, lat]) =>
       Math.abs(lon - 24.006) < 0.0001 && Math.abs(lat - 59.003) < 0.0001);
     expect(gateIndex).toBeGreaterThan(0);
+    const outer = derived.access.waypoints.at(-1)!;
+    const outerIndex = result.geometry.coordinates.findIndex(([lon, lat]) =>
+      Math.abs(lon - outer[0]) < 1e-10 && Math.abs(lat - outer[1]) < 1e-10);
+    expect(outerIndex).toBeGreaterThan(0);
+    expect(result.geometry.coordinates.slice(0, outerIndex + 1))
+      .toEqual(derived.access.waypoints);
     expect(result.geometry.coordinates[0]).toEqual([request.start.lon, request.start.lat]);
     expect(result.geometry.coordinates.at(-1)).toEqual([request.end.lon, request.end.lat]);
   });

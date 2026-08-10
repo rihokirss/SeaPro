@@ -435,7 +435,10 @@ async function attemptRouteOnSurface(
   for (let attempt = 0; attempt <= 3; attempt++) {
     const prepareStartedAt = performance.now();
     const preparationSurface = isSmallCraftRoutingProfile(request)
-      ? trustPreparedPathOnSurface(activeSurface, result.trustedPaths)
+      ? trustPreparedPathOnSurface(activeSurface, [
+        ...result.trustedPaths,
+        ...harbourAccessTrustedPaths(activeSurface, startAccess, endAccess),
+      ])
       : activeSurface;
     prepared = prepareRouteCandidate(
       snapshot,
@@ -1224,6 +1227,21 @@ function corridorBackboneLeg(
   };
 }
 
+function harbourAccessTrustedPaths(
+  surface: RoutingCostSurface,
+  startAccess: HarbourAccess | null,
+  endAccess: HarbourAccess | null,
+): PreparedPathLine[] {
+  return [startAccess, endAccess].flatMap((access): PreparedPathLine[] => access ? [{
+    points: access.waypoints.map((position) => ({
+      ...gridPointAt(surface, position),
+      position: [...position],
+    })),
+    kind: access.corridor.official ? 'official' : 'recommended',
+    sourceIds: [access.corridor.source],
+  }] : []);
+}
+
 function orderedRequiredPoints(
   path: readonly GridPoint[],
   candidates: readonly GridPoint[],
@@ -1569,7 +1587,9 @@ function composeExactRouteGeometry(
 
   if (startAccess) {
     const startPositions = harbourPositionsFromStart(startAccess, start.position);
-    positioned = overlayExactPositions(surface, positioned, startPositions, 0);
+    positioned = surface.trustPublishedRoutes
+      ? replaceWithExactPath(surface, positioned, startPositions, 0)
+      : overlayExactPositions(surface, positioned, startPositions, 0);
   }
 
   if (endAccess) {
@@ -1577,7 +1597,9 @@ function composeExactRouteGeometry(
     const outerPoint = gridPointAt(surface, endPositions[0]!);
     const outerIndex = findLastGridPointIndex(positioned, outerPoint);
     if (outerIndex < 0) throw new Error('End harbour outer anchor is missing from the path');
-    positioned = overlayExactPositions(surface, positioned, endPositions, outerIndex);
+    positioned = surface.trustPublishedRoutes
+      ? replaceWithExactPath(surface, positioned, endPositions, outerIndex)
+      : overlayExactPositions(surface, positioned, endPositions, outerIndex);
   }
 
   if (positioned.length > 0) {
@@ -1590,19 +1612,54 @@ function composeExactRouteGeometry(
   return positioned;
 }
 
+/**
+ * Asendab sadamakanali esimese ja viimase ankru vahelise võreraja täpse
+ * keskjoonega. Võre jääb otsingu ja ühenduvuse jaoks, kuid selle rakukeskmed
+ * ei tohi tekitada avaldatud väljundisse sadamavektoril puuduvaid jõnkse.
+ */
+function replaceWithExactPath(
+  surface: RoutingCostSurface,
+  path: readonly PositionedGridPoint[],
+  positions: readonly Position[],
+  minimumIndex: number,
+): PositionedGridPoint[] {
+  const groups = exactPositionGroups(surface, positions);
+  if (groups.length === 0) return path.map((point) => ({ ...point }));
+
+  const matchedIndexes: number[] = [];
+  let searchFrom = minimumIndex;
+  for (const group of groups) {
+    let found = -1;
+    for (let index = searchFrom; index < path.length; index++) {
+      if (sameGridPoint(path[index]!, group.point)) {
+        found = index;
+        break;
+      }
+    }
+    if (found < 0) throw new Error('Harbour geometry anchor is missing from the path');
+    matchedIndexes.push(found);
+    searchFrom = found + 1;
+  }
+
+  const result = path.slice(0, matchedIndexes[0]).map((point) => ({ ...point }));
+  for (const group of groups) {
+    for (const position of group.positions) {
+      appendPositionedPoint(result, { ...group.point, position: [...position] });
+    }
+  }
+  for (const point of path.slice(matchedIndexes.at(-1)! + 1)) {
+    appendPositionedPoint(result, point);
+  }
+  return result;
+}
+
 function overlayExactPositions(
   surface: RoutingCostSurface,
   path: readonly PositionedGridPoint[],
   positions: readonly [number, number][],
   minimumIndex: number,
 ): PositionedGridPoint[] {
-  const groups: Array<{ point: GridPoint; positions: [number, number][] }> = [];
-  for (const position of positions) {
-    const point = gridPointAt(surface, position);
-    const last = groups.at(-1);
-    if (last && sameGridPoint(last.point, point)) last.positions.push(position);
-    else groups.push({ point, positions: [position] });
-  }
+  const groups = exactPositionGroups(surface, positions);
 
   const result: PositionedGridPoint[] = [];
   let cursor = 0;
@@ -1623,6 +1680,20 @@ function overlayExactPositions(
   }
   result.push(...path.slice(cursor));
   return result;
+}
+
+function exactPositionGroups(
+  surface: RoutingCostSurface,
+  positions: readonly Position[],
+): Array<{ point: GridPoint; positions: Position[] }> {
+  const groups: Array<{ point: GridPoint; positions: Position[] }> = [];
+  for (const position of positions) {
+    const point = gridPointAt(surface, position);
+    const last = groups.at(-1);
+    if (last && sameGridPoint(last.point, point)) last.positions.push(position);
+    else groups.push({ point, positions: [position] });
+  }
+  return groups;
 }
 
 function harbourPositionsFromStart(
