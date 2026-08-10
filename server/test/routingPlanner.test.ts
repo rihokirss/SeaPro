@@ -10,7 +10,9 @@ import {
 import { ROUTING_COST_MULTIPLIERS } from '../src/routing/engineTypes.js';
 import { isWithinRoutingServiceArea } from '../src/routing/coverage.js';
 import { RoutingDepthState, type RoutingDepthRaster } from '../src/routing/depthRaster.js';
+import { buildPreparedRoutingGraph } from '../src/routing/preparedGraph.js';
 import {
+  nearestPreparedGraphTerminal,
   planRoute,
   fineRevalidateSegments,
   RoutingDataUnavailableError,
@@ -105,7 +107,7 @@ describe('routing cost surface precedence', () => {
     expect(cell.reasons).not.toContain('known_shallow');
   });
 
-  it('never lets an OpenSeaMap recommendation override known shallow water', () => {
+  it('never lets an OpenSeaMap recommendation area override known shallow water', () => {
     const corridor: RoutingCorridor = {
       id: 'osm-recommendation',
       kind: 'recommended',
@@ -121,6 +123,28 @@ describe('routing cost surface precedence', () => {
     expect(cell.blocked).toBe(true);
     expect(cell.reasons).toContain('known_shallow');
     expect(cell.reasons).not.toContain('recommended_route');
+  });
+
+  it('trusts a published recommendation centreline for a small craft', () => {
+    const corridor: RoutingCorridor = {
+      id: 'osm-recommendation-line',
+      kind: 'recommended',
+      geometryRole: 'centreline',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[24.005, 59.006], [24.019, 59.006]],
+      },
+      official: false,
+      source: 'openstreetmap-overpass',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const surface = surfaceFor({ depthM: 0.5, corridors: [corridor] });
+    const cell = detailsNear(surface, 24.012, 59.006);
+    expect(cell.blocked).toBe(false);
+    expect(cell.costMultiplier).toBeCloseTo(ROUTING_COST_MULTIPLIERS.preferred, 1);
+    expect(cell.reasons).toContain('recommended_route');
+    expect(cell.reasons).not.toContain('known_shallow');
   });
 
   it('does not use a design draught that is smaller than draught plus requested UKC', () => {
@@ -414,6 +438,27 @@ describe('route planner snapshot integration', () => {
     expect(snapped?.position).toEqual(gate);
   });
 
+  it('uses a nearby prepared graph terminal as the final harbour entrance', () => {
+    const graph = buildPreparedRoutingGraph([{
+      id: 'harbour-terminal',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[24.003, 59.003], [24.0107, 59.0073]],
+      },
+      official: true,
+      source: 'vaylavirasto-wfs',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    }], BBOX, SOURCE.fetchedAt);
+    const endpoint = { lat: 59.0073, lon: 24.0109 };
+
+    const terminal = nearestPreparedGraphTerminal(endpoint, graph);
+
+    expect(terminal).toEqual([24.0107, 59.0073]);
+  });
+
   it('returns a revalidated route and navigation waypoints on known water', async () => {
     const request = routeRequest();
     const snapshot = snapshotFor({ depthM: 8 });
@@ -425,6 +470,192 @@ describe('route planner snapshot integration', () => {
     expect(result.navigationWaypoints.length).toBeLessThanOrEqual(100);
     expect(result.segments.every((segment) => segment.assessment === 'clear')).toBe(true);
     expect(result.distanceNm).toBeGreaterThan(0);
+  });
+
+  it('uses the original vector turn of a centreline route', async () => {
+    const request = routeRequest();
+    const corridor: RoutingCorridor = {
+      id: 'official-dogleg',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [24.003, 59.003],
+          [24.0107, 59.0073],
+          [24.021, 59.009],
+        ],
+      },
+      official: true,
+      source: 'vaylavirasto-wfs',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const phases: Array<{ name: string; meta?: Record<string, number> }> = [];
+
+    const result = await planRoute(request, {
+      snapshot: snapshotFor({ depthM: 8, corridors: [corridor] }),
+      bbox: BBOX,
+      instrumentation: { phase: (name, _ms, meta) => phases.push({ name, meta }) },
+    });
+
+    expect(result.status).not.toBe('no_route');
+    if (result.status === 'no_route') throw new Error('Expected corridor-backed route');
+    expect(phases).toContainEqual(expect.objectContaining({
+      name: 'corridor_graph',
+      meta: expect.objectContaining({ used: 1 }),
+    }));
+    expect(result.geometry.coordinates).toContainEqual([24.0107, 59.0073]);
+    expect(result.navigationWaypoints).toContainEqual(expect.objectContaining({
+      lon: 24.0107,
+      lat: 59.0073,
+    }));
+    expect(result.segments.some((segment) => segment.reasons.includes('official_corridor')))
+      .toBe(true);
+  });
+
+  it('keeps a straight graph intersection virtual instead of emitting a navigation point', async () => {
+    const request = routeRequest();
+    const intersection: [number, number] = [24.012, 59.006001];
+    const main: RoutingCorridor = {
+      id: 'straight-main',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [request.start.lon, request.start.lat],
+          intersection,
+          [request.end.lon, request.end.lat],
+        ],
+      },
+      official: true,
+      source: 'vaylavirasto-wfs',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const crossing: RoutingCorridor = {
+      ...main,
+      id: 'crossing-branch',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[24.012, 59.002], intersection, [24.012, 59.01]],
+      },
+    };
+
+    const result = await planRoute(request, {
+      snapshot: snapshotFor({ depthM: 8, corridors: [main, crossing] }),
+      bbox: BBOX,
+    });
+
+    expect(result.status).not.toBe('no_route');
+    if (result.status === 'no_route') throw new Error('Expected straight intersection route');
+    expect(result.geometry.coordinates).toContainEqual(intersection);
+    expect(result.navigationWaypoints).not.toContainEqual(expect.objectContaining({
+      lon: intersection[0],
+      lat: intersection[1],
+    }));
+  });
+
+  it('keeps dense vector geometry exact but emits only meaningful navigation turns', async () => {
+    const request = routeRequest();
+    const coordinates: Array<[number, number]> = Array.from({ length: 101 }, (_, index) => {
+      const ratio = index / 100;
+      return [
+        request.start.lon + (request.end.lon - request.start.lon) * ratio,
+        request.start.lat + (request.end.lat - request.start.lat) * ratio
+          + Math.sin(ratio * Math.PI * 2) * 0.0008,
+      ];
+    });
+    const corridor: RoutingCorridor = {
+      id: 'dense-curve',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: { type: 'LineString', coordinates },
+      official: true,
+      source: 'vaylavirasto-wfs',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+
+    const result = await planRoute(request, {
+      snapshot: snapshotFor({ depthM: 8, corridors: [corridor] }),
+      bbox: BBOX,
+    });
+
+    expect(result.status).not.toBe('no_route');
+    if (result.status === 'no_route') throw new Error('Expected dense vector route');
+    expect(result.geometry.coordinates.length).toBeGreaterThanOrEqual(100);
+    expect(result.navigationWaypoints.length).toBeLessThan(20);
+    expect(result.navigationWaypoints[0]?.name).toBe('A');
+    expect(result.navigationWaypoints.at(-1)?.name).toBe('B');
+  });
+
+  it('uses prepared harbour support when the fast-path vector snapshot is empty', async () => {
+    const request: RoutePlanRequest = {
+      ...routeRequest(),
+      draughtM: 0.7,
+      underKeelClearanceM: 0,
+      beamM: 2.5,
+    };
+    const harbour: RoutingHarbour = {
+      id: 'transpordiamet-his:harbour:test',
+      kind: 'harbour',
+      geometry: { type: 'Point', coordinates: [request.start.lon, request.start.lat] },
+      name: 'Test sadam',
+      maxDraughtM: 1,
+      maxBeamM: 4,
+      official: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const aids: RoutingHazard[] = [
+      {
+        id: 'test-port',
+        kind: 'physical_aid',
+        geometry: { type: 'Point', coordinates: [24.006, 59.0028] },
+        name: 'Test 2',
+        confidence: 'high',
+        navigationRole: 'lateral-port',
+        source: 'transpordiamet-his',
+        fetchedAt: SOURCE.fetchedAt,
+        stale: false,
+      },
+      {
+        id: 'test-starboard',
+        kind: 'physical_aid',
+        geometry: { type: 'Point', coordinates: [24.006, 59.0032] },
+        name: 'Test 1',
+        confidence: 'high',
+        navigationRole: 'lateral-starboard',
+        source: 'transpordiamet-his',
+        fetchedAt: SOURCE.fetchedAt,
+        stale: false,
+      },
+    ];
+    const centreline: RoutingCorridor = {
+      id: 'prepared-main-line',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: { type: 'LineString', coordinates: [[24.006, 59.003], [24.021, 59.009]] },
+      official: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const snapshot = snapshotFor({ depthM: 8 });
+    snapshot.preparedGraph = buildPreparedRoutingGraph([centreline], BBOX, SOURCE.fetchedAt, {
+      harbourAccessSupport: { harbours: [harbour], hazards: aids, corridors: [] },
+    });
+
+    const result = await planRoute(request, { snapshot, bbox: BBOX });
+
+    expect(result.status).not.toBe('no_route');
+    if (result.status === 'no_route') throw new Error('Expected prepared harbour access route');
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'harbour_access_inferred' }));
+    expect(result.geometry.coordinates.some(([lon, lat]) =>
+      Math.abs(lon - 24.006) < 0.0001 && Math.abs(lat - 59.003) < 0.0001)).toBe(true);
   });
 
   it('retries a resolution-sensitive no_route on a strict two-times-finer grid', async () => {
@@ -767,6 +998,40 @@ describe('route planner snapshot integration', () => {
       .toMatchObject({ status: 'blocked', reason: 'land', position: midpoint });
   });
 
+  it('skips base-raster revalidation only on the selected small-craft backbone', () => {
+    const midpoint: [number, number] = [24.012, 59.006];
+    const epsilon = 0.00002;
+    const snapshot = snapshotFor({ depthM: 0.5 });
+    snapshot.water = waterMask([globalWaterRing(), [
+      [midpoint[0] - epsilon, midpoint[1] - epsilon],
+      [midpoint[0] + epsilon, midpoint[1] - epsilon],
+      [midpoint[0] + epsilon, midpoint[1] + epsilon],
+      [midpoint[0] - epsilon, midpoint[1] + epsilon],
+      [midpoint[0] - epsilon, midpoint[1] - epsilon],
+    ]]);
+    const segment: RoutePlanSegment = {
+      from: [24.011, 59.006],
+      to: [24.013, 59.006],
+      assessment: 'clear',
+      reasons: [],
+      sourceIds: [],
+      minDepthM: 0.5,
+      requiredDepthM: 1.7,
+    };
+    const backbone = [
+      { x: 0, y: 0, position: segment.from },
+      { x: 0, y: 0, position: segment.to },
+    ];
+
+    expect(fineRevalidateSegments(
+      snapshot,
+      surfaceFor({ depthM: 0.5 }),
+      [segment],
+      () => undefined,
+      [backbone],
+    )).toMatchObject({ status: 'valid' });
+  });
+
   it('accepts a generalised shoreline overlap only on an open derived harbour centreline', () => {
     const midpoint: [number, number] = [24.012, 59.006];
     const epsilon = 0.00002;
@@ -843,10 +1108,14 @@ function routeRequest(): RoutePlanRequest {
 }
 
 function snapshotFor(options: SurfaceOptions): RoutingSnapshot {
+  const corridors = options.corridors ?? [];
   return {
     depth: depthRaster(options.depthState ?? RoutingDepthState.Water, options.depthM ?? 8),
     water: waterMask(),
     vectors: vectorData(options),
+    preparedGraph: corridors.length > 0
+      ? buildPreparedRoutingGraph(corridors, BBOX, SOURCE.fetchedAt)
+      : null,
   };
 }
 

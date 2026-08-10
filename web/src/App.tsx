@@ -63,6 +63,7 @@ import {
   setNavigationVisibility,
   updateNavigation,
 } from './map/layers/navigation';
+import { setRoutingGraphVisible, updateRoutingGraph } from './map/layers/routingGraph';
 
 const DEFAULT_LAYERS: LayerState = {
   overlays: [],
@@ -80,6 +81,7 @@ const DEFAULT_LAYERS: LayerState = {
   trafficSchemes: true,
   wrecks: false,
   officialNavigation: true,
+  routingGraph: false,
 };
 
 const EMPTY_NAVIGATION: NavigationData = {
@@ -1121,6 +1123,30 @@ export function App() {
       official: layers.officialNavigation,
     });
   }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.trafficSchemes, layers.scalarField, layers.wrecks, layers.officialNavigation, mapReady]);
+
+  // --- Ettevalmistatud routingugraafi diagnostikakiht ---------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    setRoutingGraphVisible(map, layers.routingGraph);
+    if (!layers.routingGraph || !view) return;
+    const controller = new AbortController();
+    // MapLibre saadab lohistamise ja flyTo ajal bbox-i muutusi iga kaadri
+    // kohta. Graaf on suur staatiline kiht; küsime selle alles siis, kui vaade
+    // on hetkeks paigale jäänud, et diagnostika ei konkureeriks routinguga.
+    const timer = window.setTimeout(() => {
+      api.routingGraph(view.bbox, controller.signal).then((data) => {
+        updateRoutingGraph(map, data.graph);
+        setRoutingGraphVisible(map, true);
+      }).catch(() => {
+        // Võrdluskiht on diagnostiline; eelmise eduka vaate jätame alles.
+      });
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [layers.routingGraph, mapReady, view?.bbox.join(',')]);
 
   // --- Laevad (AIS) --------------------------------------------------------
   const [vessels, setVessels] = useState<Vessel[]>([]);

@@ -146,7 +146,7 @@ function locateRequiredPointIndexes(
     }
     if (found < 0) throw new RangeError('Required point is missing from the path');
     if (indexes.at(-1) !== found) indexes.push(found);
-    minimumIndex = found;
+    minimumIndex = found + 1;
   }
   return indexes;
 }

@@ -1,5 +1,5 @@
 import type { BBox } from '@seapro/shared';
-import type { GridCoordinate, GridPoint, RouteRisk, RoutingCell, RoutingGrid } from './engineTypes.js';
+import type { GridCoordinate, RouteRisk, RoutingCell, RoutingGrid } from './engineTypes.js';
 import { ROUTING_COST_MULTIPLIERS } from './engineTypes.js';
 import { serviceAreaRowSampler } from './coverage.js';
 import { createDepthRowSampler, DEPTH_SAMPLE_LAND, type RoutingDepthRaster } from './depthRaster.js';
@@ -10,7 +10,6 @@ import type {
   RoutingGeometry,
   RoutingHazard,
   RoutingRestriction,
-  RoutingSourceId,
   RoutingSourceMeta,
   RoutingVectorData,
   RoutingWarning,
@@ -21,6 +20,19 @@ const METRES_PER_LATITUDE_DEGREE = 111_320;
 const DEFAULT_MAX_CELLS = 600_000;
 const MIN_CELL_SIZE_M = 75;
 const OFFICIAL_POINT_STRUCTURE_BUFFER_M = 500;
+const TRUSTED_ROUTE_MAX_DRAUGHT_M = 3;
+const TRUSTED_ROUTE_MAX_BEAM_M = 10;
+/**
+ * Baasrastri hinnangud, mille avaldatud keskjoon tühistab. Päris vektorohud
+ * ja -piirangud siia ei kuulu; need jäävad kõvaks piiriks ka usaldatud teel.
+ */
+export const TRUSTED_ROUTE_CLEARED_REASONS = [
+  'known_shallow',
+  'depth_unknown',
+  'water_mask_unknown',
+  'land',
+  'low_clearance',
+] as const;
 const CELL_SAMPLE_OFFSETS = [-0.49, 0, 0.49] as const;
 const NOOP_CHECKPOINT = (): void => undefined;
 
@@ -110,6 +122,8 @@ export interface RoutingCellDetails {
 export interface RoutingCostSurface extends RoutingGrid {
   readonly projection: RoutingGridProjection;
   readonly requiredDepthM: number;
+  /** Avaldatud keskjoon on selle väikelaevaprofiili jaoks alusrastrist autoriteetsem. */
+  readonly trustPublishedRoutes: boolean;
   toGrid(point: { lon: number; lat: number }): GridCoordinate;
   toPosition(point: GridCoordinate): Position;
   detailsAt(x: number, y: number): RoutingCellDetails;
@@ -136,6 +150,11 @@ export interface BuildRoutingCostSurfaceInput {
   positionOverrides?: readonly Position[];
   /** Faasimõõtmine benchmarki jaoks: baasklassifikatsioon vs vektorkihid. */
   onPhase?: (name: 'base_classification' | 'vector_passes', ms: number) => void;
+}
+
+export function isSmallCraftRoutingProfile(vessel: RoutingVesselProfile): boolean {
+  return vessel.draughtM <= TRUSTED_ROUTE_MAX_DRAUGHT_M
+    && vessel.beamM <= TRUSTED_ROUTE_MAX_BEAM_M;
 }
 
 /**
@@ -274,7 +293,8 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
   input.onPhase?.('base_classification', performance.now() - baseStartedAt);
   const vectorStartedAt = performance.now();
 
-  // Eelistused enne kõvasid piiranguid. OSM-i koridor ei tohi ühtki blokki avada.
+  // Avaldatud keskjoon võib väikelaeval üldistatud vee-/sügavusrastri avada;
+  // hiljem rakendatavad päris vektorohud ja -piirangud jäävad kõvaks piiriks.
   for (const corridor of input.vectors.corridors) {
     checkpoint();
     if (corridor.official) {
@@ -340,6 +360,7 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
     minimumCostMultiplier: ROUTING_COST_MULTIPLIERS.preferred,
     projection,
     requiredDepthM,
+    trustPublishedRoutes: isSmallCraftRoutingProfile(input.vessel),
     cellAt(x, y): RoutingCell {
       return cachedCellAt(cellIndex(projection, x, y));
     },
@@ -387,7 +408,8 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
         ? input.vessel.draughtM <= corridor.maxDraughtM
         : requiredDepthM <= corridor.maxDraughtM);
     const widthSuitable = corridor.widthM === undefined || input.vessel.beamM <= corridor.widthM;
-    const suitable = depthSuitable && draughtSuitable && widthSuitable;
+    const trusted = trustedSmallCraftRoute(corridor);
+    const suitable = trusted || (depthSuitable && draughtSuitable && widthSuitable);
     const authoritativeClearance = publishedDepth !== undefined || corridor.maxDraughtM !== undefined;
     const bufferM = areaGeometry ? 0 : (corridor.widthM ?? 0) / 2;
 
@@ -399,6 +421,8 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
         }
         return;
       }
+
+      if (trusted) trustPublishedRouteCell(index);
 
       const fullyInsidePublishedCorridor = corridor.harbourAccess || (areaGeometry
         ? cellFullyWithinGeometry(projection, index, corridor.geometry, 0)
@@ -453,6 +477,9 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
       ? projection.cellSizeM * Math.SQRT2 / 2
       : Math.max(projection.cellSizeM * Math.SQRT2 / 2, (corridor.widthM ?? 300) / 2);
     rasterizeGeometry(projection, corridor.geometry, bufferM, (index) => {
+      if (trustedSmallCraftRoute(corridor)) {
+        trustPublishedRouteCell(index);
+      }
       if (blocks[index] !== 0) return;
       if (corridor.kind === 'traffic_lane') {
         // A positsioonipõhine A* ei kanna saabumissuunda olekus. Seetõttu ei
@@ -474,6 +501,18 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
         addReason(index, 'recommended_route', corridor.source);
       }
     }, checkpoint);
+  }
+
+  function trustedSmallCraftRoute(corridor: RoutingCorridor): boolean {
+    return isSmallCraftRoutingProfile(input.vessel)
+      && corridor.geometryRole === 'centreline'
+      && corridor.kind !== 'traffic_lane';
+  }
+
+  function trustPublishedRouteCell(index: number): void {
+    blocks[index] = blocks[index]! & ~BASE_BLOCK_MASK;
+    clearReason(index, ...TRUSTED_ROUTE_CLEARED_REASONS);
+    costs[index] = Math.min(costs[index]!, ROUTING_COST_MULTIPLIERS.preferred);
   }
 
   function applyIncompleteOfficialSource(source: RoutingSourceMeta): void {

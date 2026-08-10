@@ -33,6 +33,8 @@ import {
 const WFS = 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ows';
 const FINLAND: BBox = [59.4, 19, 70.2, 31.7];
 const SOURCE = 'vaylavirasto-wfs' as const;
+const ATTRIBUTION = 'Väylävirasto avoin WFS';
+const ATTRIBUTION_URL = 'https://vayla.fi/vaylista/aineistot/avoindata';
 const STATIC_TTL_SECONDS = 7 * 24 * 3600;
 const FAULT_TTL_SECONDS = 120;
 const PAGE_SIZE = 10_000;
@@ -85,68 +87,123 @@ export interface FinnishRoutingData {
   source: RoutingSourceMeta;
 }
 
+export type FinnishStaticRoutingData = Omit<FinnishRoutingData, 'warnings'>;
+
+/**
+ * Ainult nädalase TTL-iga graafiallikad. Graafiehitaja ei vaja 120 s
+ * AToN-rikkeid ning nende ajutine tõrge ei tohi staatilist faili poolikuks
+ * märkida.
+ */
+export async function loadFinnishStaticRoutingData(
+  bbox: BBox,
+  departureTime: string,
+): Promise<FinnishStaticRoutingData> {
+  const clipped = intersectBbox(bbox, FINLAND);
+  if (!clipped) {
+    return { hazards: [], corridors: [], restrictions: [], source: outsideSourceMeta() };
+  }
+
+  const collections = await loadStaticCollections(clipped, departureTime);
+  return {
+    hazards: collections.hazards,
+    corridors: collections.corridors,
+    restrictions: collections.restrictions,
+    source: sourceMeta({
+      source: SOURCE,
+      attribution: ATTRIBUTION,
+      attributionUrl: ATTRIBUTION_URL,
+      requested: collections.tiles.length,
+      loaded: collections.loaded,
+      errors: collections.errors,
+    }),
+  };
+}
+
 export async function loadFinnishRoutingData(
   bbox: BBox,
   departureTime: string,
 ): Promise<FinnishRoutingData> {
   const clipped = intersectBbox(bbox, FINLAND);
-  if (!clipped) {
-    return emptyResult(sourceMeta({
-      source: SOURCE,
-      attribution: 'Väylävirasto avoin WFS',
-      attributionUrl: 'https://vayla.fi/vaylista/aineistot/avoindata',
-      requested: 0,
-      loaded: [],
-      errors: [],
-      outside: true,
-    }));
-  }
+  if (!clipped) return emptyResult(outsideSourceMeta());
 
-  const canonicalTiles = bboxTiles(clipped, 1);
-  const staticTiles = canonicalTiles.every(isFreshStaticTile)
-    ? canonicalTiles
-    : adaptiveBboxTiles(clipped, 1, 16);
   // Kiiresti muutuvad rikked ei kuulu laia staatilisse baaskihti. Need jäävad
-  // väikese TTL-iga senisele adaptiivsele päringule.
-  const faultTiles = adaptiveBboxTiles(clipped, 1, 16);
-  // Rikked muutuvad kiiresti, seega ei tohi neid staatilise faarvaatriandmega
-  // samasse nädalasesse cache-kirjesse lukustada. Mõlemad rühmad lahendatakse
+  // väikese TTL-iga senisele adaptiivsele päringule. Rühmad lahendatakse
   // sõltumatult, et ühe rühma tõrge ei kustutaks teise edukaid objekte.
-  const [staticSettled, faultSettled] = await Promise.all([
-    settleMapLimit(staticTiles, 2, loadStaticTile),
+  const faultTiles = adaptiveBboxTiles(clipped, 1, 16);
+  const [collections, faultSettled] = await Promise.all([
+    loadStaticCollections(clipped, departureTime),
     settleMapLimit(faultTiles, 2, loadFaultTile),
   ]);
-  const staticLoaded = staticSettled.flatMap((result): LoadedTile<FinnishStaticRoutingCollections>[] =>
-    result.status === 'fulfilled' ? [result.value] : []);
   const faultLoaded = faultSettled.flatMap((result): LoadedTile<FinnishFaultCollections>[] =>
     result.status === 'fulfilled' ? [result.value] : []);
-  const errors = [...staticSettled, ...faultSettled]
-    .flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
-  const parsedStatic = staticLoaded.map((tile) => parseFinnishStaticRoutingData(
-    tile.value,
-    tile.stamp,
-    departureTime,
-  ));
   const warnings = faultLoaded.flatMap((tile) => [
     ...parseFaults(tile.value.faultsCommercial, tile.stamp),
     ...parseFaults(tile.value.faultsShallow, tile.stamp),
   ]);
-  const loaded: LoadedTile<unknown>[] = [...staticLoaded, ...faultLoaded];
 
   return {
-    hazards: withinBbox(dedupeById(parsedStatic.flatMap((item) => item.hazards)), clipped),
-    corridors: withinBbox(dedupeById(parsedStatic.flatMap((item) => item.corridors)), clipped),
-    restrictions: withinBbox(dedupeById(parsedStatic.flatMap((item) => item.restrictions)), clipped),
+    hazards: collections.hazards,
+    corridors: collections.corridors,
+    restrictions: collections.restrictions,
     warnings: withinBbox(dedupeById(warnings), clipped),
     source: sourceMeta({
       source: SOURCE,
-      attribution: 'Väylävirasto avoin WFS',
-      attributionUrl: 'https://vayla.fi/vaylista/aineistot/avoindata',
-      requested: staticTiles.length + faultTiles.length,
-      loaded,
-      errors,
+      attribution: ATTRIBUTION,
+      attributionUrl: ATTRIBUTION_URL,
+      requested: collections.tiles.length + faultTiles.length,
+      loaded: [...collections.loaded, ...faultLoaded],
+      errors: [
+        ...collections.errors,
+        ...faultSettled.flatMap((result) => result.status === 'rejected' ? [result.reason] : []),
+      ],
     }),
   };
+}
+
+/** Staatiliste paanide ühine konveier; mõlemad avalikud laadijad koostavad
+ * sellest sama paanivaliku ja tulemuse, nii et graafiehitus ja runtime ei
+ * saa eri tükeldust näha. */
+async function loadStaticCollections(clipped: BBox, departureTime: string): Promise<{
+  hazards: RoutingHazard[];
+  corridors: RoutingCorridor[];
+  restrictions: FinnishStaticRoutingData['restrictions'];
+  tiles: BBox[];
+  loaded: LoadedTile<FinnishStaticRoutingCollections>[];
+  errors: unknown[];
+}> {
+  const canonicalTiles = bboxTiles(clipped, 1);
+  const tiles = canonicalTiles.every(isFreshStaticTile)
+    ? canonicalTiles
+    : adaptiveBboxTiles(clipped, 1, 16);
+  const settled = await settleMapLimit(tiles, 2, loadStaticTile);
+  const loaded = settled.flatMap((result): LoadedTile<FinnishStaticRoutingCollections>[] =>
+    result.status === 'fulfilled' ? [result.value] : []);
+  const errors = settled.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
+  const parsed = loaded.map((tile) => parseFinnishStaticRoutingData(
+    tile.value,
+    tile.stamp,
+    departureTime,
+  ));
+  return {
+    hazards: withinBbox(dedupeById(parsed.flatMap((item) => item.hazards)), clipped),
+    corridors: withinBbox(dedupeById(parsed.flatMap((item) => item.corridors)), clipped),
+    restrictions: withinBbox(dedupeById(parsed.flatMap((item) => item.restrictions)), clipped),
+    tiles,
+    loaded,
+    errors,
+  };
+}
+
+function outsideSourceMeta(): RoutingSourceMeta {
+  return sourceMeta({
+    source: SOURCE,
+    attribution: ATTRIBUTION,
+    attributionUrl: ATTRIBUTION_URL,
+    requested: 0,
+    loaded: [],
+    errors: [],
+    outside: true,
+  });
 }
 
 function withinBbox<T extends { geometry: Parameters<typeof routingGeometryIntersectsBbox>[0] }>(

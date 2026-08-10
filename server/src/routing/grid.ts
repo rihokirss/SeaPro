@@ -36,6 +36,14 @@ export function isInsideGrid(grid: RoutingGrid, point: GridCoordinate): boolean 
   return point.x >= 0 && point.x < grid.width && point.y >= 0 && point.y < grid.height;
 }
 
+export function pointId(grid: RoutingGrid, point: GridPoint): number {
+  return point.y * grid.width + point.x;
+}
+
+export function pointFromId(grid: RoutingGrid, id: number): GridPoint {
+  return { x: id % grid.width, y: Math.floor(id / grid.width) };
+}
+
 /** Read and validate a cell at a known in-bounds point. */
 export function routingCellAt(grid: RoutingGrid, point: GridPoint): RoutingCell {
   const cell = grid.cellAt(point.x, point.y);

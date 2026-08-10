@@ -3,7 +3,7 @@ import type { LayerState, WindDisplay } from '../components/LayerPanel';
 import { SCALAR_FIELDS } from '../map/colorScales';
 
 const STORAGE_KEY = 'seapro.layers';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const OVERLAYS = new Set(['chart', 'depth-details', 'bathymetry', 'radar']);
 const WIND_DISPLAYS = new Set<WindDisplay>(['off', 'arrows', 'animated']);
 const BOOLEAN_KEYS = [
@@ -17,6 +17,7 @@ const BOOLEAN_KEYS = [
   'trafficSchemes',
   'wrecks',
   'officialNavigation',
+  'routingGraph',
 ] as const satisfies readonly (keyof LayerState)[];
 
 interface StoredLayerState extends Partial<LayerState> {
@@ -36,7 +37,7 @@ export function loadLayerState(defaults: LayerState): LayerState {
     // v1 sisaldas OpenSeaMapi rasterkihti. Migreerime ülejäänud valikud,
     // kuid uued liiklusskeemid ja klikitavad ametlikud märgid saavad uue
     // vaikeväärtuse `true`, mitte vana salvestuse `false`.
-    if (saved.version !== 1 && saved.version !== SCHEMA_VERSION) return defaults;
+    if (saved.version !== 1 && saved.version !== 2 && saved.version !== SCHEMA_VERSION) return defaults;
 
     const next: LayerState = { ...defaults };
     if (Array.isArray(saved.overlays)) {
@@ -55,6 +56,7 @@ export function loadLayerState(defaults: LayerState): LayerState {
     }
     for (const key of BOOLEAN_KEYS) {
       if (saved.version === 1 && (key === 'trafficSchemes' || key === 'officialNavigation')) continue;
+      if (saved.version < 3 && key === 'routingGraph') continue;
       if (typeof saved[key] === 'boolean') next[key] = saved[key];
     }
     return next;

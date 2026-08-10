@@ -58,6 +58,10 @@ import {
   RoutingPlanTimeoutError,
 } from '../routing/planner.js';
 import { routingWarmup } from '../routing/warmup.js';
+import {
+  loadPreparedRoutingGraph,
+  preparedGraphGeoJson,
+} from '../routing/preparedGraph.js';
 
 const VARIABLE_SET = new Set<string>(VARIABLES);
 
@@ -605,6 +609,31 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           ? ['estonian-warnings', 'finnish-warnings', 'wrecks', 'official', 'finnish-aids'][index]
           : null)
         .filter(Boolean),
+    };
+  });
+
+  /** Ettevalmistatud routingugraaf eraldi ajutise võrdluskihi jaoks. */
+  app.get('/api/routing-graph', async (req, reply) => {
+    const q = req.query as Record<string, unknown>;
+    const parts = String(q.bbox ?? '').split(',').map(Number);
+    if (parts.length !== 4 || parts.some((value) => !Number.isFinite(value))
+      || parts[0]! < -90 || parts[2]! > 90 || parts[1]! < -180 || parts[3]! > 180
+      || parts[0]! >= parts[2]! || parts[1]! >= parts[3]!
+      || parts[2]! - parts[0]! > 20 || parts[3]! - parts[1]! > 20) {
+      return reply.code(400).send({
+        error: 'bbox peab olema "lõuna,lääs,põhi,ida" ja katma kuni 20° ala',
+      });
+    }
+    const graph = await loadPreparedRoutingGraph();
+    if (!graph) return reply.code(503).send({ error: 'routing_graph_unavailable' });
+    const bbox = parts as BBox;
+    reply.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    return {
+      version: graph.version,
+      builtAt: graph.builtAt,
+      bbox: graph.bbox,
+      stats: graph.stats,
+      graph: preparedGraphGeoJson(graph, bbox),
     };
   });
 

@@ -5,7 +5,9 @@ import { cache } from '../cache.js';
 import { fetchJson, request } from '../http.js';
 
 const TILEJSON_URL = 'https://tiles.openfreemap.org/planet';
-const TTL_SECONDS = 24 * 3600;
+// Rannajoon on staatiline alusandmestik. Sama 30-päevane eluiga nagu meie
+// kaardipaanidel väldib routingupäringus igapäevast identsete MVT-de laadimist.
+const TTL_SECONDS = 30 * 24 * 3600;
 const MAX_TILES = 256;
 
 interface TileJson {
@@ -316,4 +318,3 @@ function prepareRing(ring: Position[]): PreparedRing {
   }
   return { xs, ys, minX, minY, maxX, maxY };
 }
-

@@ -9,7 +9,6 @@ import {
   isFinnishStaticRoutingTileFresh,
   warmFinnishStaticRoutingTile,
 } from './sources/finland.js';
-import { isOsmRoutingTileFresh, warmOsmRoutingTile } from './sources/osm.js';
 
 interface Logger {
   info(msg: string): void;
@@ -30,10 +29,8 @@ const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 interface RoutingWarmupDependencies {
   coreTiles(): BBox[];
   tilesAround(bbox: BBox): BBox[];
-  isOsmFresh(tile: BBox): boolean;
   isEstonianFresh(tile: BBox): boolean;
   isFinnishFresh(tile: BBox): boolean;
-  warmOsm(tile: BBox, signal?: AbortSignal): Promise<unknown>;
   warmEstonian(tile: BBox): Promise<unknown>;
   warmFinnish(tile: BBox): Promise<unknown>;
   sweepIntervalMs: number;
@@ -73,7 +70,6 @@ export class RoutingWarmup {
   #stopped = false;
   #activeRoutes = 0;
   #timer: NodeJS.Timeout | null = null;
-  #controller: AbortController | null = null;
   #logger: Logger | null = null;
   #lastCompletedAt: string | undefined;
   #lastError: string | undefined;
@@ -83,10 +79,8 @@ export class RoutingWarmup {
     this.#dependencies = {
       coreTiles: () => routingPrewarmTiles(),
       tilesAround: (bbox) => routingTilesAround(bbox),
-      isOsmFresh: isOsmRoutingTileFresh,
       isEstonianFresh: isEstonianRoutingTileFresh,
       isFinnishFresh: isFinnishStaticRoutingTileFresh,
-      warmOsm: warmOsmRoutingTile,
       warmEstonian: warmEstonianRoutingTile,
       warmFinnish: warmFinnishStaticRoutingTile,
       sweepIntervalMs: SWEEP_INTERVAL_MS,
@@ -115,8 +109,6 @@ export class RoutingWarmup {
     this.#stopped = true;
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = null;
-    this.#controller?.abort();
-    this.#controller = null;
     this.#queue.clear();
   }
 
@@ -188,11 +180,7 @@ export class RoutingWarmup {
         continue;
       }
 
-      this.#controller = new AbortController();
       const jobs: Promise<unknown>[] = [];
-      if (!this.#dependencies.isOsmFresh(tile)) {
-        jobs.push(this.#dependencies.warmOsm(tile, this.#controller.signal));
-      }
       if (!this.#dependencies.isEstonianFresh(tile)) {
         jobs.push(this.#dependencies.warmEstonian(tile));
       }
@@ -200,7 +188,6 @@ export class RoutingWarmup {
         jobs.push(this.#dependencies.warmFinnish(tile));
       }
       const results = await Promise.allSettled(jobs);
-      this.#controller = null;
       const errors = results.flatMap((result) => result.status === 'rejected'
         ? [errorMessage(result.reason)]
         : []);
@@ -225,8 +212,7 @@ export class RoutingWarmup {
   }
 
   #tileIsFresh(tile: BBox): boolean {
-    return this.#dependencies.isOsmFresh(tile)
-      && this.#dependencies.isEstonianFresh(tile)
+    return this.#dependencies.isEstonianFresh(tile)
       && this.#dependencies.isFinnishFresh(tile);
   }
 }

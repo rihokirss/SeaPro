@@ -118,6 +118,10 @@ export const config = {
   weatherPointBbox: bbox('WEATHER_POINT_BBOX', [53.0, 12.0, 66.7, 31.5]),
   /** Automaatmarsruudi v1 katvus: Eesti ja Soome merealad. */
   routingBbox: bbox('ROUTING_BBOX', ROUTING_SERVICE_BBOX),
+  /** Ala, millest `npm run data:routing-graph` vaikimisi valmis graafi teeb. */
+  routingGraphBbox: bbox('ROUTING_GRAPH_BBOX', [57.45, 18.75, 62, 29]),
+  /** Eeltöödeldud staatilise navigatsioonigraafi fail. */
+  routingGraphFile: str('ROUTING_GRAPH_FILE', 'data/routing-graph-v1.json'),
   routingMaxDistanceNm: num('ROUTING_MAX_DISTANCE_NM', 500),
   /** Kogu külma snapshot'i, klassifitseerimise ja otsingu ühine tähtaeg. */
   routingPlanTimeoutMs: num('ROUTING_PLAN_TIMEOUT_MS', 90_000),

@@ -37,6 +37,42 @@ export interface DescribedRouteGeometry {
 }
 
 /**
+ * Lisab punkti rajale ilma järjestikuseid duplikaate tekitamata. Täpne
+ * koordinaat (position) võidab sama võreraku positsioonita punkti; kaks eri
+ * täpse koordinaadiga punkti samas rakus jäävad mõlemad alles.
+ */
+export function appendPositionedPoint(
+  points: PositionedGridPoint[],
+  point: PositionedGridPoint,
+): void {
+  const last = points.at(-1);
+  if (!last || last.x !== point.x || last.y !== point.y) {
+    points.push({ ...point });
+  } else if (point.position && last.position && !samePosition(point.position, last.position)) {
+    points.push({ ...point });
+  } else if (point.position && !last.position) {
+    points[points.length - 1] = { ...point };
+  }
+}
+
+/** Punkti kaugus lõigust [from, to] samas tasapinnalises koordinaadistikus. */
+export function pointSegmentDistance(
+  px: number,
+  py: number,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): number {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const lengthSquared = dx * dx + dy * dy;
+  const ratio = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1,
+    ((px - fromX) * dx + (py - fromY) * dy) / lengthSquared));
+  return Math.hypot(px - (fromX + dx * ratio), py - (fromY + dy * ratio));
+}
+
+/**
  * Kirjeldab lihtsustatud joone lahtri täpsusega. Riskipiir lisatakse GeoJSON-i
  * geomeetriasse ning ükski kitsas unknown/caution riba ei värvi tervet pikka
  * sirglõiku ega kao selle sisse ära.
@@ -192,6 +228,6 @@ function pathPosition(
   return point.position ?? surface.toPosition(point);
 }
 
-function samePosition(a: [number, number], b: [number, number]): boolean {
+function samePosition(a: readonly [number, number], b: readonly [number, number]): boolean {
   return Math.abs(a[0] - b[0]) <= 1e-12 && Math.abs(a[1] - b[1]) <= 1e-12;
 }

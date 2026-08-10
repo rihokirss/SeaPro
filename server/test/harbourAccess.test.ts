@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { deriveHarbourAccess } from '../src/routing/harbourAccess.js';
+import {
+  buildHarbourAccessSupport,
+  deriveHarbourAccess,
+} from '../src/routing/harbourAccess.js';
 import type {
   RoutingCorridor,
   RoutingHarbour,
@@ -30,6 +33,42 @@ const tilguAids: RoutingHazard[] = [
 ];
 
 describe('harbour endpoint access corridors', () => {
+  it('keeps only compact harbour access data for the prepared graph', () => {
+    const nearbyFairway: RoutingCorridor = {
+      id: 'fairway-near-tilgu',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: { type: 'LineString', coordinates: [[24.49, 59.456], [24.5, 59.457]] },
+      sweptDepthM: 2,
+      official: true,
+      source: 'transpordiamet-his',
+      ...STAMP,
+    };
+    const remoteFairway: RoutingCorridor = {
+      ...nearbyFairway,
+      id: 'remote-fairway',
+      geometry: { type: 'LineString', coordinates: [[25, 60], [25.1, 60.1]] },
+    };
+    const rock: RoutingHazard = {
+      id: 'nearby-rock',
+      kind: 'rock',
+      geometry: { type: 'Point', coordinates: [24.49, 59.456] },
+      confidence: 'high',
+      source: 'transpordiamet-his',
+      ...STAMP,
+    };
+
+    const support = buildHarbourAccessSupport({
+      harbours: [tilgu, tilgu],
+      hazards: [...tilguAids, rock],
+      corridors: [nearbyFairway, remoteFairway],
+    });
+
+    expect(support.harbours).toEqual([tilgu]);
+    expect(support.hazards.map(({ id }) => id).sort()).toEqual(['green', 'red']);
+    expect(support.corridors.map(({ id }) => id)).toEqual(['fairway-near-tilgu']);
+  });
+
   it('routes a fitting vessel through the midpoint of an official lateral pair', () => {
     const result = deriveHarbourAccess(
       { lon: 24.48658, lat: 59.45518 },

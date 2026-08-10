@@ -39,10 +39,13 @@ let preferredEndpoint = 0;
 const HAZARD_TYPES = new Set(['rock', 'obstruction', 'wreck']);
 const RECOMMENDED_TYPES = new Set([
   'fairway',
-  'navigation_line',
   'recommended_route_centreline',
   'recommended_track',
 ]);
+// navigation_line on merekaardil on siht/leading line, mitte sõidetav
+// soovituslik keskjoon. Küsime selle kaardikihi jaoks endiselt Overpassist,
+// kuid routingukoridori sellest ei ehita.
+const DISPLAY_ONLY_TYPES = new Set(['navigation_line']);
 const TRAFFIC_LANE_TYPES = new Set([
   'recommended_traffic_lane',
   'separation_lane',
@@ -55,6 +58,7 @@ const SEPARATION_TYPES = new Set([
   'inshore_traffic_zone',
 ]);
 const AREA_TYPES = new Set([
+  'fairway',
   'restricted_area',
   'separation_zone',
   'precautionary_area',
@@ -67,6 +71,7 @@ const AREA_TYPES = new Set([
 const QUERY_TYPES = [...new Set([
   ...HAZARD_TYPES,
   ...RECOMMENDED_TYPES,
+  ...DISPLAY_ONLY_TYPES,
   ...TRAFFIC_LANE_TYPES,
   ...SEPARATION_TYPES,
   'bridge',

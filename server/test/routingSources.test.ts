@@ -288,6 +288,29 @@ describe('routing-andmeallikate parserid', () => {
     })]);
   });
 
+  it('tõlgendab suletud OSM fairway ala, mitte keskjoonena', () => {
+    const result = parseOsmRoutingData({
+      elements: [{
+        type: 'way',
+        id: 99,
+        tags: { 'seamark:type': 'fairway' },
+        geometry: [
+          { lon: 24, lat: 59 },
+          { lon: 24.01, lat: 59 },
+          { lon: 24.01, lat: 59.01 },
+          { lon: 24, lat: 59.01 },
+          { lon: 24, lat: 59 },
+        ],
+      }],
+    }, OSM_STAMP);
+
+    expect(result.corridors).toEqual([expect.objectContaining({
+      kind: 'recommended',
+      geometryRole: 'area',
+      geometry: expect.objectContaining({ type: 'Polygon' }),
+    })]);
+  });
+
   it('teisendab OSM-i silla mõõtude ühikud meetriteks ja hülgab tundmatu ühiku', () => {
     expect(parseLengthMetres('12 ft')).toBeCloseTo(3.6576);
     expect(parseLengthMetres("12' 6\"")).toBeCloseTo(3.81);

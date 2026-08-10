@@ -42,6 +42,8 @@
   "layer.wrecks": "Known wrecks",
   "layer.officialNavigation": "Clickable fairways and aids",
   "layer.officialNavigation.hint": "Estonian and Finnish registry data; partly duplicates the nautical chart",
+  "layer.routingGraph": "Prepared autoroute network",
+  "layer.routingGraph.hint": "Temporary comparison layer: official cyan, recommended orange",
   "layer.depthDetails": "Depth contours and model depths",
   "layer.depthDetails.hint": "Official depth vectors in Estonia and Finland, EMODnet elsewhere; not a substitute for a nautical chart",
   "navigation.warning": "Navigational warning",

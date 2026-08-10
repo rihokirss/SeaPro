@@ -42,6 +42,8 @@
   "layer.wrecks": "Teadaolevad vrakid",
   "layer.officialNavigation": "Klikitavad laevateed ja märgid",
   "layer.officialNavigation.hint": "Eesti ja Soome registriandmed; dubleerivad osaliselt navigatsioonikaarti",
+  "layer.routingGraph": "Autoroute'i valmis võrgustik",
+  "layer.routingGraph.hint": "Ajutine võrdluskiht: ametlik türkiissinine, soovituslik oranž",
   "layer.depthDetails": "Samasügavusjooned ja mudelsügavused",
   "layer.depthDetails.hint": "Eestis ja Soomes ametlikud sügavusvektorid, mujal EMODnet; ei asenda navigatsioonikaarti",
   "navigation.warning": "Navigatsioonihoiatus",

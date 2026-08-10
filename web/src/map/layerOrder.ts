@@ -24,6 +24,8 @@ export const LAYER_ORDER = [
   // Nähtavad ametlikud laevateed jäävad koos teiste navigatsioonijoontega
   // valevärvivälja alla; lai läbipaistev klikikiht asub objektide juures.
   'official-fairways',
+  'routing-graph-official',
+  'routing-graph-recommended',
   'scalar-field',
   'wind-arrows',
   'place-labels',

@@ -42,6 +42,8 @@
   "layer.wrecks": "Tunnetut hylyt",
   "layer.officialNavigation": "Valittavat väylät ja turvalaitteet",
   "layer.officialNavigation.hint": "Viron ja Suomen rekisteritiedot; osittain päällekkäiset merikartan kanssa",
+  "layer.routingGraph": "Autorouten valmis reittiverkko",
+  "layer.routingGraph.hint": "Väliaikainen vertailutaso: virallinen turkoosi, suositeltu oranssi",
   "layer.depthDetails": "Syvyyskäyrät ja mallinnetut syvyydet",
   "layer.depthDetails.hint": "Viralliset syvyysvektorit Virossa ja Suomessa, muualla EMODnet; ei korvaa merikarttaa",
   "navigation.warning": "Merenkulkuvaroitus",

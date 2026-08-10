@@ -18,6 +18,7 @@ import type {
   RoutePlanResponse,
 } from '@seapro/shared';
 import { getSessionId } from './session';
+import type { FeatureCollection, LineString } from 'geojson';
 
 export interface AppConfig {
   defaultLat: number;
@@ -25,6 +26,22 @@ export interface AppConfig {
   defaultZoom: number;
   aisEnabled: boolean;
   aisstreamEnabled: boolean;
+}
+
+export interface RoutingGraphData {
+  version: string;
+  builtAt: string;
+  bbox: [number, number, number, number];
+  stats: Record<string, number>;
+  graph: FeatureCollection<LineString, {
+    id: string;
+    from: number;
+    to: number;
+    kind: 'official' | 'recommended';
+    official: boolean;
+    sources: string;
+    features: string;
+  }>;
 }
 
 /**
@@ -214,6 +231,11 @@ export const api = {
   trafficSchemes(bbox: [number, number, number, number], signal?: AbortSignal) {
     const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
     return get<{ trafficSchemes: TrafficScheme[] }>(`/api/traffic-schemes?${p}`, signal);
+  },
+
+  routingGraph(bbox: [number, number, number, number], signal?: AbortSignal) {
+    const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });
+    return get<RoutingGraphData>(`/api/routing-graph?${p}`, signal);
   },
 
   routeAnalysis(request: RouteAnalysisRequest, signal?: AbortSignal) {

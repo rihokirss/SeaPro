@@ -9,13 +9,15 @@ import type {
   RoutePlanSource,
   RouteWaypoint,
 } from '@seapro/shared';
-import { distanceMetres, routeDistanceNm } from '@seapro/shared';
+import { bearingDegrees, distanceMetres, routeDistanceNm } from '@seapro/shared';
 import { config } from '../config.js';
 import {
   buildRoutingCostSurface,
+  isSmallCraftRoutingProfile,
   type RoutingCellDetails,
   type RoutingCostSurface,
 } from './costSurface.js';
+import { findCorridorBackboneRoute } from './corridorGraph.js';
 import {
   fetchRoutingDepthRaster,
   RoutingDepthState,
@@ -27,7 +29,6 @@ import {
   ROUTING_COST_MULTIPLIERS,
   type GridPoint,
   type PathSearchFailure,
-  type PathSearchResult,
   type RoutingCell,
 } from './engineTypes.js';
 import { snapEndpoint, traversableNeighbours } from './grid.js';
@@ -37,10 +38,24 @@ import {
   type HarbourAccessResult,
 } from './harbourAccess.js';
 import { findPath } from './search.js';
-import { describeRouteGeometry, type PositionedGridPoint } from './segments.js';
+import {
+  eligibleCorridor,
+  loadPreparedRoutingGraph,
+  trustPreparedPathOnSurface,
+  type PreparedPathLine,
+  type PreparedRoutingGraph,
+} from './preparedGraph.js';
+import {
+  appendPositionedPoint,
+  describeRouteGeometry,
+  pointSegmentDistance,
+  type PositionedGridPoint,
+} from './segments.js';
 import { simplifyPath } from './simplify.js';
-import { loadRoutingVectorData } from './sources/index.js';
-import type { RoutingSourceMeta, RoutingVectorData } from './sourceTypes.js';
+import {
+  loadRoutingVectorData,
+} from './sources/index.js';
+import type { Position, RoutingSourceMeta, RoutingVectorData } from './sourceTypes.js';
 import { loadRoutingWaterMask, routingWaterAt, type RoutingWaterMask } from './waterMask.js';
 
 const MAX_ENDPOINT_SNAP_M = 1_852;
@@ -48,16 +63,35 @@ const MAX_ENDPOINT_SNAP_M = 1_852;
 // murdumis-jõnksude silumiseks, liiga väike marsruudi ümberkujundamiseks.
 const SIMPLIFY_COST_SLACK = 10;
 const MAX_GEOMETRY_POINTS = 2_000;
+// Route-analysis seob ilmaread samade pöördepunktidega ja võtab vastu kuni
+// 100 punkti. Planeerija peab seega tehnilised vektoripunktid juba siin kokku
+// võtma, mitte saatma kliendile plaani, mille ilmaanalüüs hiljem tagasi lükkab.
 const MAX_NAVIGATION_WAYPOINTS = 100;
+const NAVIGATION_SIMPLIFY_PROFILES = [
+  { smoothTurnDeg: 4, denseDistanceM: 370, denseTurnDeg: 12 },
+  { smoothTurnDeg: 6, denseDistanceM: 740, denseTurnDeg: 18 },
+  { smoothTurnDeg: 10, denseDistanceM: 1_480, denseTurnDeg: 25 },
+] as const;
+const STRAIGHT_NAVIGATION_TURN_DEG = 2;
+const BACKBONE_CONTINUITY_TOLERANCE_M = 2;
 const FINE_REVALIDATION_STEP_M = 10;
 const MIN_ENDPOINT_COMPONENT_CELLS = 64;
+const PREPARED_GRAPH_MAX_CELLS = 1_200_000;
 const REFINED_MAX_CELLS = 2_400_000;
 const REFINED_MIN_CELL_SIZE_M = 37.5;
+const MAX_PRIMARY_ROUTE_STRETCH = 1.1;
+const MAX_PREPARED_GRAPH_ENDPOINT_ACCESS_M = 100;
+const preparedGraphTerminals = new WeakMap<PreparedRoutingGraph, Array<{
+  node: PreparedRoutingGraph['nodes'][number];
+  edge: PreparedRoutingGraph['edges'][number];
+}>>();
 
 export interface RoutingSnapshot {
   depth: RoutingDepthRaster;
   water: RoutingWaterMask;
   vectors: RoutingVectorData;
+  /** Staatiline, eraldi ettevalmistatud keskjoonte topoloogiagraaf. */
+  preparedGraph?: PreparedRoutingGraph | null;
 }
 
 /** Valikuline faasimõõtmine benchmarki ja logi jaoks; tulemust ei mõjuta. */
@@ -109,6 +143,7 @@ export async function planRoute(
     planningBbox,
     request.departureTime,
     instrumentation,
+    request,
   ));
   instrumentation?.phase('snapshot_load', performance.now() - snapshotStartedAt);
   deadline.checkpoint();
@@ -122,8 +157,12 @@ export async function planRoute(
   }
 
   const accessStartedAt = performance.now();
-  const startAccessResult = deriveHarbourAccess(request.start, request, snapshot.vectors, 'start');
-  const endAccessResult = deriveHarbourAccess(request.end, request, snapshot.vectors, 'end');
+  const harbourAccessVectors = withPreparedHarbourAccessSupport(
+    snapshot.vectors,
+    snapshot.preparedGraph?.harbourAccessSupport,
+  );
+  const startAccessResult = deriveHarbourAccess(request.start, request, harbourAccessVectors, 'start');
+  const endAccessResult = deriveHarbourAccess(request.end, request, harbourAccessVectors, 'end');
   instrumentation?.phase('harbour_access', performance.now() - accessStartedAt);
   // Sadamaregistri mõõtmelimiit (HIS max_laev_syv/lai) ei blokeeri marsruuti:
   // registrikirjed on kohati aegunud või kirjeldavad väikseimat kaikohta.
@@ -131,12 +170,23 @@ export async function planRoute(
   // sest ületatud limiit ei või avada madalat vett; piirang jõuab vastusesse
   // kriitilise hoiatusena ja otspunkt kleebitakse tavalise veepunktina.
   const limitIssues = harbourLimitIssues(startAccessResult, endAccessResult, request);
+  const preparedSmallCraft = snapshot.preparedGraph != null
+    && isSmallCraftRoutingProfile(request);
   const derivedStartAccess = accessFromResult(startAccessResult);
   const derivedEndAccess = accessFromResult(endAccessResult);
+  const preparedStartTerminal = preparedSmallCraft && !derivedStartAccess
+    ? nearestPreparedGraphTerminal(request.start, snapshot.preparedGraph!)
+    : null;
+  const preparedEndTerminal = preparedSmallCraft && !derivedEndAccess
+    ? nearestPreparedGraphTerminal(request.end, snapshot.preparedGraph!)
+    : null;
+  // Graafi kuuluvad keskjooned tulevad kulupinnale valmis graafist; sama
+  // sobivusreegel elab preparedGraph.ts-is, et graaf ja filter ei lahkneks.
   const routingVectors: RoutingVectorData = {
     ...snapshot.vectors,
     corridors: [
-      ...snapshot.vectors.corridors,
+      ...snapshot.vectors.corridors.filter((corridor) => !snapshot.preparedGraph
+        || !eligibleCorridor(corridor)),
       ...(derivedStartAccess ? [derivedStartAccess.corridor] : []),
       ...(derivedEndAccess ? [derivedEndAccess.corridor] : []),
     ],
@@ -157,6 +207,9 @@ export async function planRoute(
     vessel: request,
     checkpoint: deadline.checkpoint,
     positionOverrides,
+    ...(preparedSmallCraft
+      ? { maxCells: PREPARED_GRAPH_MAX_CELLS, minCellSizeM: REFINED_MIN_CELL_SIZE_M }
+      : {}),
     onPhase: instrumentation
       ? (name, ms) => instrumentation.phase(`cost_surface.${name}`, ms)
       : undefined,
@@ -173,13 +226,21 @@ export async function planRoute(
     surface,
     sources,
     routingVectors,
+    preparedGraph: snapshot.preparedGraph ?? null,
     derivedStartAccess,
     derivedEndAccess,
+    preparedStartTerminal,
+    preparedEndTerminal,
     limitIssues,
     deadline,
     instrumentation,
   });
-  if (primary.response.status !== 'no_route' || !primary.refinementEligible) {
+  const refineSuccessfulDetour = primary.response.status !== 'no_route'
+    && preparedSmallCraft
+    && primary.response.distanceNm > distanceMetres(request.start, request.end)
+      / 1_852 * MAX_PRIMARY_ROUTE_STRETCH;
+  if (!refineSuccessfulDetour
+    && (primary.response.status !== 'no_route' || !primary.refinementEligible)) {
     return primary.response;
   }
 
@@ -227,13 +288,20 @@ export async function planRoute(
     surface: refinedSurface,
     sources,
     routingVectors,
+    preparedGraph: snapshot.preparedGraph ?? null,
     derivedStartAccess,
     derivedEndAccess,
+    preparedStartTerminal,
+    preparedEndTerminal,
     limitIssues,
     deadline,
     instrumentation: prefixedInstrumentation(instrumentation, 'refinement.'),
   });
-  return refined.response;
+  if (primary.response.status === 'no_route') return refined.response;
+  if (refined.response.status === 'no_route') return primary.response;
+  return refined.response.distanceNm < primary.response.distanceNm
+    ? refined.response
+    : primary.response;
   } finally {
     instrumentation?.phase('total', performance.now() - totalStartedAt);
     deadline.dispose();
@@ -247,8 +315,11 @@ interface RouteSurfaceAttemptInput {
   surface: RoutingCostSurface;
   sources: RoutePlanSource[];
   routingVectors: RoutingVectorData;
+  preparedGraph: PreparedRoutingGraph | null;
   derivedStartAccess: HarbourAccess | null;
   derivedEndAccess: HarbourAccess | null;
+  preparedStartTerminal: Position | null;
+  preparedEndTerminal: Position | null;
   limitIssues: RoutePlanIssue[];
   deadline: PlanningDeadline;
   instrumentation?: RoutingInstrumentation;
@@ -270,8 +341,11 @@ async function attemptRouteOnSurface(
     surface,
     sources,
     routingVectors,
+    preparedGraph,
     derivedStartAccess,
     derivedEndAccess,
+    preparedStartTerminal,
+    preparedEndTerminal,
     limitIssues,
     deadline,
     instrumentation,
@@ -298,8 +372,8 @@ async function attemptRouteOnSurface(
       ? [{ code: 'harbour_access_not_navigable', severity: 'warning' as const, details: { endpoint: 'end' } }]
       : []),
   ];
-  const start = snapRouteEndpoint(surface, request.start, startAccess);
-  let end = snapRouteEndpoint(surface, request.end, endAccess);
+  const start = snapRouteEndpoint(surface, request.start, startAccess, preparedStartTerminal);
+  let end = snapRouteEndpoint(surface, request.end, endAccess, preparedEndTerminal);
   instrumentation?.phase('endpoint_snap', performance.now() - snapStartedAt);
   if (!start || !end) {
     return {
@@ -328,7 +402,13 @@ async function attemptRouteOnSurface(
     };
   }
   let activeSurface = surface;
-  let result = await findPathThrough(activeSurface, requiredAnchors, deadline, instrumentation);
+  let result = await findPathThrough(
+    activeSurface,
+    requiredAnchors,
+    deadline,
+    instrumentation,
+    corridorBackboneLeg(activeSurface, start, end, startAccess, endAccess, preparedGraph, request),
+  );
   deadline.checkpoint();
   if (result.status === 'not_found' && result.reason === 'no_route' && !endAccess) {
     const seaSeed = startAccess
@@ -353,7 +433,13 @@ async function attemptRouteOnSurface(
           refinementEligible: true,
         };
       }
-      result = await findPathThrough(activeSurface, requiredAnchors, deadline, instrumentation);
+      result = await findPathThrough(
+        activeSurface,
+        requiredAnchors,
+        deadline,
+        instrumentation,
+        corridorBackboneLeg(activeSurface, start, end, startAccess, endAccess, preparedGraph, request),
+      );
       deadline.checkpoint();
     }
   }
@@ -373,16 +459,21 @@ async function attemptRouteOnSurface(
   let prepared: PreparedRouteCandidate | null = null;
   for (let attempt = 0; attempt <= 3; attempt++) {
     const prepareStartedAt = performance.now();
+    const preparationSurface = isSmallCraftRoutingProfile(request)
+      ? trustPreparedPathOnSurface(activeSurface, result.trustedPaths)
+      : activeSurface;
     prepared = prepareRouteCandidate(
       snapshot,
-      activeSurface,
+      preparationSurface,
       result.path,
-      requiredAnchors,
+      orderedRequiredPoints(result.path, [...requiredAnchors, ...result.protectedPoints]),
       start,
       end,
       startAccess,
       endAccess,
       deadline,
+      result.protectedPoints,
+      result.trustedPaths.map((path) => path.points as readonly PositionedGridPoint[]),
     );
     instrumentation?.phase('prepare_candidate', performance.now() - prepareStartedAt, { attempt });
     if (prepared.status !== 'blocked') break;
@@ -392,7 +483,13 @@ async function attemptRouteOnSurface(
     if (requiredAnchors.some((anchor) => sameGridPoint(anchor, blockedPoint))) break;
     fineBlockedCells.add(blockedPoint.y * activeSurface.width + blockedPoint.x);
     activeSurface = withFineBlockedCells(surface, fineBlockedCells);
-    result = await findPathThrough(activeSurface, requiredAnchors, deadline, instrumentation);
+    result = await findPathThrough(
+      activeSurface,
+      requiredAnchors,
+      deadline,
+      instrumentation,
+      corridorBackboneLeg(activeSurface, start, end, startAccess, endAccess, preparedGraph, request),
+    );
     deadline.checkpoint();
     if (result.status === 'not_found') {
       if (result.reason === 'aborted') throw abortError();
@@ -465,7 +562,13 @@ async function attemptRouteOnSurface(
       },
       distanceNm: routeDistanceNm(coordinates.map(([lon, lat]) => ({ lon, lat }))),
       generatedAt,
-      snapshotId: snapshotId(planningBbox, request.departureTime, sources, routingVectors),
+      snapshotId: snapshotId(
+        planningBbox,
+        request.departureTime,
+        sources,
+        routingVectors,
+        snapshot.preparedGraph ?? null,
+      ),
       sources,
       issues,
     },
@@ -489,31 +592,89 @@ export async function loadRoutingSnapshot(
   bbox: BBox,
   departureTime: string,
   instrumentation?: RoutingInstrumentation,
+  vessel?: RoutePlanRequest,
 ): Promise<RoutingSnapshot> {
-  const [depth, water, vectors] = await Promise.allSettled([
-    timedSnapshotPart('depth', () => fetchRoutingDepthRaster(bbox), instrumentation),
-    timedSnapshotPart('water', () => loadRoutingWaterMask(bbox), instrumentation),
-    timedSnapshotPart('vectors', () => loadRoutingVectorData(
+  // Valmis graaf sisaldab väikelaeva jaoks kogu päringu ajal vajaminevat
+  // keskjoonte võrku. Vana koondlaadija küsib lisaks samu keskjooni HIS-ist,
+  // Väylä WFS-ist ja Overpassist ning võib ühe puuduva OSM-paani taga 30 s
+  // oodata. Väikelaeva valitud graafiosal neid rasterpiiranguid niikuinii ei
+  // rakendata; graafivälised algus-, lõpp- ja katkestusühendused kontrollitakse
+  // jätkuvalt rannajoone ja sügavusrastri vastu.
+  const preparedFastPath = vessel !== undefined && isSmallCraftRoutingProfile(vessel);
+  const vectorLoader = preparedFastPath
+    ? Promise.resolve(emptyRoutingVectorData(bbox))
+    : loadRoutingVectorData(
       bbox,
       departureTime,
       (name, ms) => instrumentation?.phase(`snapshot.vector.${name}`, ms),
-    ), instrumentation),
+    );
+  const [depth, water, vectors, preparedGraph] = await Promise.allSettled([
+    timedSnapshotPart('depth', () => fetchRoutingDepthRaster(bbox), instrumentation),
+    timedSnapshotPart('water', () => loadRoutingWaterMask(bbox), instrumentation),
+    timedSnapshotPart('vectors', () => vectorLoader, instrumentation),
+    timedSnapshotPart('prepared_graph', () => loadPreparedRoutingGraph(), instrumentation),
   ]);
   const unavailable: string[] = [];
   if (depth.status === 'rejected') unavailable.push('emodnet-depth');
   if (water.status === 'rejected') unavailable.push('openfreemap-water');
   if (vectors.status === 'rejected') unavailable.push('routing-vectors');
+  if (preparedGraph.status === 'rejected'
+    || (preparedGraph.status === 'fulfilled' && preparedGraph.value === null)) {
+    unavailable.push('routing-graph');
+  }
   if (unavailable.length) {
-    const failures = [depth, water, vectors]
+    const failures = [depth, water, vectors, preparedGraph]
       .flatMap((result) => result.status === 'rejected'
         ? [result.reason instanceof Error ? result.reason.message : String(result.reason)]
         : []);
+    if (preparedGraph.status === 'fulfilled' && preparedGraph.value === null) {
+      failures.push(`Routingugraafi faili ei leitud: ${config.routingGraphFile}`);
+    }
     throw new RoutingDataUnavailableError(failures.join('; '), unavailable);
   }
   if (depth.status !== 'fulfilled' || water.status !== 'fulfilled' || vectors.status !== 'fulfilled') {
     throw new RoutingDataUnavailableError('Marsruudi snapshot jäi poolikuks', unavailable);
   }
-  return { depth: depth.value, water: water.value, vectors: vectors.value };
+  return {
+    depth: depth.value,
+    water: water.value,
+    vectors: vectors.value,
+    preparedGraph: preparedGraph.status === 'fulfilled' ? preparedGraph.value : null,
+  };
+}
+
+function emptyRoutingVectorData(bbox: BBox): RoutingVectorData {
+  return {
+    bbox: [...bbox],
+    hazards: [],
+    corridors: [],
+    restrictions: [],
+    warnings: [],
+    surveyAreas: [],
+    harbours: [],
+    sources: [],
+  };
+}
+
+function withPreparedHarbourAccessSupport(
+  vectors: RoutingVectorData,
+  support: PreparedRoutingGraph['harbourAccessSupport'],
+): RoutingVectorData {
+  if (!support) return vectors;
+  return {
+    ...vectors,
+    // Runtime-andmed on värskemad ja kirjutavad sama id-ga graafitoe üle.
+    harbours: mergeFeatures(support.harbours, vectors.harbours ?? []),
+    hazards: mergeFeatures(support.hazards, vectors.hazards),
+    corridors: mergeFeatures(support.corridors, vectors.corridors),
+  };
+}
+
+function mergeFeatures<T extends { id: string }>(
+  prepared: readonly T[],
+  runtime: readonly T[],
+): T[] {
+  return [...new Map([...prepared, ...runtime].map((feature) => [feature.id, feature])).values()];
 }
 
 async function timedSnapshotPart<T>(
@@ -677,8 +838,20 @@ export function snapRouteEndpoint(
   surface: RoutingCostSurface,
   requested: { lat: number; lon: number },
   access: HarbourAccess | null,
+  preparedTerminal: Position | null = null,
 ): SnappedRouteEndpoint | null {
   const nearest = snapToNavigableCell(surface, requested);
+  if (!access && preparedTerminal) {
+    const requestedPoint = gridPointAt(surface, [requested.lon, requested.lat]);
+    const terminalPoint = gridPointAt(surface, preparedTerminal);
+    if (sameGridPoint(requestedPoint, terminalPoint)) {
+      return {
+        point: terminalPoint,
+        position: [requested.lon, requested.lat],
+        distanceM: 0,
+      };
+    }
+  }
   if (!access) return nearest;
 
   const accessCandidates = new Map<string, {
@@ -720,6 +893,45 @@ interface SnappedRouteEndpoint {
 
 function accessFromResult(result: HarbourAccessResult): HarbourAccess | null {
   return result.status === 'access' ? result.access : null;
+}
+
+/**
+ * Valmis graafi terminal on avaldatud keskjoone tegelik sadamaots. Kui
+ * kasutaja valitud sadamapunkt on sellele väga lähedal, võib samasse
+ * võrerakku sattunud täpne sihtpunkt terminali esindada. Nii ei kleebi
+ * üldistatud rannajoon marsruuti sadu meetreid enne sadamat (Rosala).
+ */
+export function nearestPreparedGraphTerminal(
+  endpoint: { lat: number; lon: number },
+  graph: PreparedRoutingGraph,
+): Position | null {
+  let terminals = preparedGraphTerminals.get(graph);
+  if (!terminals) {
+    const degrees = new Uint16Array(graph.nodes.length);
+    const adjacentEdges = new Map<number, PreparedRoutingGraph['edges'][number]>();
+    for (const edge of graph.edges) {
+      degrees[edge.from] = Math.min(65_535, degrees[edge.from]! + 1);
+      degrees[edge.to] = Math.min(65_535, degrees[edge.to]! + 1);
+      adjacentEdges.set(edge.from, edge);
+      adjacentEdges.set(edge.to, edge);
+    }
+    terminals = graph.nodes.flatMap((node) => degrees[node.id] === 1
+      ? [{ node, edge: adjacentEdges.get(node.id)! }]
+      : []);
+    preparedGraphTerminals.set(graph, terminals);
+  }
+  const nearest = terminals.flatMap(({ node, edge }) => {
+    const distanceM = distanceMetres(endpoint, {
+      lon: node.position[0],
+      lat: node.position[1],
+    });
+    return distanceM <= MAX_PREPARED_GRAPH_ENDPOINT_ACCESS_M
+      ? [{ node, edge, distanceM }]
+      : [];
+  }).sort((left, right) => left.distanceM - right.distanceM
+    || Number(right.edge.official) - Number(left.edge.official)
+    || left.node.id - right.node.id)[0];
+  return nearest ? [...nearest.node.position] : null;
 }
 
 function harbourLimitIssues(
@@ -769,9 +981,9 @@ function requiredHarbourAnchors(
     // tekitada keskjoonele tagasipöörde, seega peab just tugipunkti rakk olema
     // läbitav. Kui see pole läbitav, ei ole tuletatud ühendus piisavalt kindel.
     if (surface.cellAt(point.x, point.y).blocked) return null;
-    appendGridPoint(points, point);
+    appendPositionedPoint(points, point);
   }
-  appendGridPoint(points, end.point);
+  appendPositionedPoint(points, end.point);
   return points;
 }
 
@@ -871,14 +1083,33 @@ function anchorsConnected(
   return false;
 }
 
+interface CorridorBackboneLeg {
+  start: GridPoint;
+  end: GridPoint;
+  graph: PreparedRoutingGraph;
+  vessel: RoutePlanRequest;
+}
+
+type RoutedPathResult = PathSearchFailure | {
+  status: 'found';
+  path: PositionedGridPoint[];
+  totalCost: number;
+  expandedNodes: number;
+  protectedPoints: PositionedGridPoint[];
+  trustedPaths: PreparedPathLine[];
+};
+
 async function findPathThrough(
   surface: RoutingCostSurface,
   anchors: readonly GridPoint[],
   deadline: PlanningDeadline,
   instrumentation?: RoutingInstrumentation,
-): Promise<PathSearchResult> {
+  backbone?: CorridorBackboneLeg,
+): Promise<RoutedPathResult> {
   if (anchors.length < 2) throw new RangeError('Routing anchors require start and end');
-  const path: GridPoint[] = [];
+  const path: PositionedGridPoint[] = [];
+  const protectedPoints: PositionedGridPoint[] = [];
+  const trustedPaths: PreparedPathLine[] = [];
   let totalCost = 0;
   let expandedNodes = 0;
   const searchExpiresAt = performance.now()
@@ -886,14 +1117,80 @@ async function findPathThrough(
 
   for (let index = 1; index < anchors.length; index++) {
     deadline.checkpoint();
-    const remainingNodes = Math.max(0, config.routingSearchMaxNodes - expandedNodes);
+    let remainingNodes = Math.max(0, config.routingSearchMaxNodes - expandedNodes);
     if (remainingNodes === 0) return { status: 'not_found', reason: 'node_limit', expandedNodes };
+    const from = anchors[index - 1]!;
+    const to = anchors[index]!;
+
+    if (backbone && sameGridPoint(from, backbone.start) && sameGridPoint(to, backbone.end)) {
+      const backboneStartedAt = performance.now();
+      const attempt = await findCorridorBackboneRoute({
+        surface,
+        graph: backbone.graph,
+        vessel: backbone.vessel,
+        start: from,
+        end: to,
+        checkpoint: deadline.checkpoint,
+        signal: deadline.signal,
+        connectorTimeoutMs: Math.min(20_000, deadline.remainingMs()),
+        maxExpandedNodes: remainingNodes,
+      });
+      instrumentation?.phase('corridor_graph', performance.now() - backboneStartedAt, {
+        used: attempt.route ? 1 : 0,
+        graphNodes: attempt.graphNodes,
+        expandedNodes: attempt.expandedNodes,
+        startCandidates: attempt.startCandidates,
+        endCandidates: attempt.endCandidates,
+        ...(attempt.remoteEndNetworkCost !== undefined
+          ? { remoteEndNetworkCost: Number(attempt.remoteEndNetworkCost.toFixed(1)) }
+          : {}),
+        ...(attempt.remoteStartNetworkCost !== undefined
+          ? { remoteStartNetworkCost: Number(attempt.remoteStartNetworkCost.toFixed(1)) }
+          : {}),
+        ...(attempt.remoteSelection
+          ? { selectedEndNetwork: attempt.remoteSelection === 'end_network' ? 1 : 0 }
+          : {}),
+        ...(attempt.remoteSelection
+          ? { selectedBothNetworks: attempt.remoteSelection === 'both_networks' ? 1 : 0 }
+          : {}),
+        ...(attempt.route ? { protectedPoints: attempt.route.protectedPoints.length } : {}),
+      });
+      expandedNodes += attempt.expandedNodes;
+      if (attempt.route) {
+        totalCost += attempt.route.totalCost;
+        for (const point of attempt.route.path) appendPositionedPoint(path, point);
+        for (const point of attempt.route.protectedPoints) {
+          appendPositionedPoint(protectedPoints, point);
+        }
+        for (const trustedPath of attempt.route.trustedPaths) {
+          trustedPaths.push({
+            ...trustedPath,
+            points: trustedPath.points.map((point) => ({ ...point })),
+            sourceIds: [...trustedPath.sourceIds],
+          });
+        }
+        continue;
+      }
+      // Valmis graafi väikelaevarežiimis ei tohi ebaõnnestunud graafikatset
+      // asendada kogu A–B ulatuses tavalise võre-A*-ga. Just see vana fallback
+      // joonistas pikkadel lõikudel nähtava routinguvõrgu kõrvale oma tee.
+      // Peenvõrk võib allpool endiselt aidata lokaalse algus-/lõppühenduse või
+      // päris graafikatkestuse leidmisel, kuid põhilõik peab tulema graafist.
+      if (isSmallCraftRoutingProfile(backbone.vessel)) {
+        return { status: 'not_found', reason: 'no_route', expandedNodes };
+      }
+      remainingNodes = Math.max(0, config.routingSearchMaxNodes - expandedNodes);
+      if (remainingNodes === 0) {
+        return { status: 'not_found', reason: 'node_limit', expandedNodes };
+      }
+    }
+
     const remainingMs = Math.max(0, Math.min(
       searchExpiresAt - performance.now(),
       deadline.remainingMs(),
     ));
     const legStartedAt = performance.now();
-    const result = await findPath(surface, anchors[index - 1]!, anchors[index]!, {
+    const result = await findPath(surface, from, to, {
       signal: deadline.signal,
       timeoutMs: remainingMs,
       maxExpandedNodes: remainingNodes,
@@ -907,14 +1204,48 @@ async function findPathThrough(
     expandedNodes += result.expandedNodes;
     if (result.status === 'not_found') return { ...result, expandedNodes };
     totalCost += result.totalCost;
-    for (const point of result.path) appendGridPoint(path, point);
+    for (const point of result.path) appendPositionedPoint(path, point);
   }
-  return { status: 'found', path, totalCost, expandedNodes };
+  return {
+    status: 'found',
+    path,
+    totalCost,
+    expandedNodes,
+    protectedPoints,
+    trustedPaths,
+  };
 }
 
-function appendGridPoint(points: GridPoint[], point: GridPoint): void {
-  const last = points.at(-1);
-  if (!last || last.x !== point.x || last.y !== point.y) points.push({ ...point });
+function corridorBackboneLeg(
+  surface: RoutingCostSurface,
+  start: { point: GridPoint },
+  end: { point: GridPoint },
+  startAccess: HarbourAccess | null,
+  endAccess: HarbourAccess | null,
+  graph: PreparedRoutingGraph | null,
+  vessel: RoutePlanRequest,
+): CorridorBackboneLeg | undefined {
+  if (!graph) return undefined;
+  return {
+    start: startAccess ? gridPointAt(surface, startAccess.waypoints.at(-1)!) : start.point,
+    end: endAccess ? gridPointAt(surface, endAccess.waypoints.at(-1)!) : end.point,
+    graph,
+    vessel,
+  };
+}
+
+function orderedRequiredPoints(
+  path: readonly GridPoint[],
+  candidates: readonly GridPoint[],
+): GridPoint[] {
+  const wanted = new Set(candidates.map((point) => `${point.x}:${point.y}`));
+  const result: GridPoint[] = [];
+  for (const point of path) {
+    const key = `${point.x}:${point.y}`;
+    if (!wanted.has(key)) continue;
+    result.push({ ...point });
+  }
+  return result;
 }
 
 function uniquePositions(positions: Array<[number, number]>): [number, number][] {
@@ -964,6 +1295,8 @@ function prepareRouteCandidate(
   startAccess: HarbourAccess | null,
   endAccess: HarbourAccess | null,
   deadline: PlanningDeadline,
+  exactBackbone: readonly PositionedGridPoint[] = [],
+  trustedBackbones: ReadonlyArray<readonly PositionedGridPoint[]> = [],
 ): PreparedRouteCandidate {
   // Võreotsing "murrab" trassi kulupiiridel nagu valguskiir (nt TSS-i raja
   // ette tekib V-kujuline jõnks, et rada järsema nurga alt ületada). Väike
@@ -990,30 +1323,13 @@ function prepareRouteCandidate(
     return { status: 'invalid', code: 'route_geometry_too_complex' };
   }
 
-  // Navigeerimise waypoint'id peavad kirjeldama sama joont, mida kaart näitab.
-  // Kui tavapärane geomeetria on liiga detailne, kasutame ühe kompaktsema,
-  // endiselt täielikult revalideeritud variandi NII geomeetriaks kui juhisteks.
-  let navigationPath = geometryPath;
-  if (navigationPath.length > MAX_NAVIGATION_WAYPOINTS) {
-    navigationPath = simplifyPath(surface, rawPath, {
-      maxCostRatio: 1.5,
-      preserveRisk: true,
-      requiredPoints: requiredAnchors,
-      checkpoint: deadline.checkpoint,
-    });
-    deadline.checkpoint();
-    if (navigationPath.length <= MAX_NAVIGATION_WAYPOINTS) geometryPath = navigationPath;
-  }
-  if (navigationPath.length > MAX_NAVIGATION_WAYPOINTS) {
-    return { status: 'invalid', code: 'route_waypoint_limit' };
-  }
-
   // GeoJSON LineString vajab vähemalt kaht punkti ka siis, kui mõlemad otsad
   // kleebitakse samasse lahtrisse.
   if (geometryPath.length === 1) geometryPath = [geometryPath[0]!, geometryPath[0]!];
-  if (navigationPath.length === 1) navigationPath = [navigationPath[0]!, navigationPath[0]!];
 
-  const positionedGeometryPath = withExactHarbourPositions(
+  const exactBackbonePositions = exactBackbone.flatMap((point) =>
+    point.position ? [point.position] : []);
+  let positionedGeometryPath = withExactHarbourPositions(
     surface,
     geometryPath,
     start,
@@ -1021,16 +1337,57 @@ function prepareRouteCandidate(
     startAccess,
     endAccess,
   );
-  const positionedNavigationPath = withExactHarbourPositions(
-    surface,
-    navigationPath,
-    start,
-    end,
+  if (exactBackbonePositions.length > 0) {
+    positionedGeometryPath = overlayExactPositions(
+      surface,
+      positionedGeometryPath,
+      exactBackbonePositions,
+      0,
+    );
+  }
+  // Exact-backbone overlay lõpeb algallika terminalis. Kui kasutaja täpne
+  // sadamapunkt jagab terminaliga sama usaldatud võrerakku, peab väljundi
+  // viimane koordinaat siiski olema kasutaja siht, mitte 22 m eemal olev
+  // lähtevektori ots.
+  if (!startAccess && positionedGeometryPath.length > 0) {
+    positionedGeometryPath[0] = {
+      ...positionedGeometryPath[0]!,
+      position: [...start.position],
+    };
+  }
+  if (!endAccess && positionedGeometryPath.length > 0) {
+    positionedGeometryPath[positionedGeometryPath.length - 1] = {
+      ...positionedGeometryPath.at(-1)!,
+      position: [...end.position],
+    };
+  }
+  if (positionedGeometryPath.length > MAX_GEOMETRY_POINTS) {
+    return { status: 'invalid', code: 'route_geometry_too_complex' };
+  }
+
+  // Täpne kaardijoon ja ohutuskontroll säilitavad kõik lähtevektori punktid.
+  // Navigeerimis- ja ilmapunktides liidame ainult lühikesed järjestikused
+  // vektorid, mille kursimuutus on väike. Need punktid jäävad geometry sees
+  // virtuaalselt alles; päris pöörded, sadamakanal ja graafikatkestuste servad
+  // on eraldi kohustuslikud ankrud.
+  const navigationAnchors = navigationAnchorPositions(
+    exactBackbonePositions,
+    trustedBackbones,
     startAccess,
     endAccess,
   );
-  if (positionedGeometryPath.length > MAX_GEOMETRY_POINTS) {
-    return { status: 'invalid', code: 'route_geometry_too_complex' };
+  let positionedNavigationPath = positionedGeometryPath;
+  for (const profile of NAVIGATION_SIMPLIFY_PROFILES) {
+    positionedNavigationPath = simplifyNavigationPath(
+      surface,
+      positionedGeometryPath,
+      navigationAnchors,
+      profile,
+    );
+    if (positionedNavigationPath.length <= MAX_NAVIGATION_WAYPOINTS) break;
+  }
+  if (positionedNavigationPath.length === 1) {
+    positionedNavigationPath = [positionedNavigationPath[0]!, positionedNavigationPath[0]!];
   }
   if (positionedNavigationPath.length > MAX_NAVIGATION_WAYPOINTS) {
     return { status: 'invalid', code: 'route_waypoint_limit' };
@@ -1047,6 +1404,7 @@ function prepareRouteCandidate(
     surface,
     described.segments,
     deadline.checkpoint,
+    trustedBackbones,
   );
   deadline.checkpoint();
   if (fineValidation.status === 'blocked') return fineValidation;
@@ -1056,6 +1414,170 @@ function prepareRouteCandidate(
     segments: fineValidation.segments,
     navigationPath: positionedNavigationPath,
   };
+}
+
+function navigationAnchorPositions(
+  exactBackbonePositions: readonly Position[],
+  trustedBackbones: ReadonlyArray<readonly PositionedGridPoint[]>,
+  startAccess: HarbourAccess | null,
+  endAccess: HarbourAccess | null,
+): Position[] {
+  const anchors: Position[] = [
+    ...(startAccess?.waypoints ?? []),
+    ...(endAccess?.waypoints ?? []),
+  ];
+  if (exactBackbonePositions.length > 0) {
+    anchors.push(exactBackbonePositions[0]!, exactBackbonePositions.at(-1)!);
+  }
+  for (let index = 1; index < trustedBackbones.length; index++) {
+    const previous = trustedBackbones[index - 1]!.at(-1)?.position;
+    const current = trustedBackbones[index]![0]?.position;
+    if (!previous || !current) continue;
+    if (distanceMetres(
+      { lon: previous[0], lat: previous[1] },
+      { lon: current[0], lat: current[1] },
+    ) <= BACKBONE_CONTINUITY_TOLERANCE_M) continue;
+    anchors.push(previous, current);
+  }
+  return uniquePositions(anchors);
+}
+
+function simplifyNavigationPath(
+  surface: RoutingCostSurface,
+  path: readonly PositionedGridPoint[],
+  requiredPositions: readonly Position[],
+  profile: NavigationSimplificationProfile,
+): PositionedGridPoint[] {
+  if (path.length <= 2) return path.map((point) => ({ ...point }));
+  const requiredIndexes = new Set<number>([0, path.length - 1]);
+  for (const [index, point] of path.entries()) {
+    const position = navigationPointPosition(surface, point);
+    if (requiredPositions.some((required) => distanceMetres(
+      { lon: position[0], lat: position[1] },
+      { lon: required[0], lat: required[1] },
+    ) <= 1)) requiredIndexes.add(index);
+  }
+
+  const indexes = [...requiredIndexes].sort((a, b) => a - b);
+  const result: PositionedGridPoint[] = [];
+  for (let index = 1; index < indexes.length; index++) {
+    const from = indexes[index - 1]!;
+    const to = indexes[index]!;
+    for (const point of simplifyNavigationSection(surface, path.slice(from, to + 1), profile)) {
+      appendPositionedPoint(result, point);
+    }
+  }
+  return result;
+}
+
+type NavigationSimplificationProfile = typeof NAVIGATION_SIMPLIFY_PROFILES[number];
+
+function simplifyNavigationSection(
+  surface: RoutingCostSurface,
+  path: readonly PositionedGridPoint[],
+  profile: NavigationSimplificationProfile,
+): PositionedGridPoint[] {
+  if (path.length <= 2) return path.map((point) => ({ ...point }));
+  let simplified = removeRepeatedNavigationLoops(surface, path);
+  // Esimesel ringil kaovad lähtevektori kõige tihedamad punktid. Järgmine
+  // ring hindab juba nende ühendamisel tekkinud pikemaid vektoreid; nii
+  // arvestame kurvi kumulatiivset suunamuutust, mitte ainult iga imeväikese
+  // lõigu kohalikku nurka.
+  for (let pass = 0; pass < 8; pass++) {
+    const next = simplifyNavigationPass(surface, simplified, profile);
+    if (next.length === simplified.length) return next;
+    simplified = next;
+    if (simplified.length <= 2) break;
+  }
+  return simplified;
+}
+
+function removeRepeatedNavigationLoops(
+  surface: RoutingCostSurface,
+  path: readonly PositionedGridPoint[],
+): PositionedGridPoint[] {
+  const result: PositionedGridPoint[] = [];
+  const indexes = new Map<string, number>();
+  for (const point of path) {
+    const position = navigationPointPosition(surface, point);
+    const key = `${position[0].toFixed(7)}:${position[1].toFixed(7)}`;
+    const repeatedAt = indexes.get(key);
+    if (repeatedAt !== undefined) {
+      for (let index = result.length - 1; index > repeatedAt; index--) {
+        const removed = navigationPointPosition(surface, result[index]!);
+        indexes.delete(`${removed[0].toFixed(7)}:${removed[1].toFixed(7)}`);
+      }
+      result.length = repeatedAt + 1;
+      continue;
+    }
+    indexes.set(key, result.length);
+    result.push({ ...point });
+  }
+  return result;
+}
+
+function simplifyNavigationPass(
+  surface: RoutingCostSurface,
+  path: readonly PositionedGridPoint[],
+  profile: NavigationSimplificationProfile,
+): PositionedGridPoint[] {
+  if (path.length <= 2) return path.map((point) => ({ ...point }));
+  const result: PositionedGridPoint[] = [{ ...path[0]! }];
+  for (let index = 1; index < path.length - 1; index++) {
+    const anchor = navigationPointPosition(surface, result.at(-1)!);
+    const previous = navigationPointPosition(surface, path[index - 1]!);
+    const current = navigationPointPosition(surface, path[index]!);
+    const next = navigationPointPosition(surface, path[index + 1]!);
+    const anchorDistanceM = distanceMetres(
+      { lon: anchor[0], lat: anchor[1] },
+      { lon: current[0], lat: current[1] },
+    );
+    if (anchorDistanceM <= 0.01) continue;
+
+    const outgoingCourse = bearingDegrees(
+      { lon: current[0], lat: current[1] },
+      { lon: next[0], lat: next[1] },
+    );
+    const accumulatedTurnDeg = courseDifferenceDegrees(
+      bearingDegrees(
+        { lon: anchor[0], lat: anchor[1] },
+        { lon: current[0], lat: current[1] },
+      ),
+      outgoingCourse,
+    );
+    const localTurnDeg = courseDifferenceDegrees(
+      bearingDegrees(
+        { lon: previous[0], lat: previous[1] },
+        { lon: current[0], lat: current[1] },
+      ),
+      outgoingCourse,
+    );
+    // Graafi ristmik ja allikaobjekti piir võivad tekitada tehnilise sõlme ka
+    // täiesti sirgele lõigule. See sõlm jääb geometry/topoloogia sisse, kuid
+    // alla 2° kohalik suunamuutus ei ole navigatsiooni- ega ilmapunkt.
+    const isLocallyStraight = localTurnDeg <= STRAIGHT_NAVIGATION_TURN_DEG;
+    const followsSameCourse = accumulatedTurnDeg <= profile.smoothTurnDeg
+      && localTurnDeg <= profile.denseTurnDeg;
+    const isDenseSmoothCurve = anchorDistanceM <= profile.denseDistanceM
+      && accumulatedTurnDeg <= profile.denseTurnDeg
+      && localTurnDeg <= profile.denseTurnDeg;
+    if (isLocallyStraight || followsSameCourse || isDenseSmoothCurve) continue;
+    result.push({ ...path[index]! });
+  }
+  result.push({ ...path.at(-1)! });
+  return result;
+}
+
+function courseDifferenceDegrees(a: number, b: number): number {
+  const difference = Math.abs(a - b) % 360;
+  return Math.min(difference, 360 - difference);
+}
+
+function navigationPointPosition(
+  surface: RoutingCostSurface,
+  point: PositionedGridPoint,
+): Position {
+  return point.position ?? surface.toPosition(point);
 }
 
 function withExactHarbourPositions(
@@ -1071,6 +1593,8 @@ function withExactHarbourPositions(
   if (startAccess) {
     const startPositions = harbourPositionsFromStart(startAccess, start.position);
     positioned = overlayExactPositions(surface, positioned, startPositions, 0);
+  } else if (positioned.length > 0) {
+    positioned[0] = { ...positioned[0]!, position: [...start.position] };
   }
 
   if (endAccess) {
@@ -1079,6 +1603,11 @@ function withExactHarbourPositions(
     const outerIndex = findLastGridPointIndex(positioned, outerPoint);
     if (outerIndex < 0) throw new Error('End harbour outer anchor is missing from the path');
     positioned = overlayExactPositions(surface, positioned, endPositions, outerIndex);
+  } else if (positioned.length > 0) {
+    positioned[positioned.length - 1] = {
+      ...positioned.at(-1)!,
+      position: [...end.position],
+    };
   }
 
   return positioned;
@@ -1234,12 +1763,17 @@ export function fineRevalidateSegments(
   surface: RoutingCostSurface,
   input: readonly RoutePlanSegment[],
   checkpoint: () => void,
+  trustedBackbones: ReadonlyArray<readonly PositionedGridPoint[]> = [],
 ): FineValidationResult {
   const segments = input.map((segment) => ({
     ...segment,
     reasons: [...segment.reasons],
     sourceIds: [...segment.sourceIds],
   }));
+  const trustedBackboneGrids = trustedBackbones.map((backbone) => backbone.map((point) =>
+    point.position
+      ? surface.toGrid({ lon: point.position[0], lat: point.position[1] })
+      : point));
   let sampleCount = 0;
   for (const segment of segments) {
     const lengthM = distanceMetres(
@@ -1261,20 +1795,30 @@ export function fineRevalidateSegments(
       const cellX = Math.max(0, Math.min(surface.width - 1, Math.round(grid.x)));
       const cellY = Math.max(0, Math.min(surface.height - 1, Math.round(grid.y)));
       const cell = surface.detailsAt(cellX, cellY);
+      // Usaldatud pind märgib selgroolahtrid niikuinii; O(1) põhjusekontroll
+      // käib enne kallist iga-serva polüjooneskanni, mis jääb harvaks varuks.
+      const trustedCellOverride = surface.trustPublishedRoutes
+        && !cell.blocked
+        && (cell.reasons.includes('official_corridor')
+          || cell.reasons.includes('recommended_route'))
+        && !cell.reasons.includes('hazard')
+        && !cell.reasons.includes('restricted_area');
+      const publishedRouteOverride = trustedCellOverride || (surface.trustPublishedRoutes
+        && trustedBackboneGrids.some((backbone) => pointNearPolyline(grid, backbone, 0.75)));
       const harbourAccessOverride = !cell.blocked
         && cell.reasons.includes('harbour_access')
         && !cell.reasons.includes('official_corridor_limit')
         && !cell.reasons.includes('hazard')
         && !cell.reasons.includes('restricted_area');
-      if (water === false && !harbourAccessOverride) {
+      if (water === false && !harbourAccessOverride && !publishedRouteOverride) {
         return { status: 'blocked', reason: 'land', position: [lon, lat] };
       }
-      const officialOverride = !cell.blocked
+      const officialOverride = publishedRouteOverride || (!cell.blocked
         && cell.reasons.includes('official_corridor')
         && !cell.reasons.includes('official_corridor_limit')
         && !cell.reasons.includes('depth_unknown')
         && !cell.reasons.includes('known_shallow')
-        && !cell.reasons.includes('land');
+        && !cell.reasons.includes('land'));
       const depth = routingDepthAt(snapshot.depth, lon, lat);
       if (!officialOverride && (depth.state === RoutingDepthState.Land
         || (depth.state === RoutingDepthState.Water
@@ -1308,6 +1852,21 @@ export function fineRevalidateSegments(
     else if (segment.assessment === 'clear' && reasons.has('low_clearance')) segment.assessment = 'caution';
   }
   return { status: 'valid', segments };
+}
+
+function pointNearPolyline(
+  point: { x: number; y: number },
+  line: readonly { x: number; y: number }[],
+  tolerance: number,
+): boolean {
+  for (let index = 1; index < line.length; index++) {
+    const from = line[index - 1]!;
+    const to = line[index]!;
+    if (pointSegmentDistance(point.x, point.y, from.x, from.y, to.x, to.y) <= tolerance) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function snapshotSources(snapshot: RoutingSnapshot): RoutePlanSource[] {
@@ -1413,6 +1972,7 @@ function snapshotId(
   departureTime: string,
   sources: readonly RoutePlanSource[],
   vectors: RoutingVectorData,
+  preparedGraph: PreparedRoutingGraph | null,
 ): string {
   const stableSources = sources.map(({ ageSeconds: _ageSeconds, ...source }) => source);
   const featureIds = [
@@ -1429,6 +1989,9 @@ function snapshotId(
       departureTime: new Date(departureTime).toISOString(),
       sources: stableSources,
       featureIds,
+      routingGraph: preparedGraph
+        ? { version: preparedGraph.version, builtAt: preparedGraph.builtAt }
+        : null,
     }))
     .digest('hex')
     .slice(0, 20);

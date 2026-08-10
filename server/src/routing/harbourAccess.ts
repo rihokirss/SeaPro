@@ -23,6 +23,17 @@ export interface HarbourAccess {
   waypoints: Position[];
 }
 
+/**
+ * Väike staatiline andmekomplekt, mida valmis marsruutimisgraaf vajab ainult
+ * algus- ja lõpp-punkti sadamakanali tuletamiseks. Ülejäänud teekond kasutab
+ * endiselt valmis topoloogiagraafi ega lae päringu ajal vektorallikaid.
+ */
+export interface HarbourAccessSupport {
+  harbours: RoutingHarbour[];
+  hazards: RoutingHazard[];
+  corridors: RoutingCorridor[];
+}
+
 export type HarbourAccessResult =
   | { status: 'none' }
   | {
@@ -32,6 +43,41 @@ export type HarbourAccessResult =
       limitM: number;
     }
   | { status: 'access'; access: HarbourAccess };
+
+/**
+ * Korjab lähteandmetest valmis graafi jaoks ainult sadamate lähedased
+ * külgmärgid ja avaldatud sügavusega ametlikud väilad. Nii ei pea planner
+ * kandma graafifailis kõiki kive, pindobjekte ega muid runtime-piiranguid.
+ */
+export function buildHarbourAccessSupport(input: {
+  harbours: readonly RoutingHarbour[];
+  hazards: readonly RoutingHazard[];
+  corridors: readonly RoutingCorridor[];
+}): HarbourAccessSupport {
+  const harbours = dedupeById(input.harbours);
+  const harbourPositions = harbours.map((harbour) => ({
+    harbour,
+    positions: geometryPositions(harbour.geometry),
+  }));
+  const hazards = dedupeById(input.hazards).filter((hazard) => {
+    if (hazard.kind !== 'physical_aid' || hazard.geometry.type !== 'Point'
+      || hazard.operational === false
+      || (hazard.navigationRole !== 'lateral-port'
+        && hazard.navigationRole !== 'lateral-starboard')) return false;
+    const aidPosition = hazard.geometry.coordinates;
+    return harbourPositions.some(({ harbour, positions }) => aidMatchesHarbour(hazard, harbour)
+      && positions.some((position) => distance(position, aidPosition)
+        <= MAX_GATE_DISTANCE_M));
+  });
+  const corridors = dedupeById(input.corridors).filter((corridor) => {
+    if (!corridor.official || corridor.harbourAccess) return false;
+    if (corridor.sweptDepthM === undefined && corridor.depthM === undefined
+      && corridor.maxDraughtM === undefined) return false;
+    return harbourPositions.some(({ positions }) => positions.some((position) =>
+      distanceToGeometry(position, corridor.geometry).distanceM <= MAX_FAIRWAY_CONNECTOR_M));
+  });
+  return { harbours, hazards, corridors };
+}
 
 /**
  * Tuletab valitud sadamapunktile kitsa ühenduse ametliku laevatee või
@@ -499,4 +545,15 @@ function minimumDefined(a: number | undefined, b: number | undefined): number | 
 function newestTimestamp(a: string, b?: string): string {
   if (!b) return a;
   return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+}
+
+function geometryPositions(geometry: RoutingGeometry): Position[] {
+  if (geometry.type === 'Point') return [geometry.coordinates];
+  if (geometry.type === 'MultiPoint' || geometry.type === 'LineString') return geometry.coordinates;
+  if (geometry.type === 'MultiLineString' || geometry.type === 'Polygon') return geometry.coordinates.flat();
+  return geometry.coordinates.flat(2);
+}
+
+function dedupeById<T extends { id: string }>(items: readonly T[]): T[] {
+  return [...new Map(items.map((item) => [item.id, item])).values()];
 }

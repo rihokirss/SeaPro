@@ -49,7 +49,8 @@ läbitavuse hindamiseks vaja.
 Edukas vastus on `status: "route"` või `status: "advisory"` ja sisaldab:
 
 - GeoJSON `geometry`, mida kaart ja ilmaanalüüs tegelikult järgivad;
-- kuni 100 kordusvalideeritud `navigationWaypoints` punkti;
+- lühikeste ja väikese kursimuutusega vektorite kaupa tihendatud
+  `navigationWaypoints`; täpne lähtevektori kuju jääb `geometry` sisse;
 - `segments`, kus igal lõigul on hinnang `clear`, `caution` või `unknown`,
   vähim teadaolev sügavus, põhjus ja allika-ID;
 - algse ja kuni 1 NM ulatuses läbitavale veele kleebitud A/B-punkti;
@@ -131,12 +132,66 @@ eelistuskulu: ühesuunaline rada saab 50× ja muu liiklusrada 5× kulu ning tule
 on alati `advisory`. Kapten peab skeemi, kurssi ja COLREG-i kohaldamist ise
 kontrollima.
 
+## Ettevalmistatud routingugraaf
+
+Ametlikest navigatsioonijoontest ja OSM/OpenSeaMapi soovituslikest
+keskjoontest tehakse enne serveri käivitamist üks versioonitud
+`seapro-routing-graph-v1` fail:
+
+```bash
+npm run data:routing-graph
+```
+
+Ehitaja loeb piirkonna kanooniliste paanidena nii kettale cache'tud kui ka
+puuduvad lähteandmed, ühendab kuni 5 m ulatuses päriselt kokkulangevad
+otspunktid, lõikab jooned tegelikes ristumistes, säilitab allika pöördepunktid
+ning eemaldab duplikaadid, pindobjektid, sihtjooned ja korduvatest punktidest
+tekkivad vigased silmused. Kui mõni lähteallika paan jääb poolikuks, siis faili
+vaikimisi üle ei kirjutata; teadlikuks diagnostikaks saab kasutada
+`--allow-partial` lippu.
+
+Samas failis on kompaktne sadamatugi: sadamaregistri punktid, sadama lähedased
+punased/rohelised külgmärgid ning lähedased avaldatud sügavusega ametlikud
+väilad. Nende põhjal tuletatakse ainult marsruudi algus- ja lõppkoridor;
+runtime-välispäringuid selleks ei tehta. Olemasoleva keskjoonte graafi saab
+piiratud ala sadamatoega täiendada ilma võrku uuesti ehitamata, näiteks:
+
+```bash
+npm run data:routing-graph -- --support-only --bbox=59.44,24.47,59.47,24.51
+```
+
+Päringu ajal valmisgraafi enam paanidest ega objektijuppidest kokku ei panda.
+Server loeb faili mtime-põhisesse mälucache'i ning marsruut kasutab ainult selle
+graafi sõlmi ja servi. Kaardikihtide menüüs olev vaikimisi väljas
+„Autoroute'i valmis võrgustik“ kuvab täpselt sama faili: ametliku graafi
+türkiissiniselt ja soovitusliku graafi oranžilt.
+
 ## Otsing ja kordusvalideerimine
 
-Marsruut leitakse deterministliku kaheksanaabrilisel võrel töötava A*-ga.
-Otsing kontrollib kogu planeerimisala, et kiire lokaalne koridor ei peidaks
-väiksema riskiga varianti. Diagonaalis ei tohi kahe blokeeritud nurga vahelt läbi
-pressida. Otsingul on ajapiir ja laiendatud sõlmede piir; ebaõnnestumisel ei
+Väikelaeva profiil (süvis kuni 3 m ja laius kuni 10 m) usaldab valitud
+avaldatud keskjoont ega kontrolli sellel alusrastri sügavust, vee-/maamaski või
+muid võrepiiranguid. Muud lõigud jäävad tavakontrolli alla. Suurema aluse puhul
+peab keskjoone avaldatud sügavus, lubatud süvis ja laius alusele sobima.
+Liiklusrajad, pindobjektid, sihtjooned ja tuletatud sadamakanalid põhigraafi ei
+lähe.
+
+Alguse ja lõpu ühendusi ei valita eraldi lähima punkti järgi. Mõlemast otsast
+leitakse ohutul võrel võimalikud ühendused ning sisenemis-/väljumispaar
+valitakse ühenduste ja graafitee väikseima ühise kogukulu järgi. Kui sadamate
+lähedased võrgud pole omavahel ühendatud, võrreldakse mõlema võrgu kaudu
+kulgevat tervikteed. Kaugühenduse otsing sihib vektori vaba otspunkti, kuid
+lõpeb kohe valitud võrgu esimesel puudutusel; sealt edasi kasutatakse toorest
+vektorgeomeetriat. Lünga jaoks arvutatakse ohutu A*-ühendus.
+
+Vektoriosa läbitakse mööda allika täpseid koordinaate ja pöördeid kuni
+ristmiku, katkestuse või otspunktini. Neid punkte ei tohi lõplik lihtsustamine
+sirgeks tõmmata. Võre-A* kasutatakse ainult sadamast vektorile pääsemiseks,
+vektorilt sihtpunkti jõudmiseks, andmelünga ühendamiseks ja varuvariandina, kui
+sobivat vektorteed ei leidu.
+
+
+Diagonaalis ei tohi kahe blokeeritud nurga vahelt läbi pressida. Kõigil
+otsingutel on ühine ajapiir ja laiendatud sõlmede piir; ebaõnnestumisel ei
 tagastata sirgjoonelist varuteed.
 
 Leitud trepijoon lihtsustatakse line-of-sight kontrolliga. Iga otsetee
@@ -149,12 +204,11 @@ sirglõigu `clear`/`caution`/`unknown` piirid tuletatakse lahtrite kaupa ja
 lisatakse ka GeoJSON-i joonele. Kaardi geomeetria ja navigeerimise
 kontrollpunktid kirjeldavad sama valideeritud joont.
 
-Enne vastust proovitakse valmis joont veel 10 m sammuga otse vee-/maamaski ja
-sügavusrasteri vastu. Vahele jäänud maa või ebapiisav sügavus muudab tulemuse
-`no_route`; vahepealne NoData muudab seda sisaldava riskilõigu `unknown`-iks.
-Ametliku väylä sees kehtib seejuures sama ruumiliselt piiratud ametliku
-haraussügavuse/projekteeritud süvise erand. Kontroll ei saa olla täpsem kui
-lähteraster ise.
+Enne vastust kontrollitakse valmis joont 10 m sammuga vee-/maamaski ja
+sügavusrasteri vastu. Väikelaeva avaldatud vektoriosa kasutab keskjoone erandit;
+ühenduslõigud kontrollitakse tavaliselt. Vahele jäänud maa või ebapiisav
+sügavus muudab tulemuse `no_route` ning NoData muudab vastava riskilõigu
+`unknown`-iks. Kontroll ei saa olla täpsem kui lähteraster ise.
 
 Kui esmane otsing annaks `no_route`, kontrollib planner enne vastamist odavalt,
 kas ühenduse võis sulgeda jämeda võreraku sees segunenud sügav ja madal proov.
@@ -171,6 +225,8 @@ Vaikeala ning ressursipiirid on `.env` kaudu muudetavad:
 
 ```dotenv
 ROUTING_BBOX=57.45,18.75,66.2,28.45
+ROUTING_GRAPH_BBOX=57.45,18.75,62,29
+ROUTING_GRAPH_FILE=data/routing-graph-v1.json
 ROUTING_MAX_DISTANCE_NM=500
 ROUTING_PLAN_TIMEOUT_MS=90000
 ROUTING_MAX_CONCURRENT_PLANS=2

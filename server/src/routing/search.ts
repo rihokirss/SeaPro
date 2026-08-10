@@ -12,10 +12,12 @@ import {
   assertGridPoint,
   assertRoutingGrid,
   isTraversable,
+  pointId,
   routingCellAt,
   traversableNeighbours,
   type CellPredicate,
 } from './grid.js';
+import { MinHeap } from './minHeap.js';
 
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_EXPANDED_NODES = 1_000_000;
@@ -29,45 +31,6 @@ interface OpenNode {
   readonly h: number;
   readonly f: number;
   readonly sequence: number;
-}
-
-class MinHeap {
-  readonly #items: OpenNode[] = [];
-
-  get size(): number { return this.#items.length; }
-
-  push(value: OpenNode): void {
-    const items = this.#items;
-    let index = items.length;
-    items.push(value);
-    while (index > 0) {
-      const parent = (index - 1) >>> 1;
-      if (compareOpenNodes(items[parent]!, value) <= 0) break;
-      items[index] = items[parent]!;
-      index = parent;
-    }
-    items[index] = value;
-  }
-
-  pop(): OpenNode | undefined {
-    const items = this.#items;
-    const first = items[0];
-    const last = items.pop();
-    if (first == null || last == null || items.length === 0) return first;
-    let index = 0;
-    items[0] = last;
-    while (true) {
-      const left = index * 2 + 1;
-      if (left >= items.length) break;
-      const right = left + 1;
-      let child = left;
-      if (right < items.length && compareOpenNodes(items[right]!, items[left]!) < 0) child = right;
-      if (compareOpenNodes(items[child]!, items[index]!) >= 0) break;
-      [items[index], items[child]] = [items[child]!, items[index]!];
-      index = child;
-    }
-    return first;
-  }
 }
 
 function compareOpenNodes(a: OpenNode, b: OpenNode): number {
@@ -187,7 +150,7 @@ async function runSearch(
   const parents = new Int32Array(size);
   parents.fill(-1);
   const closed = new Uint8Array(size);
-  const open = new MinHeap();
+  const open = new MinHeap<OpenNode>(compareOpenNodes);
   const startId = pointId(grid, start);
   const goalId = pointId(grid, goal);
   let sequence = 0;
@@ -293,7 +256,7 @@ function finiteOption(value: number | undefined, fallback: number, minimum: numb
   return resolved;
 }
 
-function integerOption(value: number | undefined, fallback: number, minimum: number, name: string): number {
+export function integerOption(value: number | undefined, fallback: number, minimum: number, name: string): number {
   const resolved = value ?? fallback;
   if (!Number.isInteger(resolved) || resolved < minimum) throw new RangeError(`${name} must be an integer of at least ${minimum}`);
   return resolved;
@@ -303,10 +266,6 @@ function octileDistance(a: GridPoint, b: GridPoint): number {
   const dx = Math.abs(a.x - b.x);
   const dy = Math.abs(a.y - b.y);
   return Math.min(dx, dy) * Math.SQRT2 + Math.abs(dx - dy);
-}
-
-function pointId(grid: RoutingGrid, point: GridPoint): number {
-  return point.y * grid.width + point.x;
 }
 
 function reconstructPath(grid: RoutingGrid, parents: Int32Array, goalId: number): GridPoint[] {

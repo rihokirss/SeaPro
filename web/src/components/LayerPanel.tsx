@@ -30,6 +30,7 @@ export interface LayerState {
   trafficSchemes: boolean;
   wrecks: boolean;
   officialNavigation: boolean;
+  routingGraph: boolean;
 }
 
 interface Props {
@@ -187,6 +188,12 @@ export function LayerPanel({
               onChange={(v) => set({ officialNavigation: v })}
               label={t('layer.officialNavigation')}
               hint={t('layer.officialNavigation.hint')}
+            />
+            <Toggle
+              checked={layers.routingGraph}
+              onChange={(v) => set({ routingGraph: v })}
+              label={t('layer.routingGraph')}
+              hint={t('layer.routingGraph.hint')}
             />
             <Toggle
               checked={layers.navigationWarnings}
