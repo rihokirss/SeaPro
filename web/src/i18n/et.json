@@ -1,6 +1,7 @@
 {
   "app.title": "SeaPro",
   "app.subtitle": "Mereilm",
+  "app.author": "Autor:",
   "search.placeholder": "Otsi kohta või sadamat…",
   "search.noResults": "Midagi ei leitud",
   "search.searching": "Otsin…",

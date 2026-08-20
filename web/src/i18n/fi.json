@@ -1,6 +1,7 @@
 {
   "app.title": "SeaPro",
   "app.subtitle": "Merisää",
+  "app.author": "Tekijä:",
   "search.placeholder": "Hae paikkaa tai satamaa…",
   "search.noResults": "Ei tuloksia",
   "search.searching": "Haetaan…",

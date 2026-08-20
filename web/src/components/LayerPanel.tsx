@@ -433,6 +433,19 @@ export function LayerPanel({
               ))}
             </div>
           </section>
+
+          <footer className="panel__credit">
+            {t('app.author')}{' '}
+            <a href="https://github.com/rihokirss" target="_blank" rel="noopener noreferrer">
+              Riho Kirss
+            </a>
+            <span aria-hidden="true"> · </span>
+            <a href="mailto:riho@kirss.ee">riho@kirss.ee</a>
+            <span aria-hidden="true"> · </span>
+            <a href="https://github.com/rihokirss/SeaPro" target="_blank" rel="noopener noreferrer">
+              GitHub
+            </a>
+          </footer>
         </div>
       </aside>
     </>

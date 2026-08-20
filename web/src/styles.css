@@ -1102,6 +1102,25 @@ textarea {
   color: var(--text-dim);
 }
 
+.panel__credit {
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: var(--t-cap);
+  line-height: 1.6;
+  text-align: center;
+}
+
+.panel__credit a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.panel__credit a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 /* ==========================================================================
    Lülitid
    ========================================================================== */

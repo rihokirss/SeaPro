@@ -1,6 +1,7 @@
 {
   "app.title": "SeaPro",
   "app.subtitle": "Marine weather",
+  "app.author": "Author:",
   "search.placeholder": "Search place or harbour…",
   "search.noResults": "Nothing found",
   "search.searching": "Searching…",
