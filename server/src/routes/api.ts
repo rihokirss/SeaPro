@@ -16,6 +16,7 @@ import { config } from '../config.js';
 import { HttpError } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { usageMeter } from '../usage.js';
+import { openMeteoMode } from '../providers/openMeteo.js';
 import { vessels } from '../ais/registry.js';
 import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
@@ -201,7 +202,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     version: config.appVersion,
     time: new Date().toISOString(),
     openMeteo: {
-      mode: config.openMeteoApiKey ? 'commercial' : 'free',
+      mode: openMeteoMode(),
       usage: usageMeter.snapshot(config.openMeteoMonthlyLimit),
     },
     // Päringueelarve seis — ilma selleta on "miks tuulekiht kadus?" pime koht.

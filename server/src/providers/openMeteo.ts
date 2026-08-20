@@ -16,22 +16,96 @@ import { round, type GridQuery, type PointQuery, type WeatherProvider } from './
 
 const FREE_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const FREE_MARINE_URL = 'https://marine-api.open-meteo.com/v1/marine';
-const FORECAST_URL = config.openMeteoApiKey
-  ? 'https://customer-api.open-meteo.com/v1/forecast'
-  : FREE_FORECAST_URL;
-const MARINE_URL = config.openMeteoApiKey
-  ? 'https://customer-marine-api.open-meteo.com/v1/marine'
-  : FREE_MARINE_URL;
+const CUSTOMER_FORECAST_URL = 'https://customer-api.open-meteo.com/v1/forecast';
+const CUSTOMER_MARINE_URL = 'https://customer-marine-api.open-meteo.com/v1/marine';
+
+const ENDPOINTS: Record<OpenMeteoApi, { free: string; customer: string }> = {
+  forecast: { free: FREE_FORECAST_URL, customer: CUSTOMER_FORECAST_URL },
+  marine: { free: FREE_MARINE_URL, customer: CUSTOMER_MARINE_URL },
+};
+
+export type OpenMeteoMode = 'commercial' | 'free' | 'free-fallback';
+
+/**
+ * Valib Open-Meteo endpointi ja jätab ligipääsuvea järel tasuta variandi meelde.
+ *
+ * Olek on protsessipõhine: esimene 401/402/403 võib teha ühe kliendi- ja ühe
+ * tasuta päringu, kõik järgmised lähevad kohe tasuta API-sse. Taaskäivitus
+ * proovib konfigureeritud võtit uuesti, nii et taastatud tellimus hakkab tööle
+ * ilma konfiguratsiooni muutmata.
+ */
+export class OpenMeteoEndpointPolicy {
+  #freeFallback = false;
+
+  constructor(private readonly apiKey: string) {}
+
+  mode(): OpenMeteoMode {
+    if (!this.apiKey) return 'free';
+    return this.#freeFallback ? 'free-fallback' : 'commercial';
+  }
+
+  endpoint(api: OpenMeteoApi): string {
+    return this.mode() === 'commercial' ? ENDPOINTS[api].customer : ENDPOINTS[api].free;
+  }
+
+  requestUrl(api: OpenMeteoApi, params: URLSearchParams, endpoint = this.endpoint(api)): string {
+    const authenticated = new URLSearchParams(params);
+    if (endpoint === ENDPOINTS[api].customer && this.apiKey) {
+      authenticated.set('apikey', this.apiKey);
+    }
+    return `${endpoint}?${authenticated}`;
+  }
+
+  activateFreeFallback(
+    api: OpenMeteoApi,
+    attemptedEndpoint: string,
+    error: unknown,
+  ): 'activated' | 'already-active' | false {
+    if (
+      !this.apiKey ||
+      attemptedEndpoint !== ENDPOINTS[api].customer ||
+      !(error instanceof HttpError) ||
+      ![401, 402, 403].includes(error.status)
+    ) {
+      return false;
+    }
+    if (this.#freeFallback) return 'already-active';
+    this.#freeFallback = true;
+    return 'activated';
+  }
+}
+
+const endpointPolicy = new OpenMeteoEndpointPolicy(config.openMeteoApiKey);
+
+export function openMeteoMode(): OpenMeteoMode {
+  return endpointPolicy.mode();
+}
 
 /**
  * Koostab päris võrguaadressi. API-võti lisatakse alles siin, mitte provideris
  * kasutatavasse `params` objekti: nii ei satu saladus cache-võtmesse ega
  * kettal olevasse cache.json faili.
  */
-function requestUrl(url: string, params: URLSearchParams): string {
-  const authenticated = new URLSearchParams(params);
-  if (config.openMeteoApiKey) authenticated.set('apikey', config.openMeteoApiKey);
-  return `${url}?${authenticated}`;
+async function fetchOpenMeteo<T>(
+  api: OpenMeteoApi,
+  params: URLSearchParams,
+  cost: number,
+  use: OpenMeteoUse,
+): Promise<T> {
+  const endpoint = endpointPolicy.endpoint(api);
+  try {
+    return await fetchBudgeted<T>(endpointPolicy.requestUrl(api, params, endpoint), cost, use);
+  } catch (error) {
+    const fallback = endpointPolicy.activateFreeFallback(api, endpoint, error);
+    if (!fallback) throw error;
+    if (fallback === 'activated') {
+      console.warn(
+        `[SeaPro] Open-Meteo customer API vastas ligipääsuveaga; ` +
+          `lülitun protsessi lõpuni tasuta API-le`,
+      );
+    }
+    return fetchBudgeted<T>(endpointPolicy.requestUrl(api, params), cost, use);
+  }
 }
 
 /**
@@ -198,12 +272,19 @@ function secondsToUtcMidnight(): number {
  * lülitaks välja ka lainekihi, ilma et selleks põhjust oleks.
  */
 function apiFor(url: string): OpenMeteoApi {
-  return url.startsWith(MARINE_URL) ? 'marine' : 'forecast';
+  return url.includes('marine-api.open-meteo.com') ? 'marine' : 'forecast';
 }
 
 async function fetchBudgeted<T>(url: string, cost: number, use: OpenMeteoUse): Promise<T> {
   const api = apiFor(url);
-  const source = api === 'marine' ? 'open-meteo-marine' : 'open-meteo';
+  const free = url.startsWith(ENDPOINTS[api].free);
+  const source = free
+    ? api === 'marine'
+      ? 'open-meteo-marine'
+      : 'open-meteo'
+    : api === 'marine'
+      ? 'open-meteo-marine-commercial'
+      : 'open-meteo-commercial';
   rateLimiter.spend(source, cost);
   // Mõõdame alles PÄRAST tasuta režiimi kaitsepiirajat: piiraja poolt peatatud
   // päring ei läinud Open-Meteole ega tohi tasulise kasutusena kirja minna.
@@ -279,7 +360,6 @@ function hasAnyValue(value: OmResponse | OmResponse[], apiVars: string[]): boole
  * kohta, mitte iga päringu peale.
  */
 async function fetchMarineWithFallback(
-  url: string,
   params: URLSearchParams,
   apiVars: string[],
   cost: number,
@@ -288,16 +368,16 @@ async function fetchMarineWithFallback(
   const retryWithBestMatch = (): Promise<OmResponse | OmResponse[]> => {
     const fallback = new URLSearchParams(params);
     fallback.delete('models');
-    return fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, fallback), cost, use);
+    return fetchOpenMeteo<OmResponse | OmResponse[]>('marine', fallback, cost, use);
   };
 
   if (!params.has('models')) {
-    return fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost, use);
+    return fetchOpenMeteo<OmResponse | OmResponse[]>('marine', params, cost, use);
   }
 
   let first: OmResponse | OmResponse[];
   try {
-    first = await fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost, use);
+    first = await fetchOpenMeteo<OmResponse | OmResponse[]>('marine', params, cost, use);
   } catch (err) {
     // AINULT 400. 429 tähendab "liiga palju päringuid" — kordamine oleks siis
     // täpselt vale ravim ja sööks eelarvet, mis on juba otsas. Kõik muu
@@ -440,9 +520,9 @@ export class OpenMeteoProvider implements WeatherProvider {
 
     // Atmosfäär ja meri on eri API-des — pärime paralleelselt ja liidame ajatelje järgi.
     const [atmo, waves, ocean] = await Promise.all([
-      wantsAtmo ? this.#fetchSeries(FORECAST_URL, q, atmoVars, models, ATMO_VARS) : [],
-      wantsWaves ? this.#fetchSeries(MARINE_URL, q, waveVars, [waveModel], WAVE_VARS) : [],
-      wantsOcean ? this.#fetchSeries(MARINE_URL, q, oceanVars, ['best_match'], OCEAN_VARS) : [],
+      wantsAtmo ? this.#fetchSeries('forecast', q, atmoVars, models, ATMO_VARS) : [],
+      wantsWaves ? this.#fetchSeries('marine', q, waveVars, [waveModel], WAVE_VARS) : [],
+      wantsOcean ? this.#fetchSeries('marine', q, oceanVars, ['best_match'], OCEAN_VARS) : [],
     ]);
 
     return mergeByModel(atmo, mergeSteps(waves, ocean));
@@ -489,7 +569,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     const [south, west, north, east] = q.bbox;
 
     const isMarine = q.variables.every((v) => MARINE_BY_VARIABLE[v]);
-    const url = isMarine ? MARINE_URL : FORECAST_URL;
+    const api: OpenMeteoApi = isMarine ? 'marine' : 'forecast';
     const varMap = isMarine ? MARINE_VARS : ATMO_VARS;
     const byVariable = isMarine ? MARINE_BY_VARIABLE : ATMO_BY_VARIABLE;
 
@@ -558,7 +638,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     const fetched = await Promise.all(
       tiles.map((tile) =>
         this.#fetchGridTile({
-          url,
+          api,
           apiVars,
           isMarine,
           modelId,
@@ -681,7 +761,7 @@ export class OpenMeteoProvider implements WeatherProvider {
    * ööpäevaplokist — mitte kaadri asendist. Just see teeb nihutamise odavaks.
    */
   async #fetchGridTile(opts: {
-    url: string;
+    api: OpenMeteoApi;
     apiVars: string[];
     isMarine: boolean;
     modelId?: string;
@@ -695,7 +775,7 @@ export class OpenMeteoProvider implements WeatherProvider {
     value: OmResponse | OmResponse[];
     fallbackError?: unknown;
   }> {
-    const { url, apiVars, isMarine, modelId, spacing, tile, blockStart, blockEnd } = opts;
+    const { api, apiVars, isMarine, modelId, spacing, tile, blockStart, blockEnd } = opts;
     const lats: number[] = [];
     const lons: number[] = [];
     for (let r = 0; r < TILE_N; r++) {
@@ -734,8 +814,8 @@ export class OpenMeteoProvider implements WeatherProvider {
     try {
       cached = await cache.get(key, config.ttl.openMeteo, () =>
         isMarine
-          ? fetchMarineWithFallback(url, params, apiVars, cost, 'grid')
-          : fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost, 'grid'),
+          ? fetchMarineWithFallback(params, apiVars, cost, 'grid')
+          : fetchOpenMeteo<OmResponse | OmResponse[]>(api, params, cost, 'grid'),
       );
       usageMeter.recordCache('grid', cached.cacheOutcome);
     } catch (err) {
@@ -751,7 +831,7 @@ export class OpenMeteoProvider implements WeatherProvider {
   }
 
   async #fetchSeries(
-    url: string,
+    api: OpenMeteoApi,
     q: PointQuery,
     apiVars: string[],
     models: string[],
@@ -771,7 +851,7 @@ export class OpenMeteoProvider implements WeatherProvider {
       forecast_days: String(POINT_FORECAST_DAYS),
       // Näitame ka eelmise ööpäeva, et graafikul oleks kontekst.
       past_days: '1',
-      cell_selection: url === MARINE_URL ? 'sea' : 'land',
+      cell_selection: api === 'marine' ? 'sea' : 'land',
     });
 
     const realModels = models.filter((m) => m !== 'best_match');
@@ -779,7 +859,7 @@ export class OpenMeteoProvider implements WeatherProvider {
 
     // Kasuta mõlemas režiimis sama loogilist võtit, et kommertsrežiimile
     // lülitumine ei viskaks tasuta endpointist saadud viimast vastust ära.
-    const sourceKey = url === MARINE_URL ? FREE_MARINE_URL : FREE_FORECAST_URL;
+    const sourceKey = ENDPOINTS[api].free;
     const key = `om:point:${sourceKey}:${params.toString()}`;
     const cost = queryWeight({
       locations: 1,
@@ -790,9 +870,9 @@ export class OpenMeteoProvider implements WeatherProvider {
     let cached: CachedResult<OmResponse | OmResponse[]>;
     try {
       cached = await cache.get(key, config.ttl.openMeteo, () =>
-        url === MARINE_URL
-          ? fetchMarineWithFallback(url, params, apiVars, cost, 'point')
-          : fetchBudgeted<OmResponse | OmResponse[]>(requestUrl(url, params), cost, 'point'),
+        api === 'marine'
+          ? fetchMarineWithFallback(params, apiVars, cost, 'point')
+          : fetchOpenMeteo<OmResponse | OmResponse[]>(api, params, cost, 'point'),
       );
       usageMeter.recordCache('point', cached.cacheOutcome);
     } catch (err) {
