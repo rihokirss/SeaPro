@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ModelSkillReport, ModelSkillSeriesReport, ModelSkillSourceStats } from '@seapro/shared';
-import { BarChart3, CalendarDays, ChevronRight, Clock3, Database, MapPin, Trophy, X } from 'lucide-react';
+import { BarChart3, CalendarDays, ChevronRight, CircleHelp, Clock3, Database, MapPin, Trophy, X } from 'lucide-react';
 import { localeTag, useI18n } from '../i18n';
 import { api } from '../lib/api';
 import { modelSkillColor, ModelSkillChart, type ModelSkillMetric } from './ModelSkillChart';
@@ -35,6 +35,7 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
   const { t, lang } = useI18n();
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const helpRef = useRef<HTMLDetailsElement>(null);
   const [tab, setTab] = useState<Tab>('overview');
   const [days, setDays] = useState<Days>(30);
   const [leadHours, setLeadHours] = useState<LeadHours>(24);
@@ -57,6 +58,11 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        if (helpRef.current?.open) {
+          helpRef.current.open = false;
+          helpRef.current.querySelector<HTMLElement>('summary')?.focus();
+          return;
+        }
         onClose();
         return;
       }
@@ -75,9 +81,16 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
         first.focus();
       }
     };
+    const onPointerDown = (event: PointerEvent): void => {
+      if (helpRef.current?.open && !helpRef.current.contains(event.target as Node)) {
+        helpRef.current.open = false;
+      }
+    };
     window.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
       document.body.style.overflow = previousOverflow;
       returnFocus?.focus();
     };
@@ -135,7 +148,21 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
             <span><BarChart3 size={23} aria-hidden="true" /></span>
             <div><strong id="model-skill-title">{t('modelSkill.title')}</strong><small>{t('modelSkill.hint')}</small></div>
           </div>
-          <button ref={closeRef} type="button" className="icon-btn" onClick={onClose} aria-label={t('action.close')}><X size={21} aria-hidden="true" /></button>
+          <div className="model-skill-dialog__head-actions">
+            <details ref={helpRef} className="model-skill-help">
+              <summary aria-label={t('modelSkill.help.open')}><CircleHelp size={20} aria-hidden="true" /></summary>
+              <div className="model-skill-help__popover">
+                <strong>{t('modelSkill.help.title')}</strong>
+                <dl>
+                  <div><dt>{t('modelSkill.mae')}</dt><dd>{t('modelSkill.help.mae')}</dd></div>
+                  <div><dt>{t('modelSkill.bias')}</dt><dd>{t('modelSkill.help.bias')}</dd></div>
+                  <div><dt>{t('modelSkill.coverage')}</dt><dd>{t('modelSkill.help.coverage')}</dd></div>
+                </dl>
+                <p><code>+3 / −3 m/s</code> → {t('modelSkill.help.example')}</p>
+              </div>
+            </details>
+            <button ref={closeRef} type="button" className="icon-btn" onClick={onClose} aria-label={t('action.close')}><X size={21} aria-hidden="true" /></button>
+          </div>
         </header>
 
         <div className="model-skill-dialog__toolbar">

@@ -87,4 +87,19 @@ describe('mudelitäpsuse modaal', () => {
     fireEvent.mouseDown(container.querySelector('.model-skill-dialog__backdrop')!);
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('selgitab viga ja nihet ning Escape sulgeb esmalt popoveri', async () => {
+    vi.mocked(api.modelSkill).mockResolvedValue(report);
+    const onClose = vi.fn();
+    const { container } = render(<Wrapper><ModelSkillDialog open onClose={onClose} /></Wrapper>);
+    await userEvent.click(screen.getByLabelText('Selgita statistilisi näitajaid'));
+    expect(screen.getByText('Kuidas näitajaid lugeda?')).toBeTruthy();
+    expect(screen.getByText(/vastassuunalised eksimused tasakaalustuvad/)).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect((container.querySelector('.model-skill-help') as HTMLDetailsElement).open).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });

@@ -1148,6 +1148,18 @@ textarea {
 .model-skill-dialog__title strong, .model-skill-dialog__title small { display: block; }
 .model-skill-dialog__title strong { font-size: var(--t-lg); }
 .model-skill-dialog__title small { max-width: 680px; margin-top: 2px; overflow: hidden; color: var(--text-dim); font-size: var(--t-cap); text-overflow: ellipsis; white-space: nowrap; }
+.model-skill-dialog__head-actions { position: relative; flex: none; display: flex; align-items: center; gap: var(--s2); }
+.model-skill-help summary { width: 40px; height: 40px; display: grid; place-items: center; box-sizing: border-box; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm); cursor: pointer; list-style: none; }
+.model-skill-help summary::-webkit-details-marker { display: none; }
+.model-skill-help summary:hover, .model-skill-help[open] summary { color: var(--accent); border-color: var(--accent); }
+.model-skill-help__popover { position: absolute; z-index: 8; top: calc(100% + var(--s3)); right: 48px; width: min(350px, calc(100vw - var(--s6) - var(--s6))); padding: var(--s5); color: var(--text); background: var(--surface-solid); border: 1px solid var(--line-strong); border-radius: var(--r-md); box-shadow: var(--shadow-lg); }
+.model-skill-help__popover > strong { display: block; font-size: var(--t-sm); }
+.model-skill-help__popover dl { display: grid; gap: var(--s4); margin: var(--s5) 0 0; }
+.model-skill-help__popover dt, .model-skill-help__popover dd { margin: 0; }
+.model-skill-help__popover dt { color: var(--accent); font-size: var(--t-cap); font-weight: var(--w-bold); text-transform: uppercase; letter-spacing: var(--track-caps); }
+.model-skill-help__popover dd { margin-top: var(--s1); color: var(--text-dim); font-size: var(--t-cap); line-height: 1.45; }
+.model-skill-help__popover p { margin: var(--s4) 0 0; padding-top: var(--s4); color: var(--text-dim); border-top: 1px solid var(--line); font-size: var(--t-cap); line-height: 1.45; }
+.model-skill-help__popover code { color: var(--text); font-family: var(--num); font-weight: var(--w-bold); }
 .model-skill-dialog__toolbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--s4); padding: var(--s3) var(--s5); background: var(--surface-2); border-bottom: 1px solid var(--line); }
 .model-skill-tabs, .model-skill-filters span, .model-skill-metric { display: inline-flex; align-items: center; gap: 3px; padding: 3px; background: var(--surface-solid); border: 1px solid var(--line); border-radius: var(--r-pill); }
 .model-skill-tabs button, .model-skill-filters button, .model-skill-metric button { min-height: 34px; padding: 0 var(--s3); color: var(--text-dim); background: transparent; border: 0; border-radius: var(--r-pill); font-size: var(--t-cap); font-weight: var(--w-med); cursor: pointer; }
@@ -1235,6 +1247,7 @@ textarea {
   .model-skill-dialog__head { min-height: 64px; padding-right: var(--s4); padding-left: var(--s4); }
   .model-skill-dialog__title > span { width: 36px; height: 36px; }
   .model-skill-dialog__title small { display: none; }
+  .model-skill-help__popover { right: 0; }
   .model-skill-dialog__toolbar, .model-skill-dialog__body { padding-right: var(--s4); padding-left: var(--s4); }
   .model-skill-summary, .model-skill-cards { grid-template-columns: 1fr; }
   .model-skill-ranking { padding: var(--s4); }
