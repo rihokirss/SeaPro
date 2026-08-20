@@ -1,6 +1,6 @@
 import type { BBox, RoutePlanSource } from '@seapro/shared';
 import { VectorTile } from '@mapbox/vector-tile';
-import Pbf from 'pbf';
+import { PbfReader } from 'pbf';
 import { cache } from '../cache.js';
 import { fetchJson, request } from '../http.js';
 
@@ -93,7 +93,7 @@ async function fetchWaterTile(
       timeoutMs: 20_000,
       retries: 1,
     });
-    const vector = new VectorTile(new Pbf(new Uint8Array(await response.arrayBuffer())));
+    const vector = new VectorTile(new PbfReader(new Uint8Array(await response.arrayBuffer())));
     const layer = vector.layers.water;
     const polygons: Polygon[] = [];
     if (layer) {
