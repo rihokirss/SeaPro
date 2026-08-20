@@ -51,9 +51,10 @@ describe('routingu staatiliste paanide taustsoojendus', () => {
     const warmup = new RoutingWarmup({
       coreTiles: () => [[...first], [...second]],
       tilesAround: () => [],
-      isEstonianFresh: (tile) => fresh.has(tile.join(',')),
+      isOsmFresh: (tile) => fresh.has(tile.join(',')),
+      isEstonianFresh: () => true,
       isFinnishFresh: () => true,
-      warmEstonian: async (tile) => {
+      warmOsm: async (tile) => {
         const key = tile.join(',');
         started.push(key);
         if (key === first.join(',')) await firstPending;

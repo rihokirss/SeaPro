@@ -15,6 +15,7 @@ vi.mock('../src/http.js', () => ({
 }));
 
 import { loadOsmRoutingData } from '../src/routing/sources/osm.js';
+import { fetchTrafficSchemesSnapshot } from '../src/navigation/osmTraffic.js';
 import { loadEstonianRoutingData } from '../src/routing/sources/estonia.js';
 import { loadFinnishRoutingData } from '../src/routing/sources/finland.js';
 
@@ -71,6 +72,21 @@ describe('routingu kanooniliste paanide taaskasutus', () => {
       coverage: 'complete',
       tilesRequested: 27,
       tilesLoaded: 27,
+    });
+  });
+
+  it('loeb kaardi liiklusskeemid samast kanoonilisest OSM routing-cache’ist', async () => {
+    const result = await fetchTrafficSchemesSnapshot([59.2, 24.2, 59.4, 24.4]);
+
+    expect(mocks.cacheGet).toHaveBeenCalledOnce();
+    expect(mocks.cacheGet.mock.calls[0]?.[0])
+      .toBe('routing:openstreetmap-overpass:v3:59,24,60,25');
+    expect(mocks.cacheGet.mock.calls[0]?.[1]).toBe(7 * 24 * 3600);
+    expect(mocks.fetchJson).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      trafficSchemes: [],
+      ageSeconds: 10,
+      stale: false,
     });
   });
 

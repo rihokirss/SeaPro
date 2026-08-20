@@ -1,19 +1,11 @@
 import type { TrafficScheme, TrafficSchemeKind } from '@seapro/shared';
-import { cache } from '../cache.js';
-import { fetchJson } from '../http.js';
+import { loadOsmRoutingTileSnapshot } from '../routing/sources/osm.js';
 
 /**
  * OpenSeaMapi raster sisaldab ühes pildis nii poisid kui liiklusskeemid.
  * Siin küsime samast OSM-i algandmest ainult liikluse korraldamise objektid,
  * et ametlike navimärkide kõrvale ei tekiks dubleerivaid rasterpoide.
  */
-
-const ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-];
-
-const TTL_SECONDS = 24 * 3600;
 
 const TRAFFIC_KINDS = new Set<TrafficSchemeKind>([
   'separation_lane',
@@ -85,63 +77,26 @@ export interface TrafficSchemeSnapshot {
 export async function fetchTrafficSchemesSnapshot(
   bbox: [number, number, number, number],
 ): Promise<TrafficSchemeSnapshot> {
-  const [south, west, north, east] = bbox;
-  // Overpass loeb way bbox'i tabatuks selle SÕLMEDE, mitte ekraanil nähtava
-  // joone järgi. Pikk liiklusskeem võib seega vaate serva ületada nii, et ükski
-  // tema sõlm nähtavasse bbox'i ei jää, ning järgmine vastus kustutaks skeemi
-  // kaardilt. Vähemalt pool kraadi puhvrit hoiab serval olevad tervikobjektid
-  // päringus ja vähendab ühtlasi kaardi väikeste nihete järel uusi kutseid.
-  const step = 0.5;
-  const latMargin = Math.max(step, Math.min(1, (north - south) / 2));
-  const lonMargin = Math.max(step, Math.min(1, (east - west) / 2));
-  const snapped = [
-    Math.floor((south - latMargin) / step) * step,
-    Math.floor((west - lonMargin) / step) * step,
-    Math.ceil((north + latMargin) / step) * step,
-    Math.ceil((east + lonMargin) / step) * step,
-  ] as const;
-  // v5 eemaldab piirkondliku osm.ch peegli tagastatud ekslikult tühjad
-  // Läänemere kirjed varasemast vahemälust.
-  const key = `overpass:traffic:v5:${snapped.join(',')}`;
-  const result = await cache.get(key, TTL_SECONDS, () => queryOverpass(snapped));
-  return {
-    trafficSchemes: result.value,
-    fetchedAt: new Date(Date.now() - Math.max(0, result.ageSeconds) * 1000).toISOString(),
-    ageSeconds: result.ageSeconds,
-    stale: result.stale,
-  };
-}
-
-async function queryOverpass(
-  [south, west, north, east]: readonly [number, number, number, number],
-): Promise<TrafficScheme[]> {
-  const types = [...TRAFFIC_KINDS].join('|');
-  const query = `[out:json][timeout:60];
-(
-  way["seamark:type"~"^(${types})$"](${south},${west},${north},${east});
-  relation["seamark:type"~"^(${types})$"](${south},${west},${north},${east});
-);
-out geom tags;`;
-  let lastError: unknown;
-
-  for (const endpoint of ENDPOINTS) {
-    try {
-      const response = await fetchJson<OverpassTrafficResponse>(endpoint, {
-        form: { data: query },
-        timeoutMs: 90_000,
-        retries: 0,
-      });
-      return parseTrafficSchemes(response);
-    } catch (error) {
-      lastError = error;
-    }
+  // Routing ja kaardikiht kasutavad samu kanoonilisi 1° raw-paanikirjeid.
+  // ROUTING_PREWARM saab need taustal ette laadida ning kaardi liigutamine ei
+  // tekita enam iga veidi erineva bbox'i jaoks uut suurt Overpassi päringut.
+  const snapshot = await loadOsmRoutingTileSnapshot(bbox);
+  if (snapshot.loaded.length === 0) {
+    throw snapshot.errors[0] ?? new Error('OSM-i liiklusskeemide paane ei laaditud');
   }
 
-  throw new Error(
-    `Overpassi liiklusskeemid ei vastanud: ${
-      lastError instanceof Error ? lastError.message : String(lastError)
-    }`,
-  );
+  const merged = new Map<string, TrafficScheme>();
+  for (const tile of snapshot.loaded) {
+    for (const scheme of parseTrafficSchemes(tile.value)) merged.set(scheme.id, scheme);
+  }
+  const oldest = snapshot.loaded.reduce((result, tile) =>
+    tile.ageSeconds > result.ageSeconds ? tile : result);
+  return {
+    trafficSchemes: [...merged.values()],
+    fetchedAt: oldest.stamp.fetchedAt,
+    ageSeconds: oldest.ageSeconds,
+    stale: snapshot.loaded.some((tile) => tile.stamp.stale),
+  };
 }
 
 export function parseTrafficSchemes(response: OverpassTrafficResponse): TrafficScheme[] {

@@ -260,8 +260,10 @@ CACHE_MAX_PERSISTED_ENTRY_MB=8
 
 Kui `ROUTING_PREWARM=1`, soojendab server tunnise kontrolltsükliga Eesti
 rannikumere, Soome lahe ja Edela-Soome kanoonilised 1° staatilised
-routingupaanid. Eelisjärjekorras on Soome laht ja Edela-Soome; pärast päris
-marsruuti lisatakse järjekorda ka selle bbox'i naaberpaanid. Taustatöö ei lae
+routingupaanid. OSM/OpenSeaMapi raw-paanidest loetakse ka kaardi
+liikluseraldusskeemid, seega ei vaja kaardikiht eraldi bbox-päringuid.
+Eelisjärjekorras on Soome laht ja Edela-Soome; pärast päris marsruuti lisatakse
+järjekorda ka selle bbox'i naaberpaanid. Taustatöö ei lae
 EMODneti sügavusrasterit ega kaheminutilisi navigatsioonihoiatusi/AToN-rikkeid
 ning ei alusta uut paani aktiivse autoroute'i ajal.
 Staatiliste Transpordiameti, Väylävirasto ja OSM/OpenSeaMapi routingupaanide

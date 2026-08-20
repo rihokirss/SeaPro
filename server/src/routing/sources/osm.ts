@@ -1,6 +1,7 @@
 import type { BBox } from '@seapro/shared';
 import { cache } from '../../cache.js';
 import { fetchJson } from '../../http.js';
+import { OVERPASS_ENDPOINTS } from '../../overpass.js';
 import { routingGeometryIntersectsBbox } from '../sourceGeometry.js';
 import type {
   Position,
@@ -26,10 +27,6 @@ import {
   type LoadedTile,
 } from './common.js';
 
-const ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-];
 const SOURCE = 'openstreetmap-overpass' as const;
 const TTL_SECONDS = 7 * 24 * 3600;
 // Viimati vastanud endpoint proovitakse esimesena: kui üks peeglitest on
@@ -45,7 +42,13 @@ const RECOMMENDED_TYPES = new Set([
 // navigation_line on merekaardil on siht/leading line, mitte sõidetav
 // soovituslik keskjoon. Küsime selle kaardikihi jaoks endiselt Overpassist,
 // kuid routingukoridori sellest ei ehita.
-const DISPLAY_ONLY_TYPES = new Set(['navigation_line']);
+const DISPLAY_ONLY_TYPES = new Set([
+  'navigation_line',
+  'separation_boundary',
+  'separation_line',
+  'separation_crossing',
+  'separation_roundabout',
+]);
 const TRAFFIC_LANE_TYPES = new Set([
   'recommended_traffic_lane',
   'separation_lane',
@@ -113,6 +116,38 @@ export interface OsmRoutingData {
   restrictions: RoutingRestriction[];
   harbours: RoutingHarbour[];
   source: RoutingSourceMeta;
+}
+
+export interface OsmRoutingTileSnapshot {
+  requested: BBox[];
+  loaded: LoadedTile<OverpassRoutingResponse>[];
+  errors: unknown[];
+}
+
+/**
+ * Laadib bbox'i kanoonilised 1° OSM raw-paanid.
+ *
+ * Sama funktsiooni cache'i täidab routingWarmup ning sellest parsib oma
+ * objektid nii routing kui ka kaardi liiklusskeemikiht.
+ */
+export async function loadOsmRoutingTileSnapshot(
+  bbox: BBox,
+  signal?: AbortSignal,
+  priority: OverpassPriority = 'foreground',
+): Promise<OsmRoutingTileSnapshot> {
+  const requested = bboxTiles(bbox, 1);
+  const settled = await settleMapLimit(
+    requested,
+    2,
+    (tile) => loadTile(tile, signal, priority),
+    30_000,
+  );
+  return {
+    requested,
+    loaded: settled.flatMap((result): LoadedTile<OverpassRoutingResponse>[] =>
+      result.status === 'fulfilled' ? [result.value] : []),
+    errors: settled.flatMap((result) => result.status === 'rejected' ? [result.reason] : []),
+  };
 }
 
 export async function loadOsmRoutingData(bbox: BBox): Promise<OsmRoutingData> {
@@ -213,12 +248,12 @@ async function queryOverpass(
 );
 out geom tags;`;
   let lastError: unknown;
-  for (let attempt = 0; attempt < ENDPOINTS.length; attempt++) {
-    const index = (preferredEndpoint + attempt) % ENDPOINTS.length;
+  for (let attempt = 0; attempt < OVERPASS_ENDPOINTS.length; attempt++) {
+    const index = (preferredEndpoint + attempt) % OVERPASS_ENDPOINTS.length;
     try {
       if (signal?.aborted) break;
       const response = await overpassGate.run(priority, () => fetchJson<unknown>(
-        ENDPOINTS[index]!, {
+        OVERPASS_ENDPOINTS[index]!, {
           form: { data: query },
           // Peab mahtuma plaani 90 s tähtaja sisse ka mitme paani ja kahe
           // endpointi korral; aeglaselt rippuv peegel ei tohi plaani tappa.

@@ -1092,7 +1092,9 @@ export function App() {
   ]);
 
   useEffect(() => {
-    if (!layers.trafficSchemes || !view) return;
+    // Renderduskihid algavad z6-st; ülevaatevaates pole mõtet suuri OSM
+    // paanikomplekte laadida, mida MapLibre niikuinii veel ei kuva.
+    if (!layers.trafficSchemes || !view || view.zoom < 6) return;
     const ac = new AbortController();
     api.trafficSchemes(view.bbox, ac.signal).then(({ trafficSchemes }) => {
       // Overpassi bbox-vastused on paanid, mitte kogu maailma hetkeseis.
@@ -1108,7 +1110,7 @@ export function App() {
       // Overpass on koormatud; viimane edukas skeem jääb kaardile alles.
     });
     return () => ac.abort();
-  }, [layers.trafficSchemes, view?.bbox.join(',')]);
+  }, [layers.trafficSchemes, view?.bbox.join(','), view?.zoom]);
 
   useEffect(() => {
     const map = mapRef.current;
