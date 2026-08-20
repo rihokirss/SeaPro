@@ -18,7 +18,7 @@
     "d3-contour": "^4.0.2",
     "fastify": "^5.11.0",
     "geotiff": "^3.0.5",
-    "pbf": "^4.0.2",
+    "pbf": "^5.1.2",
     "ws": "^8.21.1"
   },
   "devDependencies": {
