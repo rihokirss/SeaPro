@@ -400,6 +400,7 @@
   "route.auto.reason.traffic_lane": "traffic lane",
   "route.auto.reason.traffic_crossing": "traffic-lane crossing",
   "route.auto.reason.traffic_wrong_way": "against traffic-lane direction",
+  "route.auto.reason.cardinal_wrong_side": "wrong side of a cardinal mark",
   "route.auto.reason.traffic_direction_unverified": "traffic-lane direction not verified for this leg",
   "route.auto.reason.separation_zone": "traffic separation zone",
   "route.auto.reason.restricted_area": "restricted area",

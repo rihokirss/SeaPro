@@ -400,6 +400,7 @@
   "route.auto.reason.traffic_lane": "liikennekaista",
   "route.auto.reason.traffic_crossing": "liikennekaistan ylitys",
   "route.auto.reason.traffic_wrong_way": "liikennekaistan suunnan vastainen kulku",
+  "route.auto.reason.cardinal_wrong_side": "kardinaalimerkin väärä puoli",
   "route.auto.reason.traffic_direction_unverified": "liikennekaistan suuntaa ei ole varmistettu tälle osuudelle",
   "route.auto.reason.separation_zone": "reittijakoalue",
   "route.auto.reason.restricted_area": "rajoitusalue",

@@ -24,10 +24,13 @@ import {
   type RoutingSnapshot,
 } from '../src/routing/planner.js';
 import { deriveHarbourAccess, type HarbourAccess } from '../src/routing/harbourAccess.js';
+import { findPath } from '../src/routing/search.js';
+import { validatePath } from '../src/routing/simplify.js';
 import type {
   RoutingCorridor,
   RoutingHarbour,
   RoutingHazard,
+  RoutingRestriction,
   RoutingSourceMeta,
   RoutingVectorData,
   RoutingWarning,
@@ -271,6 +274,44 @@ describe('routing cost surface precedence', () => {
     expect(cell.reasons).not.toContain('hazard');
   });
 
+  it('keeps a diagonal derived harbour access connected through coarse grid corners', async () => {
+    const projection = createRoutingProjection(BBOX, 10_000, 40);
+    const fromGrid = { x: 20, y: 10 };
+    const toGrid = { x: 26, y: 16 };
+    const from = positionForProjection(projection, fromGrid.x, fromGrid.y);
+    const to = positionForProjection(projection, toGrid.x, toGrid.y);
+    const corridor: RoutingCorridor = {
+      id: 'diagonal-harbour-access',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: { type: 'LineString', coordinates: [from, to] },
+      sweptDepthM: 4,
+      maxDraughtM: 2,
+      widthM: 8,
+      official: true,
+      harbourAccess: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    // Üldine sügavus sulgeb kogu pinna. Ainult ametlik sadamavektor tohib
+    // avada kitsa ühenduse, mistõttu diagonaalse raja katkemine on siin nähtav.
+    const surface = surfaceFor({
+      depthM: 0.5,
+      corridors: [corridor],
+      positionOverrides: [from, to],
+    });
+
+    const result = await findPath(surface, fromGrid, toGrid);
+
+    expect(result.status).toBe('found');
+    if (result.status === 'found') {
+      expect(result.path[0]).toEqual(fromGrid);
+      expect(result.path.at(-1)).toEqual(toGrid);
+      expect(validatePath(surface, result.path).valid).toBe(true);
+    }
+  });
+
   it('keeps a harbour centreline open when only the coarse cell edge touches land or a distant rock', () => {
     const projection = createRoutingProjection(BBOX, 10_000, 40);
     const coordinate = {
@@ -345,7 +386,7 @@ describe('routing cost surface precedence', () => {
     expect(cell.reasons).toContain('navigation_warning');
   });
 
-  it('keeps TSS traversal advisory until local travel direction is part of search state', () => {
+  it('classifies correct, crossing and wrong-way movement on a one-way TSS lane', () => {
     const lane: RoutingCorridor = {
       id: 'one-way-lane',
       kind: 'traffic_lane',
@@ -358,10 +399,89 @@ describe('routing cost surface precedence', () => {
       fetchedAt: SOURCE.fetchedAt,
       stale: false,
     };
-    const cell = detailsNear(surfaceFor({ depthM: 8, corridors: [lane] }), 24.012, 59.006);
-    expect(cell.risk).toBe('caution');
-    expect(cell.costMultiplier).toBe(50);
-    expect(cell.reasons).toContain('traffic_direction_unverified');
+    const surface = surfaceFor({ depthM: 8, corridors: [lane] });
+    const centre = surface.toGrid({ lon: 24.012, lat: 59.006 });
+    const along = surface.transitionDetails!(
+      { x: centre.x - 1, y: centre.y },
+      { x: centre.x + 1, y: centre.y },
+      centre,
+    );
+    const crossing = surface.transitionDetails!(
+      { x: centre.x, y: centre.y - 1 },
+      { x: centre.x, y: centre.y + 1 },
+      centre,
+    );
+    const wrongWay = surface.transitionDetails!(
+      { x: centre.x + 1, y: centre.y },
+      { x: centre.x - 1, y: centre.y },
+      centre,
+    );
+
+    expect(along).toMatchObject({ costMultiplier: 1, risk: 'clear', reasons: [] });
+    expect(crossing).toMatchObject({ costMultiplier: 1, risk: 'caution' });
+    expect(crossing.reasons).toContain('traffic_crossing');
+    expect(wrongWay.costMultiplier).toBe(ROUTING_COST_MULTIPLIERS.warning);
+    expect(wrongWay.reasons).toContain('traffic_wrong_way');
+  });
+
+  it('blocks a true separation zone but keeps precautionary areas advisory', () => {
+    const restriction = (category: string): RoutingRestriction => ({
+      id: category,
+      kind: 'separation_zone',
+      category,
+      geometry: areaAround(24.012, 59.006),
+      source: 'openstreetmap-overpass',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    });
+    expect(detailsNear(surfaceFor({ restrictions: [restriction('separation_zone')] }), 24.012, 59.006).blocked)
+      .toBe(true);
+    const precautionary = detailsNear(
+      surfaceFor({ restrictions: [restriction('precautionary_area')] }),
+      24.012,
+      59.006,
+    );
+    expect(precautionary.blocked).toBe(false);
+    expect(precautionary.costMultiplier).toBe(ROUTING_COST_MULTIPLIERS.warning);
+  });
+
+  it('strongly prefers the safe side of a cardinal mark without hard-blocking the wrong side', () => {
+    const mark: RoutingHazard = {
+      id: 'west-cardinal',
+      kind: 'physical_aid',
+      geometry: { type: 'Point', coordinates: [24.012, 59.006] },
+      confidence: 'high',
+      navigationRole: 'cardinal-west',
+      operational: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const surface = surfaceFor({ depthM: 8, hazards: [mark] });
+    const west = detailsNear(surface, 24.008, 59.006);
+    const east = detailsNear(surface, 24.016, 59.006);
+    expect(west.blocked).toBe(false);
+    expect(west.reasons).not.toContain('cardinal_wrong_side');
+    expect(east.blocked).toBe(false);
+    expect(east.costMultiplier).toBe(ROUTING_COST_MULTIPLIERS.warning);
+    expect(east.reasons).toContain('cardinal_wrong_side');
+
+    const longitudeMetres = 111_320 * Math.cos(59.006 * Math.PI / 180);
+    const westLine = (clearanceM: number) => {
+      const lon = 24.012 - clearanceM / longitudeMetres;
+      return [[lon, 59.005], [lon, 59.007]] as const;
+    };
+    const outside = westLine(11);
+    const inside = westLine(9);
+    expect(surface.positionTransitionAllowed!(outside[0], outside[1])).toBe(true);
+    expect(surface.positionTransitionAllowed!(inside[0], inside[1])).toBe(false);
+    const projectedInside = inside.map(([lon, lat]) => surface.toGrid({ lon, lat }));
+    expect(surface.transitionAllowed!(
+      { x: Math.round(projectedInside[0]!.x), y: Math.round(projectedInside[0]!.y), position: outside[0] },
+      { x: Math.round(projectedInside[1]!.x), y: Math.round(projectedInside[1]!.y), position: outside[1] },
+    )).toBe(true);
+    // 40 m testvõre ei tohi 10 m füüsilist puhvrit lahtri pooldiagonaalini paisutada.
+    expect(detailsNear(surface, inside[0][0], 59.006).blocked).toBe(false);
   });
 });
 
@@ -709,6 +829,96 @@ describe('route planner snapshot integration', () => {
       .toEqual(derived.access.waypoints);
     expect(result.geometry.coordinates[0]).toEqual([request.start.lon, request.start.lat]);
     expect(result.geometry.coordinates.at(-1)).toEqual([request.end.lon, request.end.lat]);
+  });
+
+  it('keeps a grid detour when a synthetic harbour connector crosses a physical aid', async () => {
+    const request: RoutePlanRequest = {
+      ...routeRequest(),
+      draughtM: 0.7,
+      underKeelClearanceM: 0,
+      beamM: 2.5,
+    };
+    const harbour: RoutingHarbour = {
+      id: 'transpordiamet-his:harbour:detour',
+      kind: 'harbour',
+      geometry: { type: 'Point', coordinates: [request.end.lon, request.end.lat] },
+      name: 'Detour sadam',
+      maxDraughtM: 2,
+      official: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const aids: RoutingHazard[] = [
+      {
+        id: 'detour-port',
+        kind: 'physical_aid',
+        geometry: { type: 'Point', coordinates: [24.018, 59.0088] },
+        confidence: 'high',
+        navigationRole: 'lateral-port',
+        source: 'transpordiamet-his',
+        fetchedAt: SOURCE.fetchedAt,
+        stale: false,
+      },
+      {
+        id: 'detour-starboard',
+        kind: 'physical_aid',
+        geometry: { type: 'Point', coordinates: [24.018, 59.0092] },
+        confidence: 'high',
+        navigationRole: 'lateral-starboard',
+        source: 'transpordiamet-his',
+        fetchedAt: SOURCE.fetchedAt,
+        stale: false,
+      },
+      {
+        id: 'leading-light-on-straight-connector',
+        kind: 'physical_aid',
+        geometry: { type: 'Point', coordinates: [24.0195, 59.009] },
+        confidence: 'high',
+        navigationRole: 'other',
+        source: 'transpordiamet-his',
+        fetchedAt: SOURCE.fetchedAt,
+        stale: false,
+      },
+    ];
+    const centreline: RoutingCorridor = {
+      id: 'detour-main-line',
+      kind: 'fairway',
+      geometryRole: 'centreline',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[request.start.lon, request.start.lat], [24.017, 59.009]],
+      },
+      sweptDepthM: 4,
+      official: true,
+      source: 'transpordiamet-his',
+      fetchedAt: SOURCE.fetchedAt,
+      stale: false,
+    };
+    const snapshot = snapshotFor({
+      depthM: 8,
+      corridors: [centreline],
+      harbours: [harbour],
+      hazards: aids,
+    });
+    const derived = deriveHarbourAccess(
+      request.end,
+      request,
+      snapshot.vectors,
+      'end',
+    );
+    expect(derived.status).toBe('access');
+    if (derived.status !== 'access') throw new Error('Expected end harbour access');
+
+    const result = await planRoute(request, { snapshot, bbox: BBOX });
+
+    expect(result.status).not.toBe('no_route');
+    if (result.status === 'no_route') throw new Error('Expected a local harbour detour');
+    expect(result.geometry.coordinates.at(-1)).toEqual([request.end.lon, request.end.lat]);
+    expect(result.geometry.coordinates).not.toEqual([
+      [request.start.lon, request.start.lat],
+      ...[...derived.access.waypoints].reverse(),
+    ]);
   });
 
   it('retries a resolution-sensitive no_route on a strict two-times-finer grid', async () => {
@@ -1180,6 +1390,7 @@ interface SurfaceOptions {
   harbours?: RoutingHarbour[];
   water?: RoutingWaterMask;
   warnings?: RoutingWarning[];
+  restrictions?: RoutingRestriction[];
   positionOverrides?: [number, number][];
 }
 
@@ -1260,6 +1471,7 @@ function vectorData(options: SurfaceOptions): RoutingVectorData {
     ...(options.corridors ?? []).map((item) => item.source),
     ...(options.hazards ?? []).map((item) => item.source),
     ...(options.warnings ?? []).map((item) => item.source),
+    ...(options.restrictions ?? []).map((item) => item.source),
   ])].map((source) => ({
     id: source,
     source,
@@ -1277,7 +1489,7 @@ function vectorData(options: SurfaceOptions): RoutingVectorData {
     bbox: BBOX,
     hazards: options.hazards ?? [],
     corridors: options.corridors ?? [],
-    restrictions: [],
+    restrictions: options.restrictions ?? [],
     warnings: options.warnings ?? [],
     surveyAreas: [],
     harbours: options.harbours,

@@ -32,7 +32,7 @@ describe('routing graph comparison API', () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers['cache-control']).toContain('max-age=60');
     expect(response.json()).toMatchObject({
-      version: 'seapro-routing-graph-v1',
+      version: 'seapro-routing-graph-v2',
       builtAt: '2026-08-09T12:00:00.000Z',
       graph: {
         type: 'FeatureCollection',
@@ -58,7 +58,7 @@ describe('routing graph comparison API', () => {
 
 function graphFixture(): PreparedRoutingGraph {
   return {
-    version: 'seapro-routing-graph-v1',
+    version: 'seapro-routing-graph-v2',
     builtAt: '2026-08-09T12:00:00.000Z',
     bbox: [59, 24, 60, 25],
     nodes: [
@@ -89,6 +89,13 @@ function graphFixture(): PreparedRoutingGraph {
         sourceFeatureIds: ['route-2'],
       },
     ],
+    routingSupport: {
+      bbox: [59, 24, 60, 25],
+      hazards: [],
+      corridors: [],
+      restrictions: [],
+      sources: [],
+    },
     stats: {
       inputCorridors: 2,
       inputLines: 2,

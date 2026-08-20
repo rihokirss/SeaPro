@@ -20,6 +20,8 @@ const METRES_PER_LATITUDE_DEGREE = 111_320;
 const DEFAULT_MAX_CELLS = 600_000;
 const MIN_CELL_SIZE_M = 75;
 const OFFICIAL_POINT_STRUCTURE_BUFFER_M = 500;
+const CARDINAL_INFLUENCE_M = 0.5 * 1_852;
+const CARDINAL_HARD_CLEARANCE_M = 10;
 const TRUSTED_ROUTE_MAX_DRAUGHT_M = 3;
 const TRUSTED_ROUTE_MAX_BEAM_M = 10;
 /**
@@ -57,6 +59,7 @@ export const ROUTING_REASON_CODES = [
   'traffic_direction_unverified',
   'traffic_crossing',
   'traffic_wrong_way',
+  'cardinal_wrong_side',
   'separation_zone',
   'restricted_area',
   'structure_clearance',
@@ -84,6 +87,7 @@ const CAUTION_REASON_MASK = REASON_BITS.low_clearance
   | REASON_BITS.official_corridor_limit
   | REASON_BITS.traffic_crossing
   | REASON_BITS.traffic_wrong_way
+  | REASON_BITS.cardinal_wrong_side
   | REASON_BITS.traffic_direction_unverified
   | REASON_BITS.separation_zone
   | REASON_BITS.restricted_area
@@ -119,6 +123,13 @@ export interface RoutingCellDetails {
   readonly depthM: number | null;
 }
 
+export interface RoutingTransitionDetails {
+  readonly costMultiplier: number;
+  readonly risk: RouteRisk;
+  readonly reasons: RoutingReasonCode[];
+  readonly sourceIds: string[];
+}
+
 export interface RoutingCostSurface extends RoutingGrid {
   readonly projection: RoutingGridProjection;
   readonly requiredDepthM: number;
@@ -127,6 +138,9 @@ export interface RoutingCostSurface extends RoutingGrid {
   toGrid(point: { lon: number; lat: number }): GridCoordinate;
   toPosition(point: GridCoordinate): Position;
   detailsAt(x: number, y: number): RoutingCellDetails;
+  transitionDetails?(from: GridCoordinate, to: GridCoordinate, at?: GridCoordinate): RoutingTransitionDetails;
+  /** Täpsete vektorkoordinaatidega servakontroll valmisgraafi jaoks. */
+  positionTransitionAllowed?(from: Position, to: Position): boolean;
   /**
    * Tõene ainult jämeda alusvõre segarakul, kus osa üheksast vee-/sügavusproovist
    * blokeerib ja osa mitte ning ükski vektorpiirang ei blokeeri rakku. Planner
@@ -175,6 +189,10 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
   const sourceMasks = new Uint32Array(size);
   const depths = new Float32Array(size);
   const mixedBaseCells = new Uint8Array(size);
+  const trafficCells = new Map<number, RoutingCorridor[]>();
+  const trafficCellMask = new Uint8Array(size);
+  const cardinalClearances = new Map<number, Array<{ position: Position; radiusM: number }>>();
+  const cardinalTransitionMask = new Uint8Array(size);
   depths.fill(Number.NaN);
   const sourceIds = collectSourceIds(input.vectors.sources);
   const sourceIndexes = new Map(sourceIds.map((source, index) => [source, index]));
@@ -364,6 +382,28 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
     cellAt(x, y): RoutingCell {
       return cachedCellAt(cellIndex(projection, x, y));
     },
+    transitionCostMultiplier(from, to) {
+      const x = Math.max(0, Math.min(projection.width - 1, Math.round(to.x)));
+      const y = Math.max(0, Math.min(projection.height - 1, Math.round(to.y)));
+      if (trafficCellMask[y * projection.width + x] === 0) return 1;
+      return transitionDetails(from, to).costMultiplier;
+    },
+    transitionAllowed(from, to) {
+      const exactFrom = exactTransitionPosition(from);
+      const exactTo = exactTransitionPosition(to);
+      return exactFrom || exactTo
+        ? cardinalTransitionAllowed(exactFrom ?? gridPosition(from), exactTo ?? gridPosition(to))
+        : cardinalGridTransitionAllowed(from, to);
+    },
+    diagonalCornerTransitionAllowed(from, to) {
+      const fromIndex = from.y * projection.width + from.x;
+      const toIndex = to.y * projection.width + to.x;
+      return (reasonMasks[fromIndex]! & REASON_BITS.harbour_access) !== 0
+        && (reasonMasks[toIndex]! & REASON_BITS.harbour_access) !== 0;
+    },
+    positionTransitionAllowed(from, to) {
+      return cardinalTransitionAllowed(from, to);
+    },
     toGrid(point) {
       return coordinateToGrid(projection, point.lon, point.lat);
     },
@@ -386,6 +426,7 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
         depthM: Number.isFinite(depths[index]) ? depths[index]! : null,
       };
     },
+    transitionDetails,
     refinementCandidateAt(x, y) {
       const index = cellIndex(projection, x, y);
       const blockMask = blocks[index]!;
@@ -482,17 +523,15 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
       }
       if (blocks[index] !== 0) return;
       if (corridor.kind === 'traffic_lane') {
-        // A positsioonipõhine A* ei kanna saabumissuunda olekus. Seetõttu ei
-        // tohi võrrelda TSS-i ühe globaalse A->B kursiga ega nimetada läbimist
-        // õigeks suunaks. Ühesuunaline rada on kuni suunateadliku otsinguni
-        // tugev hoiatus, muu liiklusrada kontrolli vajav ettevaatusala.
-        costs[index] = Math.max(
-          costs[index]!,
-          corridor.direction === 'one_way'
-            ? ROUTING_COST_MULTIPLIERS.warning
-            : ROUTING_COST_MULTIPLIERS.lowClearance,
-        );
-        addReason(index, 'traffic_direction_unverified', corridor.source);
+        const lanes = trafficCells.get(index) ?? [];
+        if (!lanes.some((lane) => lane.id === corridor.id)) lanes.push(corridor);
+        trafficCells.set(index, lanes);
+        trafficCellMask[index] = 1;
+        if (corridor.direction === 'unknown'
+          || (corridor.direction === 'one_way' && corridor.directionDegrees === undefined)) {
+          costs[index] = Math.max(costs[index]!, ROUTING_COST_MULTIPLIERS.warning);
+          addReason(index, 'traffic_direction_unverified', corridor.source);
+        }
         addReason(index, 'traffic_lane', corridor.source);
       } else {
         if ((reasonMasks[index]! & (UNKNOWN_REASON_MASK | CAUTION_REASON_MASK)) === 0) {
@@ -533,8 +572,11 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
   function applyRestriction(restriction: RoutingRestriction): void {
     if (restriction.kind === 'separation_zone') {
       rasterizeGeometry(projection, restriction.geometry, projection.cellSizeM * Math.SQRT2 / 2, (index) => {
-        if (blocks[index] !== 0) return;
-        costs[index] = Math.max(costs[index]!, ROUTING_COST_MULTIPLIERS.warning);
+        if (restriction.category === 'separation_zone') {
+          blocks[index] = blocks[index]! | BLOCK_RESTRICTION;
+        } else if (blocks[index] === 0) {
+          costs[index] = Math.max(costs[index]!, ROUTING_COST_MULTIPLIERS.warning);
+        }
         addReason(index, 'separation_zone', restriction.source);
       }, checkpoint);
       return;
@@ -589,6 +631,47 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
     // füüsiline keha ja NMA koondfailil põhinev kaardikiht teda ei näitagi.
     // Töötava märgi rikked katab eraldi aton_fault hoiatuskiht.
     if (hazard.kind === 'physical_aid' && hazard.operational === false) return;
+    if (hazard.kind === 'physical_aid'
+      && hazard.geometry.type === 'Point'
+      && hazard.navigationRole?.startsWith('cardinal-')) {
+      const [hazardLon, hazardLat] = hazard.geometry.coordinates;
+      const rawGrid = coordinateToGrid(projection, hazardLon, hazardLat);
+      const grid = { x: Math.round(rawGrid.x), y: Math.round(rawGrid.y) };
+      if (grid.x >= 0 && grid.x < projection.width && grid.y >= 0 && grid.y < projection.height) {
+        const index = grid.y * projection.width + grid.x;
+        const entries = cardinalClearances.get(index) ?? [];
+        entries.push({
+          position: hazard.geometry.coordinates,
+          radiusM: Math.max(CARDINAL_HARD_CLEARANCE_M, (hazard.sizeM ?? 0) / 2),
+        });
+        cardinalClearances.set(index, entries);
+        // Tavalisel A*-sammul piisab ühest odavast maskikontrollist. ±2
+        // katab naaberserva senise ±1 otsingupuhvri mõlema otspunkti suhtes.
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const x = grid.x + dx;
+            const y = grid.y + dy;
+            if (x >= 0 && x < projection.width && y >= 0 && y < projection.height) {
+              cardinalTransitionMask[y * projection.width + x] = 1;
+            }
+          }
+        }
+      }
+      rasterizeGeometry(projection, hazard.geometry, CARDINAL_INFLUENCE_M, (index, point) => {
+        if (blocks[index] !== 0 || !cardinalWrongSide(
+          hazard.navigationRole!,
+          hazardLon,
+          hazardLat,
+          point,
+          projection.metresPerLongitudeDegree,
+        )) return;
+        costs[index] = Math.max(costs[index]!, ROUTING_COST_MULTIPLIERS.warning);
+        addReason(index, 'cardinal_wrong_side', hazard.source);
+      }, checkpoint);
+      // Kardinaalmärgi füüsilist 10 m vahet kontrollitakse täpselt liikumisserval.
+      // Lahtri blokeerimine paisutaks selle pikal marsruudil ~100 meetrini.
+      return;
+    }
     const uncertaintyM = hazard.confidence === 'high' ? 10 : hazard.confidence === 'medium' ? 30 : 75;
     const exactRadiusM = input.vessel.beamM / 2 + Math.max(
       (hazard.sizeM ?? 0) / 2,
@@ -624,6 +707,109 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
     }, checkpoint);
   }
 
+  function gridPosition(point: GridCoordinate): Position {
+    if (Number.isInteger(point.x) && Number.isInteger(point.y)) {
+      const override = positionOverrides.get(point.y * projection.width + point.x);
+      if (override) return override;
+    }
+    return positionAt(projection, point.x, point.y);
+  }
+
+  function exactTransitionPosition(point: GridCoordinate): Position | null {
+    // Hübriidotsingu valmisgraafi punkt kannab lisaks võrerakule algset
+    // vektorkoordinaati. Kasutame seda ka lihtsustaja kordusvalideerimisel:
+    // võreraku keskpunkt võiks muidu täpse 10 m puhvri ekslikult sulgeda.
+    const exact = (point as GridCoordinate & { position?: unknown }).position;
+    if (Array.isArray(exact)
+      && exact.length === 2
+      && Number.isFinite(exact[0])
+      && Number.isFinite(exact[1])) {
+      return [exact[0] as number, exact[1] as number];
+    }
+    return null;
+  }
+
+  function cardinalGridTransitionAllowed(from: GridCoordinate, to: GridCoordinate): boolean {
+    if (cardinalClearances.size === 0) return true;
+    if (Math.abs(to.x - from.x) <= 1 && Math.abs(to.y - from.y) <= 1) {
+      const fromIndex = Math.round(from.y) * projection.width + Math.round(from.x);
+      const toIndex = Math.round(to.y) * projection.width + Math.round(to.x);
+      if (cardinalTransitionMask[fromIndex] === 0 && cardinalTransitionMask[toIndex] === 0) {
+        return true;
+      }
+    }
+    const minX = Math.max(0, Math.floor(Math.min(from.x, to.x)) - 1);
+    const maxX = Math.min(projection.width - 1, Math.ceil(Math.max(from.x, to.x)) + 1);
+    const minY = Math.max(0, Math.floor(Math.min(from.y, to.y)) - 1);
+    const maxY = Math.min(projection.height - 1, Math.ceil(Math.max(from.y, to.y)) + 1);
+    let fromPosition: Position | null = null;
+    let toPosition: Position | null = null;
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const clearances = cardinalClearances.get(y * projection.width + x);
+        if (!clearances) continue;
+        fromPosition ??= gridPosition(from);
+        toPosition ??= gridPosition(to);
+        for (const clearance of clearances) {
+          if (distanceToSegmentM(
+            clearance.position,
+            fromPosition,
+            toPosition,
+            projection,
+          ) <= clearance.radiusM) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function cardinalTransitionAllowed(from: Position, to: Position): boolean {
+    if (cardinalClearances.size === 0) return true;
+    const fromGrid = coordinateToGrid(projection, from[0], from[1]);
+    const toGrid = coordinateToGrid(projection, to[0], to[1]);
+    return cardinalClearancesBetween(fromGrid, toGrid).every((clearance) =>
+      distanceToSegmentM(clearance.position, from, to, projection) > clearance.radiusM);
+  }
+
+  function cardinalClearancesBetween(
+    from: GridCoordinate,
+    to: GridCoordinate,
+  ): Array<{ position: Position; radiusM: number }> {
+    const result: Array<{ position: Position; radiusM: number }> = [];
+    const minX = Math.max(0, Math.floor(Math.min(from.x, to.x)) - 1);
+    const maxX = Math.min(projection.width - 1, Math.ceil(Math.max(from.x, to.x)) + 1);
+    const minY = Math.max(0, Math.floor(Math.min(from.y, to.y)) - 1);
+    const maxY = Math.min(projection.height - 1, Math.ceil(Math.max(from.y, to.y)) + 1);
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        for (const clearance of cardinalClearances.get(y * projection.width + x) ?? []) {
+          result.push(clearance);
+        }
+      }
+    }
+    return result;
+  }
+
+  function transitionDetails(
+    from: GridCoordinate,
+    to: GridCoordinate,
+    at: GridCoordinate = to,
+  ): RoutingTransitionDetails {
+    const x = Math.max(0, Math.min(projection.width - 1, Math.round(at.x)));
+    const y = Math.max(0, Math.min(projection.height - 1, Math.round(at.y)));
+    const lanes = trafficCells.get(cellIndex(projection, x, y)) ?? [];
+    if (lanes.length === 0) {
+      return { costMultiplier: 1, risk: 'clear', reasons: [], sourceIds: [] };
+    }
+    const fromPosition = positionAt(projection, from.x, from.y);
+    const toPosition = positionAt(projection, to.x, to.y);
+    const heading = movementBearing(fromPosition, toPosition, projection.metresPerLongitudeDegree);
+    const classified = lanes.map((lane) => classifyTrafficMovement(lane, heading))
+      .sort((left, right) => left.costMultiplier - right.costMultiplier
+        || left.reasons.join(',').localeCompare(right.reasons.join(',')))[0]!;
+    return classified;
+  }
+
   function applyWarning(warning: RoutingWarning): void {
     const radiusM = Math.max(500, projection.cellSizeM * 2);
     rasterizeGeometry(projection, warning.geometry, radiusM, (index) => {
@@ -642,6 +828,76 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
       );
     }, checkpoint);
   }
+}
+
+function classifyTrafficMovement(
+  lane: RoutingCorridor,
+  heading: number,
+): RoutingTransitionDetails {
+  const sourceIds = [lane.source];
+  if (lane.direction !== 'one_way') {
+    return lane.direction === 'unknown'
+      ? {
+          costMultiplier: ROUTING_COST_MULTIPLIERS.warning,
+          risk: 'caution',
+          reasons: ['traffic_direction_unverified'],
+          sourceIds,
+        }
+      : { costMultiplier: 1, risk: 'clear', reasons: [], sourceIds };
+  }
+  if (lane.directionDegrees === undefined) {
+    return {
+      costMultiplier: ROUTING_COST_MULTIPLIERS.warning,
+      risk: 'caution',
+      reasons: ['traffic_direction_unverified'],
+      sourceIds,
+    };
+  }
+  const difference = angularDifference(heading, lane.directionDegrees);
+  if (difference <= 30) {
+    return { costMultiplier: 1, risk: 'clear', reasons: [], sourceIds };
+  }
+  if (Math.abs(difference - 90) <= 20) {
+    return {
+      costMultiplier: 1,
+      risk: 'caution',
+      reasons: ['traffic_crossing'],
+      sourceIds,
+    };
+  }
+  return {
+    costMultiplier: ROUTING_COST_MULTIPLIERS.warning,
+    risk: 'caution',
+    reasons: [difference >= 150 ? 'traffic_wrong_way' : 'traffic_direction_unverified'],
+    sourceIds,
+  };
+}
+
+function movementBearing(from: Position, to: Position, metresPerLongitudeDegree: number): number {
+  const east = (to[0] - from[0]) * metresPerLongitudeDegree;
+  const north = (to[1] - from[1]) * METRES_PER_LATITUDE_DEGREE;
+  return (Math.atan2(east, north) * 180 / Math.PI + 360) % 360;
+}
+
+function angularDifference(left: number, right: number): number {
+  const difference = Math.abs(((left - right + 540) % 360) - 180);
+  return Math.min(180, difference);
+}
+
+function cardinalWrongSide(
+  role: NonNullable<RoutingHazard['navigationRole']>,
+  hazardLon: number,
+  hazardLat: number,
+  point: Position,
+  metresPerLongitudeDegree: number,
+): boolean {
+  const east = (point[0] - hazardLon) * metresPerLongitudeDegree;
+  const north = (point[1] - hazardLat) * METRES_PER_LATITUDE_DEGREE;
+  if (role === 'cardinal-north') return north < 0;
+  if (role === 'cardinal-east') return east < 0;
+  if (role === 'cardinal-south') return north > 0;
+  if (role === 'cardinal-west') return east > 0;
+  return false;
 }
 
 export function createRoutingProjection(

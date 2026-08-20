@@ -12,10 +12,13 @@ import type { HarbourAccessSupport } from './harbourAccess.js';
 import type {
   Position,
   RoutingCorridor,
+  RoutingHazard,
+  RoutingRestriction,
   RoutingSourceId,
+  RoutingSourceMeta,
 } from './sourceTypes.js';
 
-export const PREPARED_ROUTING_GRAPH_VERSION = 'seapro-routing-graph-v1' as const;
+export const PREPARED_ROUTING_GRAPH_VERSION = 'seapro-routing-graph-v2' as const;
 const ENDPOINT_SNAP_M = 5;
 const NODE_SNAP_M = 0.5;
 // 1° pikkuskraadi on teenusala põhjaservas (66,2° N) ~45 km. Suurem jagaja
@@ -47,6 +50,15 @@ export interface PreparedRoutingGraphEdge {
   widthM?: number;
 }
 
+/** Runtime'is vajalikud staatilised ohutusvektorid, mis ei kuulu keskjoonte graafi. */
+export interface PreparedRoutingSupport {
+  bbox: BBox;
+  hazards: RoutingHazard[];
+  corridors: RoutingCorridor[];
+  restrictions: RoutingRestriction[];
+  sources: RoutingSourceMeta[];
+}
+
 export interface PreparedRoutingGraph {
   version: typeof PREPARED_ROUTING_GRAPH_VERSION;
   builtAt: string;
@@ -55,6 +67,8 @@ export interface PreparedRoutingGraph {
   edges: PreparedRoutingGraphEdge[];
   /** Sadamaotste tuletamiseks vajalik kompaktne staatiline tugi. */
   harbourAccessSupport?: HarbourAccessSupport;
+  /** Graafiväliste ühenduste ohutuseks vajalik staatiline vektorkiht. */
+  routingSupport: PreparedRoutingSupport;
   stats: {
     inputCorridors: number;
     inputLines: number;
@@ -145,6 +159,7 @@ export function buildPreparedRoutingGraph(
   options: {
     maxEdgeLengthM?: number;
     harbourAccessSupport?: HarbourAccessSupport;
+    routingSupport?: PreparedRoutingSupport;
   } = {},
 ): PreparedRoutingGraph {
   const extracted = extractSourceLines(corridors);
@@ -164,6 +179,13 @@ export function buildPreparedRoutingGraph(
     ...(options.harbourAccessSupport
       ? { harbourAccessSupport: options.harbourAccessSupport }
       : {}),
+    routingSupport: options.routingSupport ?? {
+      bbox: [...bbox],
+      hazards: [],
+      corridors: [],
+      restrictions: [],
+      sources: [],
+    },
     stats: {
       inputCorridors: corridors.length,
       inputLines: extracted.inputLines,
@@ -719,6 +741,14 @@ function assertPreparedRoutingGraph(value: unknown): asserts value is PreparedRo
       || !Array.isArray(graph.harbourAccessSupport.hazards)
       || !Array.isArray(graph.harbourAccessSupport.corridors))) {
     throw new Error('Routingugraafi sadamatoe plokk on vigane');
+  }
+  if (!graph.routingSupport || typeof graph.routingSupport !== 'object'
+    || !Array.isArray(graph.routingSupport.bbox)
+    || !Array.isArray(graph.routingSupport.hazards)
+    || !Array.isArray(graph.routingSupport.corridors)
+    || !Array.isArray(graph.routingSupport.restrictions)
+    || !Array.isArray(graph.routingSupport.sources)) {
+    throw new Error('Routingugraafi staatiline ohutustugi on vigane');
   }
   for (const [index, node] of graph.nodes.entries()) {
     if (node?.id !== index || !Array.isArray(node.position) || !validPosition(node.position)) {

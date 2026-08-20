@@ -48,7 +48,6 @@ export const OFFICIAL_DEPTH_MIN_ZOOM = 7;
  * kohta läbi kogu 8500-punktiline katvuspiir.
  */
 export class DepthCoverage {
-  readonly #edges: BoundaryEdge[];
   readonly #latitudeBuckets = new Map<number, BoundaryEdge[]>();
   readonly #bounds: [number, number, number, number];
 
@@ -82,7 +81,6 @@ export class DepthCoverage {
       }
     }
 
-    this.#edges = edges;
     this.#bounds = [west, south, east, north];
     for (const edge of edges) {
       const first = latitudeBucket(edge.minY);

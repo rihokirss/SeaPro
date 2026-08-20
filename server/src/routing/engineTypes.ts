@@ -35,6 +35,16 @@ export interface RoutingGrid {
    */
   readonly minimumCostMultiplier?: number;
   cellAt(x: number, y: number): RoutingCell;
+  /** Täpne servapiirang, mida jämeda lahtri blokeerimine paisutaks liiga suureks. */
+  transitionAllowed?(from: GridPoint, to: GridPoint): boolean;
+  /**
+   * Lubab täpselt avaldatud keskjoonel läbida diagonaalselt võreraku nurka.
+   * Otspunktide läbitavust ja `transitionAllowed` piiranguid kontrollitakse
+   * sellest hoolimata; erand puudutab ainult kahte külgnevat kõrvalrakku.
+   */
+  diagonalCornerTransitionAllowed?(from: GridPoint, to: GridPoint): boolean;
+  /** Liikumissuunast sõltuv lisakordaja, näiteks ühesuunalisel liiklusrajal. */
+  transitionCostMultiplier?(from: GridPoint, to: GridPoint): number;
 }
 
 export const ROUTING_COST_MULTIPLIERS = Object.freeze({

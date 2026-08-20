@@ -9,6 +9,9 @@ import type {
   Position,
   RoutingCorridor,
   RoutingHarbour,
+  RoutingHazard,
+  RoutingRestriction,
+  RoutingSourceMeta,
 } from '../src/routing/sourceTypes.js';
 
 const BBOX: BBox = [58.9, 23.9, 59.2, 24.3];
@@ -39,6 +42,58 @@ describe('prepared routing graph', () => {
     const graph = buildPreparedRoutingGraph([], BBOX, FETCHED_AT, { harbourAccessSupport });
 
     expect(graph.harbourAccessSupport).toEqual(harbourAccessSupport);
+  });
+
+  it('stores versioned static traffic, hazard and restriction support', () => {
+    const lane: RoutingCorridor = {
+      ...corridor('traffic', [[24, 59], [24.1, 59]], false),
+      kind: 'traffic_lane',
+      direction: 'one_way',
+      directionDegrees: 90,
+    };
+    const hazard: RoutingHazard = {
+      id: 'cardinal',
+      kind: 'physical_aid',
+      geometry: { type: 'Point', coordinates: [24.05, 59] },
+      confidence: 'high',
+      navigationRole: 'cardinal-west',
+      source: 'transpordiamet-his',
+      fetchedAt: FETCHED_AT,
+      stale: false,
+    };
+    const restriction: RoutingRestriction = {
+      id: 'separation',
+      kind: 'separation_zone',
+      category: 'separation_zone',
+      geometry: { type: 'Polygon', coordinates: [[[24, 59], [24.1, 59], [24.1, 59.1], [24, 59]]] },
+      source: 'openstreetmap-overpass',
+      fetchedAt: FETCHED_AT,
+      stale: false,
+    };
+    const source: RoutingSourceMeta = {
+      id: 'openstreetmap-overpass',
+      source: 'openstreetmap-overpass',
+      status: 'ok',
+      stale: false,
+      fetchedAt: FETCHED_AT,
+      ageSeconds: 0,
+      coverage: 'complete',
+      tilesRequested: 1,
+      tilesLoaded: 1,
+      attribution: 'test',
+      attributionUrl: 'https://example.test',
+    };
+    const routingSupport = {
+      bbox: BBOX,
+      hazards: [hazard],
+      corridors: [lane],
+      restrictions: [restriction],
+      sources: [source],
+    };
+    const graph = buildPreparedRoutingGraph([], BBOX, FETCHED_AT, { routingSupport });
+
+    expect(graph.version).toBe('seapro-routing-graph-v2');
+    expect(graph.routingSupport).toEqual(routingSupport);
   });
 
   it('preserves source turns and splits real intersections into one shared node', () => {

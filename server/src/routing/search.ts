@@ -181,7 +181,13 @@ async function runSearch(
     for (const neighbour of traversableNeighbours(grid, current.point, options.allowed)) {
       const nextId = pointId(grid, neighbour.point);
       const nextCell = routingCellAt(grid, neighbour.point);
-      const edgeCost = neighbour.distance * (currentCell.costMultiplier + nextCell.costMultiplier) / 2;
+      const transitionMultiplier = grid.transitionCostMultiplier?.(current.point, neighbour.point) ?? 1;
+      if (!Number.isFinite(transitionMultiplier) || transitionMultiplier <= 0) {
+        throw new RangeError('transitionCostMultiplier must return a positive finite number');
+      }
+      const edgeCost = neighbour.distance
+        * (currentCell.costMultiplier + nextCell.costMultiplier) / 2
+        * transitionMultiplier;
       const tentative = current.g + edgeCost;
       if (tentative + EPSILON >= scores[nextId]!) continue;
       scores[nextId] = tentative;

@@ -84,9 +84,11 @@ export function traversableNeighbours(
   for (const [dx, dy] of DIRECTIONS) {
     const next = { x: point.x + dx, y: point.y + dy };
     if (!isTraversable(grid, next, allowed)) continue;
+    if (grid.transitionAllowed?.(point, next) === false) continue;
     if (dx !== 0 && dy !== 0) {
-      if (!isTraversable(grid, { x: point.x + dx, y: point.y }, allowed)
-        || !isTraversable(grid, { x: point.x, y: point.y + dy }, allowed)) continue;
+      const blockedCorner = !isTraversable(grid, { x: point.x + dx, y: point.y }, allowed)
+        || !isTraversable(grid, { x: point.x, y: point.y + dy }, allowed);
+      if (blockedCorner && grid.diagonalCornerTransitionAllowed?.(point, next) !== true) continue;
     }
     result.push({ point: next, distance: dx === 0 || dy === 0 ? 1 : Math.SQRT2 });
   }

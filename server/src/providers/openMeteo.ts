@@ -445,7 +445,7 @@ export class OpenMeteoProvider implements WeatherProvider {
       wantsOcean ? this.#fetchSeries(MARINE_URL, q, oceanVars, ['best_match'], OCEAN_VARS) : [],
     ]);
 
-    return mergeByModel(atmo, mergeSteps(waves, ocean), models);
+    return mergeByModel(atmo, mergeSteps(waves, ocean));
   }
 
   /** Üks tund. Ehitatud sama ööpäevase ploki pealt mis `gridDay`. */
@@ -840,11 +840,6 @@ export class OpenMeteoProvider implements WeatherProvider {
 }
 
 /**
- * Liidab atmosfääri- ja mereseeriad üheks ajareaks mudeli kaupa.
- * Merevälju on ainult üks komplekt (lainemudelid on atmosfäärimudelitest eraldi),
- * seega kanname sama merearvutuse kõigile mudelireadadele.
- */
-/**
  * Liidab kaks ajarida ühte, ajatempli järgi.
  *
  * Vaja on seda, sest meri tuleb nüüd KAHE päringuna: laineväljad valitud
@@ -868,7 +863,7 @@ function mergeSteps(primary: TimeSeries[], secondary: TimeSeries[]): TimeSeries[
   }));
 }
 
-function mergeByModel(atmo: TimeSeries[], marine: TimeSeries[], models: string[]): TimeSeries[] {
+function mergeByModel(atmo: TimeSeries[], marine: TimeSeries[]): TimeSeries[] {
   if (atmo.length === 0) return marine;
   if (marine.length === 0) return atmo;
 
@@ -887,13 +882,6 @@ function mergeByModel(atmo: TimeSeries[], marine: TimeSeries[], models: string[]
 /** Open-Meteo annab "2026-07-27T16:00" ilma tsoonita; meie leping on ISO UTC. */
 function normalizeTime(t: string): string {
   return t.endsWith('Z') ? t : `${t}:00Z`.replace(/:00:00Z$/, ':00Z');
-}
-
-/** ISO aeg -> "YYYY-MM-DDTHH:00", mida Open-Meteo start_hour/end_hour ootab. */
-function hourFloor(iso: string): string {
-  const d = new Date(iso);
-  d.setUTCMinutes(0, 0, 0);
-  return d.toISOString().slice(0, 13) + ':00';
 }
 
 /**
@@ -923,21 +911,6 @@ function timeBlock(iso: string): { blockStart: string; blockEnd: string } {
     blockStart: `${start.toISOString().slice(0, 13)}:00`,
     blockEnd: `${end.toISOString().slice(0, 13)}:00`,
   };
-}
-
-/** Küsitud tunni indeks vastuse ajaveerus. -1, kui plokk seda ei kata. */
-function findHourIndex(times: string[] | undefined, iso: string): number {
-  if (!times || times.length === 0) return -1;
-  const target = new Date(iso);
-  target.setUTCMinutes(0, 0, 0);
-  const wanted = target.getTime();
-
-  for (let i = 0; i < times.length; i++) {
-    const t = times[i]!;
-    const stamp = new Date(t.endsWith('Z') ? t : `${t}:00Z`.replace(/:00:00Z$/, ':00Z')).getTime();
-    if (stamp === wanted) return i;
-  }
-  return -1;
 }
 
 export const openMeteo = new OpenMeteoProvider();

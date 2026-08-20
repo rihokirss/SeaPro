@@ -13,6 +13,7 @@ import { bearingDegrees, distanceMetres, routeDistanceNm } from '@seapro/shared'
 import { config } from '../config.js';
 import {
   buildRoutingCostSurface,
+  createRoutingProjection,
   isSmallCraftRoutingProfile,
   type RoutingCellDetails,
   type RoutingCostSurface,
@@ -80,7 +81,8 @@ const MIN_ENDPOINT_COMPONENT_CELLS = 64;
 const PREPARED_GRAPH_MAX_CELLS = 1_200_000;
 const REFINED_MAX_CELLS = 2_400_000;
 const REFINED_MIN_CELL_SIZE_M = 37.5;
-const MAX_PRIMARY_ROUTE_STRETCH = 1.1;
+const MAX_PREPARED_GRAPH_PRIMARY_CELL_M = 120;
+const MIN_DIRECT_PREPARED_GRAPH_REFINEMENT_NM = 70;
 
 export interface RoutingSnapshot {
   depth: RoutingDepthRaster;
@@ -168,6 +170,19 @@ export async function planRoute(
   const limitIssues = harbourLimitIssues(startAccessResult, endAccessResult, request);
   const preparedSmallCraft = snapshot.preparedGraph != null
     && isSmallCraftRoutingProfile(request);
+  const directDistanceNm = distanceMetres(request.start, request.end) / 1_852;
+  // Pikal avamerel võib 1,2 M lahtri piir projitseerida 150 m valmisgraafi
+  // servad peaaegu sama suure 140+ m võre peale. Selline esimene katse annab
+  // sageli pika trepi ja käivitab niikuinii kogu peenvõrgu uuesti. Alustame
+  // sel juhul kohe lõpliku lahtripiiriga. Lühemates saarestikukanalites jääb
+  // põhilahendus alles: seal võib peenvõrk sõlmepiiri enne sihti täis saada.
+  const directPreparedGraphRefinement = preparedSmallCraft
+    && directDistanceNm >= MIN_DIRECT_PREPARED_GRAPH_REFINEMENT_NM
+    && createRoutingProjection(
+      planningBbox,
+      PREPARED_GRAPH_MAX_CELLS,
+      REFINED_MIN_CELL_SIZE_M,
+    ).cellSizeM > MAX_PREPARED_GRAPH_PRIMARY_CELL_M;
   const derivedStartAccess = accessFromResult(startAccessResult);
   const derivedEndAccess = accessFromResult(endAccessResult);
   // Graafi kuuluvad keskjooned tulevad kulupinnale valmis graafist; sama
@@ -188,26 +203,40 @@ export async function planRoute(
     [request.end.lon, request.end.lat],
   ]);
 
-  const surfaceStartedAt = performance.now();
-  let surface: RoutingCostSurface | null = buildRoutingCostSurface({
-    bbox: planningBbox,
-    depth: snapshot.depth,
-    water: snapshot.water,
-    vectors: routingVectors,
-    vessel: request,
-    checkpoint: deadline.checkpoint,
-    positionOverrides,
-    ...(preparedSmallCraft
-      ? { maxCells: PREPARED_GRAPH_MAX_CELLS, minCellSizeM: REFINED_MIN_CELL_SIZE_M }
-      : {}),
-    onPhase: instrumentation
-      ? (name, ms) => instrumentation.phase(`cost_surface.${name}`, ms)
-      : undefined,
-  });
-  instrumentation?.phase('cost_surface', performance.now() - surfaceStartedAt, {
-    cells: surface.width * surface.height,
-    cellSizeM: Math.round(surface.projection.cellSizeM),
-  });
+  const buildPlanSurface = (
+    maxCells: number | undefined,
+    prefix = '',
+    meta: Record<string, number> = {},
+  ): RoutingCostSurface => {
+    const startedAt = performance.now();
+    const result = buildRoutingCostSurface({
+      bbox: planningBbox,
+      depth: snapshot.depth,
+      water: snapshot.water,
+      vectors: routingVectors,
+      vessel: request,
+      checkpoint: deadline.checkpoint,
+      positionOverrides,
+      ...(maxCells === undefined ? {} : {
+        maxCells,
+        minCellSizeM: REFINED_MIN_CELL_SIZE_M,
+      }),
+      onPhase: instrumentation
+        ? (name, ms) => instrumentation.phase(`${prefix}cost_surface.${name}`, ms)
+        : undefined,
+    });
+    instrumentation?.phase(`${prefix}cost_surface`, performance.now() - startedAt, {
+      cells: result.width * result.height,
+      cellSizeM: Math.round(result.projection.cellSizeM),
+      ...meta,
+    });
+    return result;
+  };
+
+  const initialMaxCells = preparedSmallCraft
+    ? directPreparedGraphRefinement ? REFINED_MAX_CELLS : PREPARED_GRAPH_MAX_CELLS
+    : undefined;
+  let surface: RoutingCostSurface | null = buildPlanSurface(initialMaxCells);
   deadline.checkpoint();
   const primary = await attemptRouteOnSurface({
     request,
@@ -223,12 +252,35 @@ export async function planRoute(
     deadline,
     instrumentation,
   });
-  const refineSuccessfulDetour = primary.response.status !== 'no_route'
-    && preparedSmallCraft
-    && primary.response.distanceNm > distanceMetres(request.start, request.end)
-      / 1_852 * MAX_PRIMARY_ROUTE_STRETCH;
-  if (!refineSuccessfulDetour
-    && (primary.response.status !== 'no_route' || !primary.refinementEligible)) {
+  if (primary.response.status !== 'no_route') {
+    instrumentation?.phase('primary_result', 0, {
+      distanceNm: Number(primary.response.distanceNm.toFixed(3)),
+    });
+  }
+  if (directPreparedGraphRefinement) {
+    if (primary.response.status !== 'no_route') return primary.response;
+    // Peenvõrk võib keerulises sadama-/saarestikuvõrgus sõlmepiiri täis saada.
+    // Jämedam turvakatse on sellisel juhul odavam ja väldib vale no_route'i.
+    surface = null;
+    deadline.checkpoint();
+    const fallbackSurface = buildPlanSurface(PREPARED_GRAPH_MAX_CELLS, 'coarse_fallback.');
+    const fallback = await attemptRouteOnSurface({
+      request,
+      planningBbox,
+      snapshot,
+      surface: fallbackSurface,
+      sources,
+      routingVectors,
+      preparedGraph: snapshot.preparedGraph ?? null,
+      derivedStartAccess,
+      derivedEndAccess,
+      limitIssues,
+      deadline,
+      instrumentation: prefixedInstrumentation(instrumentation, 'coarse_fallback.'),
+    });
+    return fallback.response;
+  }
+  if (primary.response.status !== 'no_route' || !primary.refinementEligible) {
     return primary.response;
   }
 
@@ -249,24 +301,7 @@ export async function planRoute(
   const primaryCellSizeM = surface.projection.cellSizeM;
   surface = null;
   deadline.checkpoint();
-  const refinedStartedAt = performance.now();
-  const refinedSurface = buildRoutingCostSurface({
-    bbox: planningBbox,
-    depth: snapshot.depth,
-    water: snapshot.water,
-    vectors: routingVectors,
-    vessel: request,
-    checkpoint: deadline.checkpoint,
-    maxCells: REFINED_MAX_CELLS,
-    minCellSizeM: REFINED_MIN_CELL_SIZE_M,
-    positionOverrides,
-    onPhase: instrumentation
-      ? (name, ms) => instrumentation.phase(`refinement.cost_surface.${name}`, ms)
-      : undefined,
-  });
-  instrumentation?.phase('refinement.cost_surface', performance.now() - refinedStartedAt, {
-    cells: refinedSurface.width * refinedSurface.height,
-    cellSizeM: Math.round(refinedSurface.projection.cellSizeM),
+  const refinedSurface = buildPlanSurface(REFINED_MAX_CELLS, 'refinement.', {
     primaryCellSizeM: Math.round(primaryCellSizeM),
   });
   deadline.checkpoint();
@@ -284,11 +319,12 @@ export async function planRoute(
     deadline,
     instrumentation: prefixedInstrumentation(instrumentation, 'refinement.'),
   });
-  if (primary.response.status === 'no_route') return refined.response;
-  if (refined.response.status === 'no_route') return primary.response;
-  return refined.response.distanceNm < primary.response.distanceNm
-    ? refined.response
-    : primary.response;
+  if (refined.response.status !== 'no_route') {
+    instrumentation?.phase('refinement_result', 0, {
+      distanceNm: Number(refined.response.distanceNm.toFixed(3)),
+    });
+  }
+  return refined.response;
   } finally {
     instrumentation?.phase('total', performance.now() - totalStartedAt);
     deadline.dispose();
@@ -435,10 +471,7 @@ async function attemptRouteOnSurface(
   for (let attempt = 0; attempt <= 3; attempt++) {
     const prepareStartedAt = performance.now();
     const preparationSurface = isSmallCraftRoutingProfile(request)
-      ? trustPreparedPathOnSurface(activeSurface, [
-        ...result.trustedPaths,
-        ...harbourAccessTrustedPaths(activeSurface, startAccess, endAccess),
-      ])
+      ? trustPreparedPathOnSurface(activeSurface, result.trustedPaths)
       : activeSurface;
     prepared = prepareRouteCandidate(
       snapshot,
@@ -613,11 +646,12 @@ export async function loadRoutingSnapshot(
   if (depth.status !== 'fulfilled' || water.status !== 'fulfilled' || vectors.status !== 'fulfilled') {
     throw new RoutingDataUnavailableError('Marsruudi snapshot jäi poolikuks', unavailable);
   }
+  const graph = preparedGraph.status === 'fulfilled' ? preparedGraph.value : null;
   return {
     depth: depth.value,
     water: water.value,
-    vectors: vectors.value,
-    preparedGraph: preparedGraph.status === 'fulfilled' ? preparedGraph.value : null,
+    vectors: withPreparedRoutingSupport(vectors.value, graph?.routingSupport),
+    preparedGraph: graph,
   };
 }
 
@@ -645,6 +679,20 @@ function withPreparedHarbourAccessSupport(
     harbours: mergeFeatures(support.harbours, vectors.harbours ?? []),
     hazards: mergeFeatures(support.hazards, vectors.hazards),
     corridors: mergeFeatures(support.corridors, vectors.corridors),
+  };
+}
+
+function withPreparedRoutingSupport(
+  vectors: RoutingVectorData,
+  support: PreparedRoutingGraph['routingSupport'] | undefined,
+): RoutingVectorData {
+  if (!support) return vectors;
+  return {
+    ...vectors,
+    hazards: mergeFeatures(support.hazards, vectors.hazards),
+    corridors: mergeFeatures(support.corridors, vectors.corridors),
+    restrictions: mergeFeatures(support.restrictions, vectors.restrictions),
+    sources: mergeFeatures(support.sources, vectors.sources),
   };
 }
 
@@ -1125,7 +1173,7 @@ async function findPathThrough(
         end: to,
         checkpoint: deadline.checkpoint,
         signal: deadline.signal,
-        connectorTimeoutMs: Math.min(20_000, deadline.remainingMs()),
+        timeoutMs: Math.min(20_000, deadline.remainingMs()),
         maxExpandedNodes: remainingNodes,
       });
       instrumentation?.phase('corridor_graph', performance.now() - backboneStartedAt, {
@@ -1134,18 +1182,6 @@ async function findPathThrough(
         expandedNodes: attempt.expandedNodes,
         startCandidates: attempt.startCandidates,
         endCandidates: attempt.endCandidates,
-        ...(attempt.remoteEndNetworkCost !== undefined
-          ? { remoteEndNetworkCost: Number(attempt.remoteEndNetworkCost.toFixed(1)) }
-          : {}),
-        ...(attempt.remoteStartNetworkCost !== undefined
-          ? { remoteStartNetworkCost: Number(attempt.remoteStartNetworkCost.toFixed(1)) }
-          : {}),
-        ...(attempt.remoteSelection
-          ? { selectedEndNetwork: attempt.remoteSelection === 'end_network' ? 1 : 0 }
-          : {}),
-        ...(attempt.remoteSelection
-          ? { selectedBothNetworks: attempt.remoteSelection === 'both_networks' ? 1 : 0 }
-          : {}),
         ...(attempt.route ? { protectedPoints: attempt.route.protectedPoints.length } : {}),
       });
       expandedNodes += attempt.expandedNodes;
@@ -1225,21 +1261,6 @@ function corridorBackboneLeg(
     graph,
     vessel,
   };
-}
-
-function harbourAccessTrustedPaths(
-  surface: RoutingCostSurface,
-  startAccess: HarbourAccess | null,
-  endAccess: HarbourAccess | null,
-): PreparedPathLine[] {
-  return [startAccess, endAccess].flatMap((access): PreparedPathLine[] => access ? [{
-    points: access.waypoints.map((position) => ({
-      ...gridPointAt(surface, position),
-      position: [...position],
-    })),
-    kind: access.corridor.official ? 'official' : 'recommended',
-    sourceIds: [access.corridor.source],
-  }] : []);
 }
 
 function orderedRequiredPoints(
@@ -1587,7 +1608,7 @@ function composeExactRouteGeometry(
 
   if (startAccess) {
     const startPositions = harbourPositionsFromStart(startAccess, start.position);
-    positioned = surface.trustPublishedRoutes
+    positioned = surface.trustPublishedRoutes && exactHarbourPathTraversable(surface, startPositions)
       ? replaceWithExactPath(surface, positioned, startPositions, 0)
       : overlayExactPositions(surface, positioned, startPositions, 0);
   }
@@ -1597,7 +1618,7 @@ function composeExactRouteGeometry(
     const outerPoint = gridPointAt(surface, endPositions[0]!);
     const outerIndex = findLastGridPointIndex(positioned, outerPoint);
     if (outerIndex < 0) throw new Error('End harbour outer anchor is missing from the path');
-    positioned = surface.trustPublishedRoutes
+    positioned = surface.trustPublishedRoutes && exactHarbourPathTraversable(surface, endPositions)
       ? replaceWithExactPath(surface, positioned, endPositions, outerIndex)
       : overlayExactPositions(surface, positioned, endPositions, outerIndex);
   }
@@ -1610,6 +1631,40 @@ function composeExactRouteGeometry(
   }
 
   return positioned;
+}
+
+/**
+ * Tuletatud sadamakanal sisaldab ka sünteetilist ühendust sadamapunktist
+ * väravani. See asendab võreraja täpse joonega ainult juhul, kui kogu joon on
+ * päriselt läbitav; muidu säilitame A* leitud kohaliku detuuri ja kinnitame
+ * sellele üksnes kanali täpsed ankrud.
+ */
+function exactHarbourPathTraversable(
+  surface: RoutingCostSurface,
+  positions: readonly Position[],
+): boolean {
+  for (let index = 1; index < positions.length; index++) {
+    const from = positions[index - 1]!;
+    const to = positions[index]!;
+    if (surface.positionTransitionAllowed?.(from, to) === false) return false;
+    const fromGrid = surface.toGrid({ lon: from[0], lat: from[1] });
+    const toGrid = surface.toGrid({ lon: to[0], lat: to[1] });
+    const steps = Math.max(1, Math.ceil(Math.max(
+      Math.abs(toGrid.x - fromGrid.x),
+      Math.abs(toGrid.y - fromGrid.y),
+    ) * 4));
+    for (let step = 0; step <= steps; step++) {
+      const ratio = step / steps;
+      const x = Math.max(0, Math.min(surface.width - 1, Math.round(
+        fromGrid.x + (toGrid.x - fromGrid.x) * ratio,
+      )));
+      const y = Math.max(0, Math.min(surface.height - 1, Math.round(
+        fromGrid.y + (toGrid.y - fromGrid.y) * ratio,
+      )));
+      if (surface.cellAt(x, y).blocked) return false;
+    }
+  }
+  return true;
 }
 
 /**
