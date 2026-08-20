@@ -96,6 +96,8 @@ export const config = {
   },
 
   backgroundPoll: bool('BACKGROUND_POLL', true),
+  /** Taustal kogutav mudelitäpsuse ajalugu ja selle menüüvaade. */
+  modelSkillEnabled: bool('MODEL_SKILL_ENABLED', false),
   /** Staatiliste routingupaanide eellaadimine; vaikimisi eraldi välja lülitatud. */
   routingPrewarm: bool('ROUTING_PREWARM', false),
 

@@ -851,7 +851,7 @@ export class OpenMeteoProvider implements WeatherProvider {
       forecast_days: String(POINT_FORECAST_DAYS),
       // Näitame ka eelmise ööpäeva, et graafikul oleks kontekst.
       past_days: '1',
-      cell_selection: api === 'marine' ? 'sea' : 'land',
+      cell_selection: q.cellSelection ?? (api === 'marine' ? 'sea' : 'land'),
     });
 
     const realModels = models.filter((m) => m !== 'best_match');

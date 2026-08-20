@@ -7,6 +7,7 @@ import { SearchBox } from './SearchBox';
 
 interface Props {
   onOpenLayers(): void;
+  onGoHome(): void;
   geo: GeoState;
   favorites: ReturnType<typeof useFavorites>;
   onGoTo(lat: number, lon: number, zoom?: number): void;
@@ -30,7 +31,7 @@ function CompassRose() {
   );
 }
 
-export function TopBar({ onOpenLayers, onOpenRoutes, onOpenVesselSettings, geo, favorites, onGoTo, bbox }: Props) {
+export function TopBar({ onOpenLayers, onGoHome, onOpenRoutes, onOpenVesselSettings, geo, favorites, onGoTo, bbox }: Props) {
   const { t } = useI18n();
   const [favOpen, setFavOpen] = useState(false);
 
@@ -54,13 +55,19 @@ export function TopBar({ onOpenLayers, onOpenRoutes, onOpenVesselSettings, geo, 
 
   return (
     <header className="topbar">
-      <div className="topbar__brand">
+      <button
+        type="button"
+        className="topbar__brand"
+        onClick={onGoHome}
+        title={t('action.homeView')}
+        aria-label={t('action.homeView')}
+      >
         <CompassRose />
         <div>
           <strong>{t('app.title')}</strong>
           <span>{t('app.subtitle')}</span>
         </div>
-      </div>
+      </button>
 
       <SearchBox bbox={bbox} onGoTo={onGoTo} />
 

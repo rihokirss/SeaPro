@@ -236,6 +236,74 @@ export interface StationReading extends Station {
   ageSeconds: number | null;
 }
 
+// ---------------------------------------------------------------------------
+// Prognoosimudelite verifikatsioon
+// ---------------------------------------------------------------------------
+
+export interface ModelSkillPoint {
+  id: string;
+  name: string;
+  country: 'EE' | 'FI';
+  observationProviderId: string;
+}
+
+export interface ModelSkillSourceStats {
+  sourceId: string;
+  label: string;
+  samples: number;
+  stations: number;
+  /** Osakaal suurima sama vaate võrreldavast valimist, 0…1. */
+  coverage: number;
+  /** Kas valim on piisav ja kogu valitud punktide hulk on kaetud. */
+  rankingEligible: boolean;
+  windSpeedMae: number | null;
+  windSpeedRmse: number | null;
+  windSpeedBias: number | null;
+  windGustMae: number | null;
+  windDirectionMae: number | null;
+  /** Spoti ja mõõtejaama keskmine vahemaa; mudelivõre puhul null. */
+  averageLocationDistanceKm: number | null;
+}
+
+export interface ModelSkillReport {
+  generatedAt: string;
+  collectionStartedAt: string | null;
+  lastObservationAt: string | null;
+  lastForecastAt: string | null;
+  days: 7 | 30 | 90;
+  leadHours: 0 | 3 | 12 | 24 | 48;
+  /** null tähendab kõigi kontrollpunktide koondit. */
+  pointId: string | null;
+  points: ModelSkillPoint[];
+  sources: ModelSkillSourceStats[];
+}
+
+export interface ModelSkillSeriesEntry {
+  capturedAt: string;
+  validAt: string;
+  observedAt: string;
+  forecastWindSpeed: number | null;
+  forecastWindGust: number | null;
+  forecastWindDirection: number | null;
+  observedWindSpeed: number | null;
+  observedWindGust: number | null;
+  observedWindDirection: number | null;
+}
+
+export interface ModelSkillSeriesSource {
+  sourceId: string;
+  label: string;
+  entries: ModelSkillSeriesEntry[];
+}
+
+export interface ModelSkillSeriesReport {
+  generatedAt: string;
+  days: 7 | 30 | 90;
+  leadHours: 0 | 3 | 12 | 24 | 48;
+  point: ModelSkillPoint;
+  sources: ModelSkillSeriesSource[];
+}
+
 /** METOC-i originaali värskuseastmed; kasutame sama loogikat kõigi jaamade jaoks. */
 export type Freshness = 'fresh' | 'stale' | 'old' | 'none';
 

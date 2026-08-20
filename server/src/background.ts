@@ -5,6 +5,7 @@ import { transpordiamet } from './ais/transpordiamet.js';
 import { config } from './config.js';
 import { listProviders } from './providers/registry.js';
 import { aisAtons } from './navigation/aisAton.js';
+import { startModelVerification, stopModelVerification } from './modelVerification.js';
 
 interface Logger {
   info(msg: string): void;
@@ -49,6 +50,7 @@ export function startBackgroundJobs(log: Logger): void {
   }
 
   startAis(log);
+  if (config.modelSkillEnabled) startModelVerification(log);
 }
 
 /**
@@ -97,4 +99,5 @@ export function stopBackgroundJobs(): void {
   aisstream.stop();
   transpordiamet.stop();
   aisAtons.stop();
+  stopModelVerification();
 }

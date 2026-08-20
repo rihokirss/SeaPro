@@ -16,6 +16,8 @@ import type {
   RouteAnalysisRequest,
   RoutePlanRequest,
   RoutePlanResponse,
+  ModelSkillReport,
+  ModelSkillSeriesReport,
 } from '@seapro/shared';
 import { getSessionId } from './session';
 import type { FeatureCollection, LineString } from 'geojson';
@@ -26,6 +28,7 @@ export interface AppConfig {
   defaultZoom: number;
   aisEnabled: boolean;
   aisstreamEnabled: boolean;
+  modelSkillEnabled: boolean;
 }
 
 export interface RoutingGraphData {
@@ -104,6 +107,17 @@ export const api = {
   config: (signal?: AbortSignal) => get<AppConfig>('/api/config', signal),
 
   providers: (signal?: AbortSignal) => get<ProviderCapabilities[]>('/api/providers', signal),
+
+  modelSkill(days: 7 | 30 | 90, leadHours: 0 | 3 | 12 | 24 | 48, pointId?: string, signal?: AbortSignal) {
+    const p = new URLSearchParams({ days: String(days), leadHours: String(leadHours) });
+    if (pointId) p.set('pointId', pointId);
+    return get<ModelSkillReport>(`/api/model-skill?${p}`, signal);
+  },
+
+  modelSkillSeries(days: 7 | 30 | 90, leadHours: 0 | 3 | 12 | 24 | 48, pointId: string, signal?: AbortSignal) {
+    const p = new URLSearchParams({ days: String(days), leadHours: String(leadHours), pointId });
+    return get<ModelSkillSeriesReport>(`/api/model-skill/series?${p}`, signal);
+  },
 
   radarTimes: (signal?: AbortSignal) => get<RadarTimeline>('/api/radar-times', signal),
 

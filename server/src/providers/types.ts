@@ -18,6 +18,8 @@ export interface PointQuery {
   models?: string[];
   /** Lainemudel. Eraldi `models`-ist, sest mere-API-l on oma mudelinimed. */
   waveModel?: string;
+  /** Võrgulahtri valik; diagnostika kasutab sama `nearest` valikut mis kaardikiht. */
+  cellSelection?: 'land' | 'sea' | 'nearest';
 }
 
 export interface GridQuery {

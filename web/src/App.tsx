@@ -48,6 +48,7 @@ import { MapKey } from './components/MapKey';
 import { LocateButton } from './components/LocateButton';
 import { RoutePanel } from './components/RoutePanel';
 import { VesselSettingsDialog } from './components/VesselSettingsDialog';
+import { ModelSkillDialog } from './components/ModelSkillDialog';
 import { NavigationBar } from './components/NavigationBar';
 import { routeStore } from './lib/routeStore';
 import { isAutomaticRouteName, suggestedRouteName } from './lib/routeName';
@@ -441,6 +442,9 @@ export function App() {
 
   const [layers, setLayers] = useState<LayerState>(() => loadLayerState(DEFAULT_LAYERS));
   const [panelOpen, setPanelOpen] = useState(false);
+  const [modelSkillOpen, setModelSkillOpen] = useState(false);
+  const [modelSkillTrigger, setModelSkillTrigger] = useState<HTMLButtonElement | null>(null);
+  const closeModelSkill = useCallback(() => setModelSkillOpen(false), []);
   const [routeOpen, setRouteOpen] = useState(false);
   const [vesselSettingsOpen, setVesselSettingsOpen] = useState(false);
   const [homeHarbourPicking, setHomeHarbourPicking] = useState(false);
@@ -1495,6 +1499,19 @@ export function App() {
     mapRef.current?.easeTo({ center: [lon, lat], zoom });
   }, []);
 
+  const goHome = useCallback(() => {
+    const homeHarbour = vesselProfile.homeHarbour;
+    if (homeHarbour) {
+      goTo(homeHarbour.lat, homeHarbour.lon, 13);
+      return;
+    }
+    goTo(
+      config?.defaultLat ?? 59.0,
+      config?.defaultLon ?? 23.5,
+      config?.defaultZoom ?? 7,
+    );
+  }, [vesselProfile.homeHarbour, config, goTo]);
+
   const i18nValue = useMemo(() => ({ lang, t, setLang }), [lang, t, setLang]);
 
   /*
@@ -1534,6 +1551,7 @@ export function App() {
       <div className={`app${picked ? ' has-point-forecast' : ''}`}>
         <TopBar
           onOpenLayers={() => setPanelOpen(true)}
+          onGoHome={goHome}
           onOpenRoutes={() => { setRouteOpen(true); setPicked(null); }}
           onOpenVesselSettings={() => {
             setVesselSettingsOpen(true);
@@ -1671,7 +1689,18 @@ export function App() {
           onSpeedUnitChange={changeSpeedUnit}
           theme={theme}
           onThemeChange={setTheme}
+          modelSkillEnabled={Boolean(config?.modelSkillEnabled)}
+          onOpenModelSkill={(trigger) => {
+            setModelSkillTrigger(trigger);
+            setModelSkillOpen(true);
+          }}
         />
+
+        {config?.modelSkillEnabled ? <ModelSkillDialog
+          open={modelSkillOpen}
+          returnFocus={modelSkillTrigger}
+          onClose={closeModelSkill}
+        /> : null}
 
         <RoutePanel
           open={routeOpen}

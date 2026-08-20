@@ -9,6 +9,8 @@ import type {
   Variable,
   RouteAnalysisRequest,
   RoutePlanRequest,
+  ModelSkillReport,
+  ModelSkillSeriesReport,
 } from '@seapro/shared';
 import { VARIABLES, distanceMetres } from '@seapro/shared';
 import { cache } from '../cache.js';
@@ -63,6 +65,14 @@ import {
   loadPreparedRoutingGraph,
   preparedGraphGeoJson,
 } from '../routing/preparedGraph.js';
+import {
+  modelVerification,
+  VERIFICATION_DAYS,
+  VERIFICATION_LEADS,
+  VERIFICATION_POINTS,
+  type VerificationDays,
+  type VerificationLead,
+} from '../modelVerification.js';
 
 const VARIABLE_SET = new Set<string>(VARIABLES);
 
@@ -219,9 +229,48 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     defaultZoom: config.defaultZoom,
     aisEnabled: true,
     aisstreamEnabled: Boolean(config.aisstreamKey),
+    modelSkillEnabled: config.modelSkillEnabled,
   }));
 
   app.get('/api/providers', async () => listCapabilities());
+
+  app.get('/api/model-skill', async (req, reply): Promise<ModelSkillReport | unknown> => {
+    if (!config.modelSkillEnabled) return reply.code(404).send({ error: 'Mudelitäpsuse diagnostika ei ole sisse lülitatud' });
+    const query = req.query as Record<string, unknown>;
+    const rawDays = Number(query.days ?? 30);
+    const rawLead = Number(query.leadHours ?? 24);
+    const days: VerificationDays = (VERIFICATION_DAYS as readonly number[]).includes(rawDays)
+      ? rawDays as VerificationDays
+      : 30;
+    const leadHours: VerificationLead = (VERIFICATION_LEADS as readonly number[]).includes(rawLead)
+      ? rawLead as VerificationLead
+      : 24;
+    const pointId = typeof query.pointId === 'string' && query.pointId ? query.pointId : undefined;
+    if (pointId && !VERIFICATION_POINTS.some((point) => point.id === pointId)) {
+      return reply.code(400).send({ error: 'Tundmatu kontrollpunkt' });
+    }
+    reply.header('Cache-Control', 'public, max-age=60');
+    return modelVerification.report(days, leadHours, Date.now(), pointId);
+  });
+
+  app.get('/api/model-skill/series', async (req, reply): Promise<ModelSkillSeriesReport | unknown> => {
+    if (!config.modelSkillEnabled) return reply.code(404).send({ error: 'Mudelitäpsuse diagnostika ei ole sisse lülitatud' });
+    const query = req.query as Record<string, unknown>;
+    const rawDays = Number(query.days ?? 30);
+    const rawLead = Number(query.leadHours ?? 24);
+    const days: VerificationDays = (VERIFICATION_DAYS as readonly number[]).includes(rawDays)
+      ? rawDays as VerificationDays
+      : 30;
+    const leadHours: VerificationLead = (VERIFICATION_LEADS as readonly number[]).includes(rawLead)
+      ? rawLead as VerificationLead
+      : 24;
+    const pointId = typeof query.pointId === 'string' ? query.pointId : '';
+    if (!VERIFICATION_POINTS.some((point) => point.id === pointId)) {
+      return reply.code(400).send({ error: 'Tundmatu kontrollpunkt' });
+    }
+    reply.header('Cache-Control', 'public, max-age=60');
+    return modelVerification.series(days, leadHours, pointId);
+  });
 
   /** Saadaval vaatlus- ja nowcast-kaadrite ajad Keskkonnaagentuuri WMS-ist. */
   app.get('/api/radar-times', async (_req, reply) => {

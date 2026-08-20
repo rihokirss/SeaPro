@@ -4,6 +4,7 @@ import { LANGS, useI18n } from '../i18n';
 import { COLOR_SCALES, SCALAR_FIELDS, rgbaCss, sampleScale } from '../map/colorScales';
 import { THEMES, type Theme } from '../lib/theme';
 import { SPEED_UNITS, type SpeedUnit } from '../lib/units';
+import { ModelSkillLauncher } from './ModelSkillDialog';
 
 /**
  * Kuidas tuult kaardil näidata.
@@ -50,6 +51,8 @@ interface Props {
   onSpeedUnitChange(next: SpeedUnit): void;
   theme: Theme;
   onThemeChange(next: Theme): void;
+  modelSkillEnabled: boolean;
+  onOpenModelSkill(trigger: HTMLButtonElement): void;
 }
 
 function Toggle({
@@ -116,6 +119,8 @@ export function LayerPanel({
   onSpeedUnitChange,
   theme,
   onThemeChange,
+  modelSkillEnabled,
+  onOpenModelSkill,
 }: Props) {
   const { t, lang, setLang } = useI18n();
 
@@ -161,10 +166,32 @@ export function LayerPanel({
           <section className="panel__section">
             <h3>{t('layer.group.navigation')}</h3>
             <Toggle
-              checked={layers.overlays.includes('chart')}
-              onChange={(v) => toggleOverlay('chart', v)}
-              label={t('layer.chart')}
-              hint={t('layer.chart.hint')}
+              checked={layers.placeLabels}
+              onChange={(v) => set({ placeLabels: v })}
+              label={t('layer.placeLabels')}
+            />
+            <Toggle
+              checked={layers.officialNavigation}
+              onChange={(v) => set({ officialNavigation: v })}
+              label={t('layer.officialNavigation')}
+              hint={t('layer.officialNavigation.hint')}
+            />
+            <Toggle
+              checked={layers.navigationWarnings}
+              onChange={(v) => set({ navigationWarnings: v })}
+              label={t('layer.navigationWarnings')}
+              hint={t('layer.navigationWarnings.hint')}
+            />
+            <Toggle
+              checked={layers.navigationAids}
+              onChange={(v) => set({ navigationAids: v })}
+              label={t('layer.navigationAids')}
+            />
+            <Toggle
+              checked={layers.trafficSchemes}
+              onChange={(v) => set({ trafficSchemes: v })}
+              label={t('layer.trafficSchemes')}
+              hint={t('layer.trafficSchemes.hint')}
             />
             <Toggle
               checked={layers.overlays.includes('depth-details')}
@@ -179,43 +206,21 @@ export function LayerPanel({
               hint={t('layer.bathymetry.hint')}
             />
             <Toggle
-              checked={layers.placeLabels}
-              onChange={(v) => set({ placeLabels: v })}
-              label={t('layer.placeLabels')}
+              checked={layers.wrecks}
+              onChange={(v) => set({ wrecks: v })}
+              label={t('layer.wrecks')}
             />
             <Toggle
-              checked={layers.officialNavigation}
-              onChange={(v) => set({ officialNavigation: v })}
-              label={t('layer.officialNavigation')}
-              hint={t('layer.officialNavigation.hint')}
+              checked={layers.overlays.includes('chart')}
+              onChange={(v) => toggleOverlay('chart', v)}
+              label={t('layer.chart')}
+              hint={t('layer.chart.hint')}
             />
             <Toggle
               checked={layers.routingGraph}
               onChange={(v) => set({ routingGraph: v })}
               label={t('layer.routingGraph')}
               hint={t('layer.routingGraph.hint')}
-            />
-            <Toggle
-              checked={layers.navigationWarnings}
-              onChange={(v) => set({ navigationWarnings: v })}
-              label={t('layer.navigationWarnings')}
-              hint={t('layer.navigationWarnings.hint')}
-            />
-            <Toggle
-              checked={layers.wrecks}
-              onChange={(v) => set({ wrecks: v })}
-              label={t('layer.wrecks')}
-            />
-            <Toggle
-              checked={layers.navigationAids}
-              onChange={(v) => set({ navigationAids: v })}
-              label={t('layer.navigationAids')}
-            />
-            <Toggle
-              checked={layers.trafficSchemes}
-              onChange={(v) => set({ trafficSchemes: v })}
-              label={t('layer.trafficSchemes')}
-              hint={t('layer.trafficSchemes.hint')}
             />
           </section>
 
@@ -433,6 +438,8 @@ export function LayerPanel({
               ))}
             </div>
           </section>
+
+          {modelSkillEnabled ? <ModelSkillLauncher onOpen={onOpenModelSkill} /> : null}
 
           <footer className="panel__credit">
             {t('app.author')}{' '}
