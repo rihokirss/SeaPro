@@ -121,7 +121,7 @@ export const config = {
   /** Ala, millest `npm run data:routing-graph` vaikimisi valmis graafi teeb. */
   routingGraphBbox: bbox('ROUTING_GRAPH_BBOX', [57.45, 18.75, 62, 29]),
   /** Eeltöödeldud staatilise navigatsioonigraafi fail. */
-  routingGraphFile: str('ROUTING_GRAPH_FILE', 'data/routing-graph-v1.json'),
+  routingGraphFile: str('ROUTING_GRAPH_FILE', 'data/routing-graph-v2.json'),
   routingMaxDistanceNm: num('ROUTING_MAX_DISTANCE_NM', 500),
   /** Kogu külma snapshot'i, klassifitseerimise ja otsingu ühine tähtaeg. */
   routingPlanTimeoutMs: num('ROUTING_PLAN_TIMEOUT_MS', 90_000),

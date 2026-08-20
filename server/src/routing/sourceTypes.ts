@@ -61,6 +61,10 @@ export type RoutingConfidence = 'high' | 'medium' | 'low';
 export type RoutingAidRole =
   | 'lateral-port'
   | 'lateral-starboard'
+  | 'cardinal-north'
+  | 'cardinal-east'
+  | 'cardinal-south'
+  | 'cardinal-west'
   | 'other';
 
 export interface RoutingHazard extends RoutingFeatureBase {

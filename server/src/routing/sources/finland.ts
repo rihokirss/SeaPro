@@ -564,7 +564,12 @@ function parsePhysicalAids(collection: GeoJsonCollection, stamp: RoutingFeatureS
       name: text(p.nimifi) ?? text(p.nimisv) ?? text(p.turvalaitetyyppifi) ?? 'Turvalaite',
       confidence: 'high',
       category: text(p.turvalaitetyyppifi) ?? text(p.navigointilajikoodi),
-      navigationRole: aidCategory === 'lateral-port' || aidCategory === 'lateral-starboard'
+      navigationRole: aidCategory === 'lateral-port'
+        || aidCategory === 'lateral-starboard'
+        || aidCategory === 'cardinal-north'
+        || aidCategory === 'cardinal-east'
+        || aidCategory === 'cardinal-south'
+        || aidCategory === 'cardinal-west'
         ? aidCategory
         : 'other',
       operational: finiteNumber(p.toimintatilakoodi) === undefined

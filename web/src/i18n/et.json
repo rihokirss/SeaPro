@@ -400,6 +400,7 @@
   "route.auto.reason.traffic_lane": "liiklusrada",
   "route.auto.reason.traffic_crossing": "liiklusraja ristamine",
   "route.auto.reason.traffic_wrong_way": "liiklusraja vastassuund",
+  "route.auto.reason.cardinal_wrong_side": "kardinaalmärgi vale külg",
   "route.auto.reason.traffic_direction_unverified": "selle lõigu liiklusraja suund kontrollimata",
   "route.auto.reason.separation_zone": "liikluseraldusala",
   "route.auto.reason.restricted_area": "piiranguala",

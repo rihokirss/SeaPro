@@ -102,7 +102,7 @@ adaptiivsel võrel. Rakendatav kuluhierarhia on:
 
 Kõva tõke on vektorrannajoon, ametliku koridoriga kinnitamata DTM-maa,
 teadaolevalt ebapiisav sügavus, ohu puhver, ametlik üldine liikluskeeld või
-laeva gabariidile sobimatu sild/lüüs. Kivi, takistuse, vraki või füüsilise
+laeva gabariidile sobimatu sild/lüüs. Kivi, takistuse, vraki või muu füüsilise
 märgi puhver on:
 
 ```text
@@ -126,17 +126,22 @@ resolutsioonist täpsemat teadmist. Ametlik sügavus saab DTM-i väärtust
 täpsustada ainult lahtris, mille kõik üheksa punkti on avaldatud väyläala või
 tegeliku avaldatud laiuse sees.
 
-TSS-i kohalikku sõidusuunda v1 positsioonipõhine otsinguolek ei tõenda.
-Seetõttu ei nimetata TSS-i läbimist automaatselt õigeks suunaks ega anta sellele
-eelistuskulu: ühesuunaline rada saab 50× ja muu liiklusrada 5× kulu ning tulemus
-on alati `advisory`. Kapten peab skeemi, kurssi ja COLREG-i kohaldamist ise
-kontrollima.
+TSS-i kulu hinnatakse liikumissuunast. Ühesuunalise rajaga kuni 30° samas
+suunas liikumine on lubatud; kuni 20° kõrvalekalle ristisuunast loetakse
+ületamiseks ja märgitakse `traffic_crossing`. Vastassuund, viltune ületamine
+või tõendamata suund saab 50× kulu ja nõuandva põhjuse. Päris eraldusala on
+läbimatu, ettevaatus- ja rannalähedane liiklusala jääb hoiatuseks.
+
+Kardinaalmärgi füüsiline 10 m puhver on kõva takistus ja seda kontrollitakse
+täpselt liikumislõigult, mitte jämeda võrelahtri kaudu. Kuni 0,5 NM kaugusel
+saab märgi vale pool 50× pehme kulu; kui paremat teed ei leidu, jääb marsruut
+lubatuks, kuid vastus on `advisory` põhjusega `cardinal_wrong_side`.
 
 ## Ettevalmistatud routingugraaf
 
 Ametlikest navigatsioonijoontest ja OSM/OpenSeaMapi soovituslikest
 keskjoontest tehakse enne serveri käivitamist üks versioonitud
-`seapro-routing-graph-v1` fail:
+`seapro-routing-graph-v2` fail:
 
 ```bash
 npm run data:routing-graph
@@ -149,6 +154,18 @@ ning eemaldab duplikaadid, pindobjektid, sihtjooned ja korduvatest punktidest
 tekkivad vigased silmused. Kui mõni lähteallika paan jääb poolikuks, siis faili
 vaikimisi üle ei kirjutata; teadlikuks diagnostikaks saab kasutada
 `--allow-partial` lippu.
+
+V2 fail sisaldab lisaks keskjoontele runtime'is vajaliku staatilise
+ohutuskihi: füüsilised märgid ja ohud, liiklusrajad, eraldusalad ning muud
+piirangud koos lähteallikate metaandmetega. Ajast sõltuvaid
+navigatsioonihoiatusi ega kuvamiseks mõeldud sihtjooni sinna ei lisata.
+Ehitusskript taastab serveriga ühise kettacache'i. Kui üldine OSM-i
+routingupäring jäetakse hoolduse ajal vahele, saab liiklusskeemi võtta samast
+cache-kirjest, mida kasutab ka kaardikiht, näiteks:
+
+```bash
+npm run data:routing-graph -- --skip-osm --traffic-bbox=57,16.5,61.5,30.5
+```
 
 Samas failis on kompaktne sadamatugi: sadamaregistri punktid, sadama lähedased
 punased/rohelised külgmärgid ning lähedased avaldatud sügavusega ametlikud
@@ -169,19 +186,19 @@ türkiissiniselt ja soovitusliku graafi oranžilt.
 ## Otsing ja kordusvalideerimine
 
 Väikelaeva profiil (süvis kuni 3 m ja laius kuni 10 m) usaldab valitud
-avaldatud keskjoont ega kontrolli sellel alusrastri sügavust, vee-/maamaski või
-muid võrepiiranguid. Muud lõigud jäävad tavakontrolli alla. Suurema aluse puhul
+avaldatud keskjoont ega kontrolli sellel alusrastri sügavust või
+vee-/maamaski. Staatilised vektorohud, eraldusalad ja liiklussuund kehtivad ka
+graafiserval. Muud lõigud jäävad tavakontrolli alla. Suurema aluse puhul
 peab keskjoone avaldatud sügavus, lubatud süvis ja laius alusele sobima.
 Liiklusrajad, pindobjektid, sihtjooned ja tuletatud sadamakanalid põhigraafi ei
 lähe.
 
-Alguse ja lõpu ühendusi ei valita eraldi lähima punkti järgi. Mõlemast otsast
-leitakse ohutul võrel võimalikud ühendused ning sisenemis-/väljumispaar
-valitakse ühenduste ja graafitee väikseima ühise kogukulu järgi. Kui sadamate
-lähedased võrgud pole omavahel ühendatud, võrreldakse mõlema võrgu kaudu
-kulgevat tervikteed. Kaugühenduse otsing sihib vektori vaba otspunkti, kuid
-lõpeb kohe valitud võrgu esimesel puudutusel; sealt edasi kasutatakse toorest
-vektorgeomeetriat. Lünga jaoks arvutatakse ohutu A*-ühendus.
+Üks hübriidne A*-otsing liigub nii ohutu võre lahtrites kui valmisgraafi
+servadel. Graafi võib siseneda ja sealt väljuda igas sobivas sõlmes ning ühe
+marsruudi jooksul võib kasutada järjest mitut eraldiseisvat graafikomponenti.
+Graafi sisenemisel lisandub 100 m kulu, mis väldib lühikeste kõrvalharude ja
+sadamaringide korjamist. Graafikomponentide lüngad ühendatakse sama otsingu
+ohutul võrel; eraldi sirget kaugühenduse erandit ei ole.
 
 Vektoriosa läbitakse mööda allika täpseid koordinaate ja pöördeid kuni
 ristmiku, katkestuse või otspunktini. Neid punkte ei tohi lõplik lihtsustamine
@@ -218,6 +235,9 @@ otsingut sama snapshot'i peal kuni kaks korda väiksema lahtrisammuga (kuni
 2 400 000 lahtrit, alumine siht 37,5 m). Peenvõres kehtib endiselt üheksa
 proovi miinimum ning tulemus läbib sama 10 m lõppkontrolli; uut EMODneti
 võrgupäringut ei tehta. Edukas esmane marsruut peenvõre kulu ei maksa.
+Erand on vähemalt 70 NM pikkune valmisgraafi marsruut, mille põhilahter
+ületaks 120 m: seal alustatakse kumulatiivse projektsioonivea vältimiseks kohe
+2 400 000 lahtri piiriga, mitte ei arvutata sama teed järjest kahel võrel.
 
 ## Piirid ja konfiguratsioon
 
@@ -226,7 +246,7 @@ Vaikeala ning ressursipiirid on `.env` kaudu muudetavad:
 ```dotenv
 ROUTING_BBOX=57.45,18.75,66.2,28.45
 ROUTING_GRAPH_BBOX=57.45,18.75,62,29
-ROUTING_GRAPH_FILE=data/routing-graph-v1.json
+ROUTING_GRAPH_FILE=data/routing-graph-v2.json
 ROUTING_MAX_DISTANCE_NM=500
 ROUTING_PLAN_TIMEOUT_MS=90000
 ROUTING_MAX_CONCURRENT_PLANS=2

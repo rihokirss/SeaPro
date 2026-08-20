@@ -4,6 +4,7 @@ import type {
   RoutingCellDetails,
   RoutingCostSurface,
   RoutingReasonCode,
+  RoutingTransitionDetails,
 } from './costSurface.js';
 import { validatePath } from './simplify.js';
 
@@ -117,7 +118,12 @@ export function describeRouteGeometry(
     for (const [cellIndex, entry] of traced.entries()) {
       if ((cellIndex & 127) === 0) checkpoint();
       const details = surface.detailsAt(entry.point.x, entry.point.y);
-      const next = accumulator(details, entry.startT, entry.endT);
+      const next = accumulator(
+        details,
+        entry.startT,
+        entry.endT,
+        surface.transitionDetails?.(from, to, entry.point),
+      );
       if (current && current.key === next.key) {
         current.endT = entry.endT;
         current.minDepthM = Math.min(current.minDepthM, next.minDepthM);
@@ -171,12 +177,16 @@ function accumulator(
   details: RoutingCellDetails,
   startT: number,
   endT: number,
+  transition?: RoutingTransitionDetails,
 ): SegmentAccumulator {
-  const reasons = [...new Set(details.reasons)].sort();
-  const sourceIds = [...new Set(details.sourceIds)].sort();
+  const reasons = [...new Set([...details.reasons, ...(transition?.reasons ?? [])])].sort();
+  const sourceIds = [...new Set([...details.sourceIds, ...(transition?.sourceIds ?? [])])].sort();
+  const risk = details.risk === 'unknown'
+    ? 'unknown'
+    : details.risk === 'caution' || transition?.risk === 'caution' ? 'caution' : 'clear';
   return {
-    key: `${details.risk}\0${reasons.join('\0')}\0${sourceIds.join('\0')}`,
-    risk: details.risk,
+    key: `${risk}\0${reasons.join('\0')}\0${sourceIds.join('\0')}`,
+    risk,
     reasons,
     sourceIds,
     minDepthM: details.depthM ?? Number.POSITIVE_INFINITY,

@@ -182,6 +182,9 @@ export function compressRiskSegments(grid: RoutingGrid, path: readonly GridPoint
 }
 
 function traceSegment(grid: RoutingGrid, from: GridPoint, to: GridPoint): SegmentTrace {
+  if (grid.transitionAllowed?.(from, to) === false) {
+    return { valid: false, cost: Number.POSITIVE_INFINITY, cells: [], blockedAt: from };
+  }
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const totalLength = Math.hypot(dx, dy);
@@ -218,11 +221,14 @@ function traceSegment(grid: RoutingGrid, from: GridPoint, to: GridPoint): Segmen
     const crossesY = Math.abs(boundaryY - nextPosition) <= EPSILON;
     if (crossesX && crossesY) {
       // A zero-area corner contact still needs clearance on both sides.
-      const horizontal = { x: x + stepX, y };
-      const vertical = { x, y: y + stepY };
-      for (const side of [horizontal, vertical]) {
-        const sideCell = routingCellAt(grid, side);
-        if (sideCell.blocked) return { valid: false, cost: Number.POSITIVE_INFINITY, cells, blockedAt: side };
+      const diagonal = { x: x + stepX, y: y + stepY };
+      if (grid.diagonalCornerTransitionAllowed?.(point, diagonal) !== true) {
+        const horizontal = { x: x + stepX, y };
+        const vertical = { x, y: y + stepY };
+        for (const side of [horizontal, vertical]) {
+          const sideCell = routingCellAt(grid, side);
+          if (sideCell.blocked) return { valid: false, cost: Number.POSITIVE_INFINITY, cells, blockedAt: side };
+        }
       }
     }
     if (crossesX) { x += stepX; boundaryX += deltaX; }

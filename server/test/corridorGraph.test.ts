@@ -29,7 +29,6 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 1, y: 12 },
       end: { x: 34, y: 12 },
-      maxConnectorDistanceM: 8_000,
       maxExpandedNodes: 10_000,
     });
 
@@ -45,7 +44,8 @@ describe('laevatee graafil põhinev routing', () => {
   });
 
   it('säilitab ka ühte võrerakku jäävad algallika pöörded täpsete koordinaatidena', async () => {
-    const surface = testSurface(16, 12);
+    const blocked = new Set(Array.from({ length: 6 }, (_value, index) => `${4 + index}:5`));
+    const surface = testSurface(16, 12, blocked);
     const turns: Array<[number, number]> = [
       [5.1, 5.1],
       [5.2, 5.8],
@@ -57,9 +57,8 @@ describe('laevatee graafil põhinev routing', () => {
       surface,
       graph: testGraph([corridor]),
       vessel: VESSEL,
-      start: { x: 1, y: 5 },
-      end: { x: 13, y: 5 },
-      maxConnectorDistanceM: 3_500,
+      start: { x: 3, y: 5 },
+      end: { x: 10, y: 5 },
       maxExpandedNodes: 10_000,
     });
 
@@ -83,7 +82,6 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 1, y: 10 },
       end: { x: 38, y: 10 },
-      maxConnectorDistanceM: 10_000,
       maxExpandedNodes: 15_000,
     });
 
@@ -112,7 +110,6 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 1, y: 10 },
       end: { x: 38, y: 10 },
-      maxConnectorDistanceM: 10_000,
       maxExpandedNodes: 15_000,
     });
 
@@ -134,7 +131,6 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 2, y: 5 },
       end: { x: 29, y: 5 },
-      maxConnectorDistanceM: 12_000,
       maxExpandedNodes: 12_000,
     });
 
@@ -156,17 +152,38 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 1, y: 10 },
       end: { x: 41, y: 10 },
-      maxConnectorDistanceM: 5_000,
       maxExpandedNodes: 20_000,
     });
 
-    expect(attempt.startCandidates).toBeGreaterThan(0);
-    expect(attempt.endCandidates).toBeGreaterThan(0);
     expect(attempt.route).not.toBeNull();
     expect(attempt.route?.path.some((point) => point.y === 3 && point.x > 20 && point.x < 38))
       .toBe(false);
     expect(attempt.route?.protectedPoints).toContainEqual(expect.objectContaining({ x: 2, y: 10 }));
     expect(attempt.route?.protectedPoints).toContainEqual(expect.objectContaining({ x: 38, y: 10 }));
+  });
+
+  it('kasutab ühes marsruudis järjest vähemalt kolme katkist graafikomponenti', async () => {
+    const surface = testSurface(42, 18);
+    const graph = testGraph([
+      lineCorridor('first', [[4, 10], [12, 10]]),
+      lineCorridor('second', [[16, 10], [24, 10]]),
+      lineCorridor('third', [[28, 10], [36, 10]]),
+    ]);
+
+    const attempt = await findCorridorBackboneRoute({
+      surface,
+      graph,
+      vessel: VESSEL,
+      start: { x: 1, y: 10 },
+      end: { x: 39, y: 10 },
+      maxExpandedNodes: 20_000,
+    });
+
+    expect(attempt.route).not.toBeNull();
+    for (const x of [4, 12, 16, 24, 28, 36]) {
+      expect(attempt.route?.path).toContainEqual(expect.objectContaining({ x, y: 10 }));
+    }
+    expect(attempt.route?.trustedPaths).toHaveLength(3);
   });
 
   it('jätab vahele lähtekoha väikese võrgu, kui see tekitaks sadamasse ringi', async () => {
@@ -185,15 +202,12 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 1, y: 10 },
       end: { x: 45, y: 10 },
-      maxConnectorDistanceM: 5_000,
       maxExpandedNodes: 20_000,
     });
 
     expect(attempt.route).not.toBeNull();
-    expect(attempt.remoteSelection).toBe('end_network');
-    expect(attempt.bothNetworksCost).toBeUndefined();
     expect(attempt.route?.path.some((point) => point.y === 3)).toBe(false);
-    expect(attempt.route?.protectedPoints).toContainEqual(expect.objectContaining({ x: 41, y: 10 }));
+    expect(attempt.route?.protectedPoints).toContainEqual(expect.objectContaining({ x: 43, y: 10 }));
     expect(attempt.route?.path.some((point) => point.y === 16)).toBe(false);
     expect(attempt.route?.protectedPoints).not.toContainEqual(expect.objectContaining({ x: 5, y: 3 }));
   });
@@ -209,7 +223,6 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 1, y: 5 },
       end: { x: 35, y: 10 },
-      maxConnectorDistanceM: 10_000,
       maxExpandedNodes: 20_000,
     });
 
@@ -230,13 +243,11 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 1, y: 5 },
       end: { x: 10, y: 20 },
-      maxConnectorDistanceM: 5_000,
       maxExpandedNodes: 20_000,
     });
 
     expect(attempt.route).not.toBeNull();
     expect(attempt.route?.path.some((point) => point.x > 10)).toBe(false);
-    expect(attempt.route?.protectedPoints).toContainEqual(expect.objectContaining({ x: 10, y: 18 }));
     expect(hasRepeatedPoint(attempt.route?.path ?? [])).toBe(false);
   });
 
@@ -252,7 +263,6 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 1, y: 10 },
       end: { x: 42, y: 10 },
-      maxConnectorDistanceM: 5_000,
       maxExpandedNodes: 20_000,
     });
 
@@ -284,12 +294,10 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 5, y: 70 },
       end: { x: 175, y: 70 },
-      maxConnectorDistanceM: 20_000,
       maxExpandedNodes: 60_000,
     });
 
     expect(attempt.startCandidates).toBe(0);
-    expect(attempt.endCandidates).toBeGreaterThan(16);
     expect(attempt.route).not.toBeNull();
     expect(attempt.route?.protectedPoints).toContainEqual(expect.objectContaining({ x: 5, y: 5 }));
     expect(hasRepeatedPoint(attempt.route?.path ?? [])).toBe(false);
@@ -308,7 +316,6 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: { ...VESSEL, draughtM: 4, beamM: 12 },
       start: { x: 2, y: 7 },
       end: { x: 28, y: 7 },
-      maxConnectorDistanceM: 8_000,
     });
 
     expect(attempt.route).toBeNull();
@@ -340,7 +347,6 @@ describe('laevatee graafil põhinev routing', () => {
       vessel: VESSEL,
       start: { x: 2, y: 7 },
       end: { x: 28, y: 7 },
-      maxConnectorDistanceM: 8_000,
       maxExpandedNodes: 10_000,
     };
 

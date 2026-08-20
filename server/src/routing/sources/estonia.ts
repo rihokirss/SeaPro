@@ -327,6 +327,10 @@ function estonianAidRole(properties: Record<string, unknown>): RoutingHazard['na
     .toLocaleLowerCase('et');
   if (normalized.includes('vasaku kulje')) return 'lateral-port';
   if (normalized.includes('parema kulje')) return 'lateral-starboard';
+  if (/(?:pohja)(?:poi|tooder)/.test(normalized)) return 'cardinal-north';
+  if (/(?:ida)(?:poi|tooder)/.test(normalized)) return 'cardinal-east';
+  if (/(?:louna)(?:poi|tooder)/.test(normalized)) return 'cardinal-south';
+  if (/(?:laane)(?:poi|tooder)/.test(normalized)) return 'cardinal-west';
   // Sadamamuuli punane/roheline tuli piirab sama kanalit nagu külgmärk.
   if (normalized.includes('sadama') || normalized.includes('muuli')) {
     const light = text(properties.tule_karakt)?.toUpperCase() ?? '';

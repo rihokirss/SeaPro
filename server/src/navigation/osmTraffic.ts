@@ -71,6 +71,20 @@ export interface OverpassTrafficResponse {
 export async function fetchTrafficSchemes(
   bbox: [number, number, number, number],
 ): Promise<TrafficScheme[]> {
+  return (await fetchTrafficSchemesSnapshot(bbox)).trafficSchemes;
+}
+
+export interface TrafficSchemeSnapshot {
+  trafficSchemes: TrafficScheme[];
+  fetchedAt: string;
+  ageSeconds: number;
+  stale: boolean;
+}
+
+/** Sama cache-kirje koos ehitatava staatilise routingugraafi lähteinfoga. */
+export async function fetchTrafficSchemesSnapshot(
+  bbox: [number, number, number, number],
+): Promise<TrafficSchemeSnapshot> {
   const [south, west, north, east] = bbox;
   // Overpass loeb way bbox'i tabatuks selle SÕLMEDE, mitte ekraanil nähtava
   // joone järgi. Pikk liiklusskeem võib seega vaate serva ületada nii, et ükski
@@ -89,8 +103,13 @@ export async function fetchTrafficSchemes(
   // v5 eemaldab piirkondliku osm.ch peegli tagastatud ekslikult tühjad
   // Läänemere kirjed varasemast vahemälust.
   const key = `overpass:traffic:v5:${snapped.join(',')}`;
-  const { value } = await cache.get(key, TTL_SECONDS, () => queryOverpass(snapped));
-  return value;
+  const result = await cache.get(key, TTL_SECONDS, () => queryOverpass(snapped));
+  return {
+    trafficSchemes: result.value,
+    fetchedAt: new Date(Date.now() - Math.max(0, result.ageSeconds) * 1000).toISOString(),
+    ageSeconds: result.ageSeconds,
+    stale: result.stale,
+  };
 }
 
 async function queryOverpass(
