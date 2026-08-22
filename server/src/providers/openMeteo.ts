@@ -411,7 +411,17 @@ async function fetchMarineWithFallback(
  * pikkuskraad ~2x kitsam — nii tulevad lahtrid kilomeetrites ligikaudu ruudud.
  */
 export const TILE_N = 4;
-const MAX_TILES = 4;
+/**
+ * Ühe kaardivälja ülempiir.
+ *
+ * Neli paani (64 punkti) sundis juba kogu Soome lahe vaates võresammu
+ * 0,5–1 kraadini. Nii võis Naissaare–Tilgu-sugune kitsas tugevama tuule ala
+ * jääda täielikult proovipunktide vahele ja valevärv muutus sisse suumides
+ * sisuliselt teiseks prognoosiks. 32 paani tähendab halvimal juhul 512
+ * asukohta, kuid paanid on absoluutses jagatud vahemälus ja nädal prognoosi
+ * maksab sama palju kui üks tund.
+ */
+const MAX_TILES = 32;
 
 /**
  * Mitu ööpäeva korraga ühte paani tõmmatakse.
@@ -435,9 +445,8 @@ const BLOCK_DAYS = 7;
  * vastuse tema küsitud tundide pikkuseks.
  */
 const POINT_FORECAST_DAYS = 10;
-const GRID_TARGET_POINTS = 8;
 // 4° samm on ainult väga laia Läänemere ülevaate jaoks. See hoiab ka kogu
-// WEATHER_GRID_BBOX ala nelja paani sees; lähivaadete lahutus ei muutu.
+// WEATHER_GRID_BBOX ala paanipiiri sees; lähivaadete lahutus ei muutu.
 const LAT_SPACINGS = [0.05, 0.1, 0.25, 0.5, 1, 2, 4];
 const LON_FACTOR = 2;
 
@@ -460,6 +469,36 @@ export function coveringTiles(
     }
   }
   return out;
+}
+
+/**
+ * Valib vaatele võresammu, austades nii kliendi soovitud lahutust kui ka
+ * ühe vastuse kulupiiri.
+ *
+ * `GridQuery.steps` oli varem API-s olemas, kuid Open-Meteo provider ignoreeris
+ * seda ja kasutas alati kaheksat punkti. See muutis suure ekraani sama
+ * hõredaks kui telefoni ning sundis zoomi vahetamisel järsult teise detailsusega
+ * võrgule. Funktsioon on eksporditud, et zoomi-regressiooni saaks testida ilma
+ * päris ilmateenust kutsumata.
+ */
+export function gridSpacingFor(
+  bbox: [number, number, number, number],
+  targetPoints: number,
+): number {
+  const [south, west, north, east] = bbox;
+  const cosLat = Math.cos(((north + south) / 2) * (Math.PI / 180)) || 1;
+  const maxSpanDeg = Math.max(north - south, (east - west) * cosLat);
+  const target = Math.max(2, targetPoints);
+  let spacing =
+    LAT_SPACINGS.find((candidate) => maxSpanDeg / candidate <= target) ??
+    LAT_SPACINGS[LAT_SPACINGS.length - 1]!;
+
+  while (coveringTiles(bbox, spacing).length > MAX_TILES) {
+    const next = LAT_SPACINGS[LAT_SPACINGS.indexOf(spacing) + 1];
+    if (next === undefined) break;
+    spacing = next;
+  }
+  return spacing;
 }
 
 const ALL_VARIABLES: Variable[] = [
@@ -611,20 +650,10 @@ export class OpenMeteoProvider implements WeatherProvider {
     // "ülehomme" ühe ja sama vahemäluvõtme sisse.
     const { blockStart, blockEnd } = timeBlock(q.time);
 
-    // Vali võresamm nii, et vaatesse jääks ~GRID_TARGET_POINTS punkti servas,
-    // ja kui paane tuleb siiski liiga palju, jämeneda kuni mahub.
-    const cosLat = Math.cos(((north + south) / 2) * (Math.PI / 180)) || 1;
-    const maxSpanDeg = Math.max(north - south, (east - west) * cosLat);
-    let spacing =
-      LAT_SPACINGS.find((s) => maxSpanDeg / s <= GRID_TARGET_POINTS) ??
-      LAT_SPACINGS[LAT_SPACINGS.length - 1]!;
-    let tiles = coveringTiles(q.bbox, spacing);
-    while (tiles.length > MAX_TILES) {
-      const next = LAT_SPACINGS[LAT_SPACINGS.indexOf(spacing) + 1];
-      if (next === undefined) break;
-      spacing = next;
-      tiles = coveringTiles(q.bbox, spacing);
-    }
+    // Vali võresamm nii, et vaatesse jääks kliendi ekraanisuurusele sobiv
+    // arv punkte, ja kui paane tuleb siiski liiga palju, jämeneda kuni mahub.
+    const spacing = gridSpacingFor(q.bbox, q.steps);
+    const tiles = coveringTiles(q.bbox, spacing);
     if (tiles.length > MAX_TILES) {
       throw Object.assign(
         new Error(`Grid vajaks ${tiles.length} paani; lubatud on kuni ${MAX_TILES}`),

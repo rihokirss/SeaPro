@@ -120,12 +120,16 @@ const SLIDER_HOURS = 120;
 /**
  * Mitu punkti serverilt küsida.
  *
- * Hoiame selle SIHILIKULT väikesena: Open-Meteo loeb iga võrgupunkti eraldi
- * API-kutseks. Kaardil nähtava tiheduse annab kliendipoolne interpoleerimine
- * (`interpolate.ts`), mitte suurem päring.
+ * Open-Meteo loeb iga võrgupunkti eraldi API-kutseks, seega ei küsi me
+ * ekraanipikslite tihedust. Samas peab võrk olema piisavalt tihe, et kitsad
+ * rannikumere tuulekoridorid ei kaoks ülevaatekaardil proovipunktide vahele.
+ * Server paneb punktid jagatud vahemäluga paanidesse, mistõttu sama piirkonna
+ * järgmised vaated ei maksa neid punkte uuesti.
  */
 function gridStepsFor(width: number): number {
-  return width < 480 ? 6 : 8;
+  if (width < 480) return 12;
+  if (width < 1024) return 16;
+  return 20;
 }
 
 /** Ajaliugurile lähim kaader juba mälus olevast ööpäevast. */

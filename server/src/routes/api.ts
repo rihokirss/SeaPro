@@ -448,7 +448,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const variables = parseVariables(q.vars) ?? (['wind_speed', 'wind_dir'] as Variable[]);
-    const steps = Math.min(16, Math.max(2, Number(q.steps) || 10));
+    const steps = Math.min(24, Math.max(2, Number(q.steps) || 10));
     const modelId = typeof q.model === 'string' ? q.model : undefined;
     const waveModelId = typeof q.waveModel === 'string' ? q.waveModel : undefined;
 

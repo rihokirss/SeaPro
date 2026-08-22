@@ -129,7 +129,17 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
 
 export async function fetchJson<T>(url: string, opts: FetchOptions = {}): Promise<T> {
   const res = await request(url, { ...opts, headers: { Accept: 'application/json', ...opts.headers } });
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch (error) {
+    // Mõni ilma-API tagastab domeeni servas 200 OK vastuse, milles on JSON-i
+    // keelatud `nan` väärtus. Toorest SyntaxErrorit ei oska provider ajutise
+    // allikaveana käsitleda ja üks vigane võrgupaan kukutaks siis terve kaardi
+    // 500-ga. Ühtlustame vigase keha teiste upstream-vigadega; URL läheb
+    // veateatesse alati saladustest puhastatuna.
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new HttpError(`Väline teenus tagastas vigase JSON-i: ${reason}`, 502, redactUrlSecrets(url));
+  }
 }
 
 export async function fetchText(url: string, opts: FetchOptions = {}): Promise<string> {

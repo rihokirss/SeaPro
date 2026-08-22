@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TILE_N, coveringTiles } from '../src/providers/openMeteo.js';
+import { TILE_N, coveringTiles, gridSpacingFor } from '../src/providers/openMeteo.js';
 
 /**
  * Võrepaanide testid.
@@ -66,5 +66,28 @@ describe('coveringTiles', () => {
     const tiles = coveringTiles([-0.1, -0.1, 0.1, 0.1], 0.25);
     expect(tiles.map(key)).toContain('-1/-1');
     expect(tiles.map(key)).toContain('0/0');
+  });
+});
+
+describe('gridSpacingFor', () => {
+  it('hoiab kogu Soome lahe vaates rannikumere jaoks 0,25° lahutuse', () => {
+    // Sisaldab kliendi vaateääre puhvrit, mitte ainult täpselt rannajoont.
+    // 0,25° laiuskraadis / 0,5° pikkuskraadis annab 59°N juures umbes
+    // 28 km ruudud ja proovipunkti Naissaare–Tilgu koridori (24,5°E).
+    // Marsruut kleebib kliendi [58.5, 22, 61.5, 31] vaate enne providerit
+    // sellele 1° piiridega alale.
+    const gulfView: [number, number, number, number] = [58, 22, 62, 31];
+    expect(gridSpacingFor(gulfView, 20)).toBe(0.25);
+  });
+
+  it('kasutab kliendi soovitud punktiarvu, mitte fikseeritud kaheksat', () => {
+    const gulfView: [number, number, number, number] = [58, 22, 62, 31];
+    expect(gridSpacingFor(gulfView, 8)).toBeGreaterThan(gridSpacingFor(gulfView, 20));
+  });
+
+  it('jämendab väga laia vaate kulupiiri sisse', () => {
+    const balticView: [number, number, number, number] = [53, 12, 66.7, 31.5];
+    const spacing = gridSpacingFor(balticView, 24);
+    expect(coveringTiles(balticView, spacing).length).toBeLessThanOrEqual(32);
   });
 });
