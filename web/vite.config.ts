@@ -51,9 +51,23 @@ export default defineConfig({
             },
           },
           {
-            // Prognoosid: näita kohe vana, tõmba uus taustal.
-            // Nii on kaatris ilma levita viimane tõmmatud prognoos alati olemas.
-            urlPattern: /\/api\/(point|grid|stations|providers)/,
+            // Jaamad ja punktivaade sisaldavad hetkemõõtmisi. Online'is
+            // ootame värske serverivastuse ära; vana vastus on ainult aeglase
+            // võrgu ja offline-režiimi varu. StaleWhileRevalidate andis Reactile
+            // alati vana vastuse ning uuendas cache'i alles järgmise korra jaoks.
+            urlPattern: /\/api\/(point|stations)(?:\?|$)/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'seapro-observations',
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 100, maxAgeSeconds: 12 * 3600 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Prognoosiväli võib avaneda kohe viimase kaadriga: tunni aja
+            // prognoos ei ole sama ajatundlik kui jaama hetkemõõtmine.
+            urlPattern: /\/api\/(grid|providers)(?:\?|$)/,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'seapro-api',

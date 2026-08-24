@@ -14,6 +14,36 @@ interface Logger {
 }
 
 const timers: NodeJS.Timeout[] = [];
+const jobStops: Array<() => void> = [];
+
+/**
+ * Käivitab töö kohe ja planeerib järgmise ringi alles pärast eelmise lõppu.
+ *
+ * `setInterval` ei sobi provider-cache'i soojendamiseks: TTL algab hetkel,
+ * mil võrgupäring lõpeb. Kui intervall ja TTL on mõlemad 300 sekundit,
+ * käivitub järgmine ring enne cache'i aegumist, loeb vana kirje veel värskeks
+ * ja tegelik allikapäring toimub alles 600 sekundi pärast.
+ */
+export function scheduleAfterCompletion(
+  task: () => Promise<void>,
+  intervalMs: number,
+): () => void {
+  let stopped = false;
+  let timer: NodeJS.Timeout | null = null;
+
+  const run = async (): Promise<void> => {
+    await task();
+    if (stopped) return;
+    timer = setTimeout(() => void run(), intervalMs);
+    timer.unref();
+  };
+
+  void run();
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+  };
+}
 
 /**
  * Taustatööd hoiavad välisallikate vastused mälus soojas.
@@ -41,12 +71,9 @@ export function startBackgroundJobs(log: Logger): void {
       }
     };
 
-    void run();
-    const timer = setInterval(() => void run(), intervalSeconds * 1000);
-    timer.unref();
-    timers.push(timer);
+    jobStops.push(scheduleAfterCompletion(run, intervalSeconds * 1000));
 
-    log.info(`Taustapäring "${id}" iga ${intervalSeconds} s`);
+    log.info(`Taustapäring "${id}" ${intervalSeconds} s pärast eelmise ringi lõppu`);
   }
 
   startAis(log);
@@ -94,6 +121,8 @@ function startAis(log: Logger): void {
 }
 
 export function stopBackgroundJobs(): void {
+  for (const stop of jobStops) stop();
+  jobStops.length = 0;
   for (const t of timers) clearInterval(t);
   timers.length = 0;
   aisstream.stop();

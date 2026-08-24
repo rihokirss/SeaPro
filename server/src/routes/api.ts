@@ -413,8 +413,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       else errors.push(toProviderError(provider.caps.id, res.reason));
     });
 
-    // Cache-Control: brauser ja service worker tohivad seda korraks hoida.
-    reply.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
+    // Punktivaade sisaldab jaamade hetkemõõtmisi. PWA hoiab ise offline-varu;
+    // brauseri HTTP-cache ei tohi selle all veel teist stale-kihti tekitada.
+    reply.header('Cache-Control', 'no-cache');
 
     const result: PointResult = { lat, lon, series, errors };
     return result;
@@ -526,7 +527,10 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       else errors.push(toProviderError(provider.caps.id, res.reason));
     });
 
-    reply.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
+    // Service worker kasutab online'is NetworkFirst'i ja hoiab vana vastust
+    // ainult offline-varuna. `no-cache` sunnib selle võrgupäringu päris
+    // serverini, mitte brauseri teise stale-while-revalidate kihti.
+    reply.header('Cache-Control', 'no-cache');
     return { stations: readings, errors };
   });
 

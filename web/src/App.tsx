@@ -984,7 +984,10 @@ export function App() {
     if (!layers.stations) return;
 
     let cancelled = false;
+    let inFlight = false;
     const load = (): void => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
       api
         .stations()
         .then((res) => {
@@ -992,16 +995,31 @@ export function App() {
         })
         .catch(() => {
           // Jaamad kadusid; prognoos ja kaart töötavad edasi.
+        })
+        .finally(() => {
+          inFlight = false;
         });
+    };
+
+    const loadWhenVisible = (): void => {
+      if (document.visibilityState === 'visible') load();
     };
 
     load();
     // Jaamad mõõdavad 10-minutilise sammuga; tihedam küsimine ei annaks
     // uut infot, aga koormaks nii meie serverit kui allikaid.
     const timer = window.setInterval(load, 5 * 60 * 1000);
+    // Mobiil peatab taustal oleva PWA intervallid. Tagasi tulles ei tohi oodata
+    // järgmist viieminutilist tikki ega näidata enne sulgemist jäänud jaamu.
+    document.addEventListener('visibilitychange', loadWhenVisible);
+    window.addEventListener('focus', load);
+    window.addEventListener('online', load);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', loadWhenVisible);
+      window.removeEventListener('focus', load);
+      window.removeEventListener('online', load);
     };
   }, [layers.stations]);
 

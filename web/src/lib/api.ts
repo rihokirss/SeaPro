@@ -62,9 +62,14 @@ export class RateLimitedError extends Error {
   }
 }
 
-async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+async function get<T>(
+  path: string,
+  signal?: AbortSignal,
+  cache: RequestCache = 'default',
+): Promise<T> {
   const res = await fetch(path, {
     signal,
+    cache,
     headers: { Accept: 'application/json', 'X-SeaPro-Session': getSessionId() },
   });
   if (!res.ok) {
@@ -161,7 +166,7 @@ export const api = {
     if (opts.providers?.length) p.set('providers', opts.providers.join(','));
     if (opts.models?.length) p.set('models', opts.models.join(','));
     if (opts.waveModel) p.set('waveModel', opts.waveModel);
-    return get<PointResult>(`/api/point?${p}`, signal);
+    return get<PointResult>(`/api/point?${p}`, signal, 'no-cache');
   },
 
   grid(
@@ -193,6 +198,7 @@ export const api = {
     return get<{ stations: StationReading[]; errors: ProviderError[] }>(
       `/api/stations${qs ? `?${qs}` : ''}`,
       signal,
+      'no-cache',
     );
   },
 
