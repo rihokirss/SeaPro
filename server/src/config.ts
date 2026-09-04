@@ -71,7 +71,9 @@ export const config = {
    * endpointe. Võti jääb ainult serverisse ega lähe API vastustesse, logidesse
    * ega vahemäluvõtmetesse.
    */
-  openMeteoApiKey: str('OPEN_METEO_API_KEY', ''),
+  openMeteoApiKey: bool('OPEN_METEO_FORCE_FREE', false)
+    ? ''
+    : str('OPEN_METEO_API_KEY', ''),
   /** Standardpakett vaikimisi; Professionali puhul määra .env-is 5000000. */
   openMeteoMonthlyLimit: num('OPEN_METEO_MONTHLY_LIMIT', 1_000_000),
 

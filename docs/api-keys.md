@@ -117,6 +117,7 @@ kui `/api/grid` või `/api/point` kutsutakse otse ilma veebikliendita.
 Tasulise paketi võtme saab lisada `.env` faili:
 
 ```bash
+OPEN_METEO_FORCE_FREE=0
 OPEN_METEO_API_KEY=siia-ostetud-võti
 # Standard = 1000000, Professional = 5000000
 OPEN_METEO_MONTHLY_LIMIT=1000000
@@ -136,6 +137,13 @@ curl -s localhost:8080/api/health | jq .openMeteo
 Võti lisatakse ainult väljaminevale päringule. See ei lähe cache-võtmesse,
 `cache.json` faili, logidesse ega frontendile. Ilma võtmeta jääb rakendus
 automaatselt tasuta režiimi.
+
+Kui võti on konfiguratsioonis alles, kuid tellimus ajutiselt peatatud, saab
+tasuta režiimi sundida võtit kustutamata:
+
+```bash
+OPEN_METEO_FORCE_FREE=1
+```
 
 ### Toetaja otsingu kuvamine
 
