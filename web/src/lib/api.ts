@@ -29,6 +29,7 @@ export interface AppConfig {
   aisEnabled: boolean;
   aisstreamEnabled: boolean;
   modelSkillEnabled: boolean;
+  sponsorSearchEnabled: boolean;
 }
 
 export interface RoutingGraphData {

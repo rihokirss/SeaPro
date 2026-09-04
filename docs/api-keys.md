@@ -137,6 +137,19 @@ Võti lisatakse ainult väljaminevale päringule. See ei lähe cache-võtmesse,
 `cache.json` faili, logidesse ega frontendile. Ilma võtmeta jääb rakendus
 automaatselt tasuta režiimi.
 
+### Toetaja otsingu kuvamine
+
+Toetaja otsing on vaikimisi peidetud. Selle kuvamiseks külgpaneelis ja
+Open-Meteo päringulimiidi teates määra projekti `.env` failis:
+
+```bash
+SPONSOR_SEARCH_ENABLED=1
+```
+
+Väärtus `0` peidab mõlemad teated. Lüliti on sõltumatu API võtme olemasolust
+ja tasuta režiimist. Pärast muutmist taaskäivita server; edaspidi ei ole
+selle seadistuse muutmiseks vaja veebiklienti uuesti ehitada.
+
 ### Kohalik kasutusmõõdik
 
 Customer-API ei anna vastuses kasutus- ega kvoodipäiseid, seega loendab

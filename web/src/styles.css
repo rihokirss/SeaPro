@@ -3401,7 +3401,7 @@ button.sheet__grip::before {
   left: 50%;
   transform: translateX(-50%);
   z-index: 18;
-  max-width: min(440px, calc(100vw - 32px));
+  max-width: min(560px, calc(100vw - 32px));
   padding: var(--s4) var(--s5);
   background: rgba(224, 168, 63, 0.16);
   backdrop-filter: var(--blur);
@@ -3414,8 +3414,38 @@ button.sheet__grip::before {
   text-align: center;
   box-shadow: var(--shadow-sm);
   animation: drop-in 0.2s var(--ease);
-  pointer-events: none;
+  pointer-events: auto;
 }
+
+.layer-notice__sponsor {
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid rgba(224, 168, 63, 0.35);
+  color: var(--text);
+  font-size: var(--t-sm);
+}
+
+.layer-notice__sponsor a,
+.panel__sponsor a {
+  color: var(--brass);
+  font-weight: 700;
+}
+
+.panel__sponsor {
+  display: grid;
+  gap: var(--s2);
+  margin-top: var(--s4);
+  padding: var(--s4);
+  border: 1px solid rgba(224, 168, 63, 0.45);
+  border-radius: var(--r-md);
+  background: rgba(224, 168, 63, 0.1);
+  color: var(--text-muted);
+  font-size: var(--t-sm);
+  line-height: 1.4;
+}
+
+.panel__sponsor strong { color: var(--text); }
+.panel__sponsor a { width: fit-content; }
 
 /* Radari tulevikukaader peab olema selgelt prognoosina märgitud. Kui ajaliugur
    läheb nowcast'i ~90 minuti ulatusest välja, ütleme ka tühja kihi põhjuse. */

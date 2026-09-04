@@ -52,6 +52,7 @@ interface Props {
   theme: Theme;
   onThemeChange(next: Theme): void;
   modelSkillEnabled: boolean;
+  sponsorSearchEnabled: boolean;
   onOpenModelSkill(trigger: HTMLButtonElement): void;
 }
 
@@ -120,6 +121,7 @@ export function LayerPanel({
   theme,
   onThemeChange,
   modelSkillEnabled,
+  sponsorSearchEnabled,
   onOpenModelSkill,
 }: Props) {
   const { t, lang, setLang } = useI18n();
@@ -440,6 +442,14 @@ export function LayerPanel({
           </section>
 
           {modelSkillEnabled ? <ModelSkillLauncher onOpen={onOpenModelSkill} /> : null}
+
+          {sponsorSearchEnabled ? <div className="panel__sponsor">
+            <strong>{t('sponsor.heading')}</strong>
+            <span>{t('sponsor.pitch')}</span>
+            <a href="mailto:riho@kirss.ee?subject=SeaPro%20Open-Meteo%20sponsorlus">
+              {t('sponsor.contact')}
+            </a>
+          </div> : null}
 
           <footer className="panel__credit">
             {t('app.author')}{' '}

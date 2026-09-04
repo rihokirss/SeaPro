@@ -50,6 +50,8 @@ export const config = {
 
   contactEmail,
   appVersion,
+  /** Toetaja otsingu teated külgpaneelis ja päringulimiidi juures. */
+  sponsorSearchEnabled: bool('SPONSOR_SEARCH_ENABLED', false),
 
   /**
    * User-Agent, mille saadame KÕIGI väljaminevate päringutega.

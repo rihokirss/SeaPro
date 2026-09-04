@@ -230,6 +230,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     aisEnabled: true,
     aisstreamEnabled: Boolean(config.aisstreamKey),
     modelSkillEnabled: config.modelSkillEnabled,
+    sponsorSearchEnabled: config.sponsorSearchEnabled,
   }));
 
   app.get('/api/providers', async () => listCapabilities());

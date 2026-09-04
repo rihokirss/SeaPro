@@ -1634,19 +1634,29 @@ export function App() {
 
         {layerNotice ? (
           <div className="layer-notice" role="status">
-            {layerNotice.kind === 'rateLimited'
-              ? t('layer.rateLimited', {
-                  min: Math.max(1, Math.ceil(layerNotice.retryAfterSeconds / 60)),
-                })
-              : t('layer.failed')}
-            {layerNotice.kind === 'rateLimited' && gridFrame
-              ? t('layer.showingCached')
-              : null}
+            <div>
+              {layerNotice.kind === 'rateLimited'
+                ? t('layer.rateLimited', {
+                    min: Math.max(1, Math.ceil(layerNotice.retryAfterSeconds / 60)),
+                  })
+                : t('layer.failed')}
+              {layerNotice.kind === 'rateLimited' && gridFrame
+                ? t('layer.showingCached')
+                : null}
+            </div>
             {/* Kui kaardil on mõne muu tunni andmed, tuleb see VÄLJA ÖELDA.
                 Vaikselt vale aja näitamine on mereilmakaardil ohtlikum kui
                 andmete puudumine — kasutaja usub kella, mida ta näeb. */}
             {staleFieldTime ? (
-              <strong> {t('layer.showingTime', { time: staleFieldTime })}</strong>
+              <strong>{t('layer.showingTime', { time: staleFieldTime })}</strong>
+            ) : null}
+            {config?.sponsorSearchEnabled && layerNotice.kind === 'rateLimited' ? (
+              <div className="layer-notice__sponsor">
+                {t('sponsor.pitch')}{' '}
+                <a href="mailto:riho@kirss.ee?subject=SeaPro%20Open-Meteo%20sponsorlus">
+                  {t('sponsor.contact')}
+                </a>
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -1712,6 +1722,7 @@ export function App() {
           theme={theme}
           onThemeChange={setTheme}
           modelSkillEnabled={Boolean(config?.modelSkillEnabled)}
+          sponsorSearchEnabled={Boolean(config?.sponsorSearchEnabled)}
           onOpenModelSkill={(trigger) => {
             setModelSkillTrigger(trigger);
             setModelSkillOpen(true);
