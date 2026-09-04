@@ -661,6 +661,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         finnishAidResult,
       ]
         .map((result, index) => result.status === 'rejected'
+          || (index === 3 && 'partial' in official && official.partial)
           ? ['estonian-warnings', 'finnish-warnings', 'wrecks', 'official', 'finnish-aids'][index]
           : null)
         .filter(Boolean),

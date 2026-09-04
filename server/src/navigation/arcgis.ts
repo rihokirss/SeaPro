@@ -9,7 +9,8 @@ import type {
 import { cache } from '../cache.js';
 import { fetchJson } from '../http.js';
 import { categoryFromRegistry } from './categories.js';
-import { fetchNmaAidIndex, markColoursFromNma, type NmaAidIndex } from './nmaRegistry.js';
+import { fetchNmaAidIndex, fetchNmaNavigationAids, markColoursFromNma, type NmaAidIndex } from './nmaRegistry.js';
+import { navigationSnapshots, snapshotAids, isNavigationAidArray } from './snapshots.js';
 
 const WARNINGS =
   'https://gis.transpordiamet.ee/arcgis/rest/services/' +
@@ -125,10 +126,22 @@ export async function fetchWrecks(bbox: [number, number, number, number]): Promi
 
 export async function fetchOfficialNavigation(
   bbox: [number, number, number, number],
+): Promise<{ aids: NavigationAid[]; fairways: Fairway[]; partial?: boolean }> {
+  try {
+    return await fetchNutimeriNavigation(bbox);
+  } catch {
+    // NMA on eraldi avalik teenus; selle täiskoopia annab märgid ka ArcGIS-ita.
+    // XML ei sisalda laevateede geomeetriat: API märgib vastuse osaliseks.
+    return { aids: await fetchNmaNavigationAids(bbox), fairways: [], partial: true };
+  }
+}
+
+async function fetchNutimeriNavigation(
+  bbox: [number, number, number, number],
 ): Promise<{ aids: NavigationAid[]; fairways: Fairway[] }> {
   const snapped = snapBbox(bbox);
   const key = `nutimeri:navigation:v6:${snapped.join(',')}`;
-  const { value } = await cache.get(key, STATIC_TTL, async () => {
+  const snapshot = await navigationSnapshots.get(key, STATIC_TTL, async () => {
     const [nmaIndex, fairwayCollection, ...aidCollections] = await Promise.all([
       // Registri koondfail on rikastus, mitte kaardi töötamise eeltingimus.
       fetchNmaAidIndex().catch((): NmaAidIndex => ({})),
@@ -156,7 +169,7 @@ export async function fetchOfficialNavigation(
     });
 
     const kinds: NavigationAid['kind'][] = ['fixed', 'floating', 'seasonal'];
-    const aids = aidCollections.flatMap((collection, index) =>
+    const aids: NavigationAid[] = aidCollections.flatMap((collection, index) =>
       (collection.features ?? []).flatMap((feature) => {
         if (feature.geometry?.type !== 'Point') return [];
         const p = feature.properties ?? {};
@@ -191,8 +204,10 @@ export async function fetchOfficialNavigation(
     );
 
     return { fairways, aids };
-  });
-  return value;
+  }, (value): value is { aids: NavigationAid[]; fairways: Fairway[] } =>
+    !!value && typeof value === 'object' && 'aids' in value && 'fairways' in value
+    && isNavigationAidArray(value.aids) && Array.isArray(value.fairways));
+  return { ...snapshot.value, aids: snapshotAids(snapshot.value.aids, snapshot) };
 }
 
 export async function fetchOfficialHarbours(
@@ -247,6 +262,7 @@ async function queryLayer(
     timeoutMs: 30_000,
   });
   if (result.error) throw new Error(`ArcGIS: ${result.error.message ?? 'päring ebaõnnestus'}`);
+  if (!Array.isArray(result.features)) throw new Error('ArcGIS: puuduv objektide loend');
   return result;
 }
 

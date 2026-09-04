@@ -780,6 +780,9 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     title ||= t('navigation.aid');
     if (Boolean(p.virtual)) notice = t('navigation.virtual');
     if (Boolean(p.offPosition)) notice = t('navigation.offPosition');
+    if (p.registryStale === true) {
+      notice = [notice, t('navigation.registryStale')].filter(Boolean).join(' ');
+    }
     const category = String(p.category ?? '').trim();
     if (category && category !== 'unknown') {
       rows.push(row(t('navigation.aidType'), escapeHtml(t(`navigation.aidType.${category}`)), ''));
@@ -792,9 +795,7 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       const sourceNames = String(p.sources ?? '');
       rows.push(row(
         t('navigation.light'),
-        escapeHtml(light || (sourceNames.includes('vaylavirasto')
-          ? t('navigation.lightActive')
-          : 'AIS')),
+        escapeHtml(light || (sourceNames === 'ais' ? 'AIS' : t('navigation.lightActive'))),
         '',
       ));
     }
@@ -804,6 +805,12 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     addText(rows, t('navigation.fairwayName'), p.fairwayName);
     addMultilineText(rows, t('navigation.lightDetails'), p.lightDetails);
     addMultilineText(rows, t('navigation.lightSectors'), p.lightSectors);
+    const fetchedAt = new Date(String(p.registryFetchedAt ?? ''));
+    if (Number.isFinite(fetchedAt.getTime())) {
+      rows.push(row(t('navigation.registryFetchedAt'), escapeHtml(
+        new Intl.DateTimeFormat(localeTag(ctx.lang), { dateStyle: 'short', timeStyle: 'short' }).format(fetchedAt),
+      ), ''));
+    }
     const updatedAt = String(p.updatedAt ?? '').trim();
     if (updatedAt) {
       const updated = new Date(updatedAt);
@@ -857,7 +864,7 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
 
 function navigationAidSource(sources: string): string {
   const labels: string[] = [];
-  if (sources.includes('registry')) labels.push('Transpordiamet · Nutimeri');
+  if (sources.includes('registry')) labels.push('Transpordiamet · NMA');
   if (sources.includes('vaylavirasto')) labels.push('Väylävirasto');
   if (sources.includes('ais')) labels.push('AIS');
   return labels.join(' + ') || 'AIS';

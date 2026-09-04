@@ -509,6 +509,9 @@ export interface NavigationAid {
   atonCode?: string;
   /** NMA registri täpne eestikeelne liigikirjeldus. */
   registryType?: string;
+  /** Viimase eduka registripäringu aeg; ei ole AIS-i ega märgi muutmise aeg. */
+  registryFetchedAt?: string;
+  registryStale?: boolean;
   registryUrl?: string;
   /** NMA registrist saadud päevamärgi/ehitise põhivärvid ikooni jaoks. */
   markColours?: Array<'red' | 'green' | 'white' | 'yellow' | 'orange' | 'black' | 'grey'>;

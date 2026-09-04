@@ -89,5 +89,8 @@ kasuta brauseri arendustööriistade asukoha-simulatsiooni või paigalda TLS.
 ## Vahemälu ja andmed
 
 `/opt/seapro/data/` hoiab püsivat vahemälu (viimased edukad vastused allikatest).
-Selle võib alati kustutada — rakendus ehitab selle uuesti. See on ainus kataloog,
-kuhu systemd unit kirjutusõiguse annab.
+`navigation-snapshots/` alamkataloog sisaldab navigatsiooniregistrite viimaseid
+edukaid koopiaid, mida kasutatakse ka pika allikakatkestuse korral. Kaasa see
+varundusse ja säilita uuendamisel: kustutatud koopiat saab taastada ainult siis,
+kui algallikas töötab. Ülejäänud vahemälu ehitab rakendus allikate kättesaadavusel
+uuesti. `data/` on ainus kataloog, kuhu systemd unit kirjutusõiguse annab.

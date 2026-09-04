@@ -101,7 +101,7 @@ const MAX_STALE_AGE_MS = MAX_PERSISTED_AGE_MS;
 const CACHE_VERSION = 3;
 
 const here = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = resolve(here, '../../data');
+export const DATA_DIR = resolve(here, '../../data');
 const CACHE_FILE = join(DATA_DIR, 'cache.json');
 
 interface PersistedFile {

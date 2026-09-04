@@ -145,6 +145,8 @@
   "navigation.lightDetails": "Light details",
   "navigation.lightSectors": "Light sectors",
   "navigation.updatedAt": "Updated",
+  "navigation.registryFetchedAt": "Registry data fetched",
+  "navigation.registryStale": "Showing older registry data. The aid's current position and status may have changed.",
   "navigation.fairway": "Fairway",
   "navigation.depth": "Depth",
   "navigation.shipDraught": "Permitted draught",

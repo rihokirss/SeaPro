@@ -145,6 +145,8 @@
   "navigation.lightDetails": "Tule andmed",
   "navigation.lightSectors": "Valgussektorid",
   "navigation.updatedAt": "Uuendatud",
+  "navigation.registryFetchedAt": "Registriandmed laaditud",
+  "navigation.registryStale": "Kuvatakse vanu registriandmeid. Märgi praegune asukoht ja olek võivad olla muutunud.",
   "navigation.fairway": "Laevatee",
   "navigation.depth": "Sügavus",
   "navigation.shipDraught": "Lubatud süvis",

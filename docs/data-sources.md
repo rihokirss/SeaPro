@@ -366,8 +366,28 @@ et server ei tõmba ega saada väljalülitatud kihte.
 | Soome navigatsioonihoiatused | Traficomi avalik WFS, `navigational_warnings_p`, `_l` ja `_a` | 2 min vahemälu; teenus väljastab ainult kehtivad hoiatused |
 | AIS navigatsioonimärgid | `AIS-aton-stream-out/StreamServer/subscribe` | püsiv WebSocket; klient küsib serveri registrit iga 30 s |
 | Vrakid | `HIS/HIS_avalik/MapServer`, kiht 7 | 24 h vahemälu |
-| Ametlikud laevateed ja püsi-, ujuv- ning hooajalised märgid | `Nutimeri/pohiandmed/MapServer`, kihid 0–3 | 24 h vahemälu |
-| Soome ametlikud navigatsioonimärgid | Väylävirasto WFS, `vesivaylatiedot:turvalaitteet_uusi` | nähtava ala GeoJSON; 24 h vahemälu |
+| Ametlikud laevateed ja püsi-, ujuv- ning hooajalised märgid | `Nutimeri/pohiandmed/MapServer`, kihid 0–3 | uuendus 24 h järel; viimane edukas vastus säilib kettal |
+| Eesti märkide varuallikas | NMA avalik `https://nma.transpordiamet.ee/xml_file/` | kogu Eesti XML-koopia; uuendus 24 h järel, kettal tähtajatu |
+| Soome ametlikud navigatsioonimärgid | Väylävirasto WFS, `vesivaylatiedot:turvalaitteet_uusi` | nähtava ala GeoJSON; uuendus 24 h järel, viimane edukas vastus säilib kettal |
+
+Registriandmete püsikoopiad asuvad `data/navigation-snapshots/` kataloogis.
+Need ei allu ilmaandmete ööpäevasele koristusele ega kao protsessi taaskäivitusel
+või mälumahu täitumisel. Edukas uuendus asendab vastava koopia atomaarse
+failivahetusega; tõrge või vigane vastusekuju seda üle ei kirjuta. Katkestuse ajal
+proovitakse sama päringut uuesti kõige varem viie minuti pärast. Uuendamine
+käivitub andmete küsimisel, mitte eraldi kogu registri taustatööna.
+
+Kui Nutimere päring ei õnnestu ja selle ala koopiat pole, loetakse märgid NMA
+XML-ist. Täielik Eesti koopia katab ka varem vaatamata kaardialad. Soome ja
+Nutimere GeoJSON-koopiad katavad ainult varem laaditud päringualad. NMA XML ei
+asenda laevateede geomeetriat: sellisel juhul tagastab API märgid, kuid säilitab
+`official` veatähise puuduva laevateede kihi jaoks. XML-koordinaadid teisendatakse
+NMA XSD järgi miljondikest kaareminutitest kraadideks.
+
+Märgi hüpikaken näitab registriandmete laadimisaega; üle ööpäeva vana koopia
+puhul lisandub teade, et märgi asukoht ja olek võivad olla muutunud. AIS-i
+reaalaja positsioon ei muuda registrikoopia vanust. Hoiatuste ja AIS-i ajalisi
+andmeid sellesse tähtajatusse registrivahemällu ei salvestata.
 
 AIS AToN ühendatakse koordinaadi järgi sama füüsilise registrimärgiga; virtuaalne
 AIS-märk jääb alati eraldi. Ametlikud laevateed ja märgid võivad ENC merekaardi

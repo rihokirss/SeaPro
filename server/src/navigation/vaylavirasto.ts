@@ -1,7 +1,7 @@
 import type { BBox, NavigationAid } from '@seapro/shared';
-import { cache } from '../cache.js';
 import { fetchJson } from '../http.js';
 import { categoryFromFinnishNavigationCode } from './categories.js';
+import { navigationSnapshots, snapshotAids, isNavigationAidArray } from './snapshots.js';
 
 const WFS = 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ows';
 const LAYER = 'vesivaylatiedot:turvalaitteet_uusi';
@@ -39,12 +39,13 @@ export async function fetchFinnishNavigationAids(bbox: BBox): Promise<Navigation
 
   const snapped = snapBbox(clipped);
   const key = `vaylavirasto:navigation:v1:${snapped.join(',')}`;
-  const { value } = await cache.get(key, STATIC_TTL, async () => {
+  const snapshot = await navigationSnapshots.get(key, STATIC_TTL, async () => {
     const features: FinnishAidFeature[] = [];
     let startIndex = 0;
 
     do {
       const page = await queryAids(snapped, startIndex);
+      if (!Array.isArray(page.features)) throw new Error('WFS: puuduv objektide loend');
       const returned = page.features?.length ?? 0;
       features.push(...(page.features ?? []));
       startIndex += returned;
@@ -52,8 +53,8 @@ export async function fetchFinnishNavigationAids(bbox: BBox): Promise<Navigation
     } while (startIndex < 50_000);
 
     return parseFinnishNavigationAids({ features });
-  });
-  return value;
+  }, isNavigationAidArray);
+  return snapshotAids(snapshot.value, snapshot);
 }
 
 async function queryAids(bbox: BBox, startIndex: number): Promise<FinnishAidCollection> {

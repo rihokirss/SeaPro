@@ -1,7 +1,9 @@
-import { cache } from '../cache.js';
+import type { BBox, NavigationAid } from '@seapro/shared';
 import { fetchText } from '../http.js';
+import { categoryFromRegistry } from './categories.js';
+import { navigationSnapshots, snapshotAids } from './snapshots.js';
 
-const NMA_XML = 'https://nma.vta.ee/xml_file/';
+const NMA_XML = 'https://nma.transpordiamet.ee/xml_file/';
 const REGISTRY_TTL = 24 * 3600;
 
 export interface NmaAidDetails {
@@ -18,15 +20,59 @@ export type NmaAidIndex = Record<string, NmaAidDetails>;
  * HTML-lehe eraldi küsimine.
  */
 export async function fetchNmaAidIndex(): Promise<NmaAidIndex> {
-  const { value } = await cache.get('nma:aton-registry:v2', REGISTRY_TTL, async () => {
-    const xml = await fetchText(NMA_XML, {
+  return parseNmaAidIndex((await fetchNmaXml()).value);
+}
+
+function fetchNmaXml() {
+  return navigationSnapshots.get('nma:xml:v1', REGISTRY_TTL, () =>
+    fetchText(NMA_XML, {
       timeoutMs: 30_000,
       retries: 1,
       headers: { Accept: 'application/xml' },
-    });
-    return parseNmaAidIndex(xml);
+    }), (value): value is string => typeof value === 'string'
+      && /<\/SOAP-ENV:Envelope>\s*$/.test(value)
+      && parseNmaNavigationAids(value).length > 0);
+}
+
+/** Kogu Eesti koondfail on üks püsikoopia, seega töötab ka varem vaatamata ala. */
+export async function fetchNmaNavigationAids(bbox: BBox): Promise<NavigationAid[]> {
+  const snapshot = await fetchNmaXml();
+  const [south, west, north, east] = bbox;
+  return snapshotAids(parseNmaNavigationAids(snapshot.value).filter((aid) =>
+    aid.lat >= south && aid.lat <= north && aid.lon >= west && aid.lon <= east), snapshot);
+}
+
+export function parseNmaNavigationAids(xml: string): NavigationAid[] {
+  const index = parseNmaAidIndex(xml);
+  return [...xml.matchAll(/<Navimark>([\s\S]*?)<\/Navimark>/g)].flatMap((match) => {
+    const body = match[1]!;
+    const atonCode = tag(body, 'EstNo');
+    const name = tag(body, 'Name');
+    const registry = atonCode ? index[atonCode] : undefined;
+    // NMA XSD: koordinaadid on miljondikes kaareminutites, mitte kraadides.
+    // https://nma.transpordiamet.ee/xsd_file
+    const lat = Number(tag(body, 'Latitude')) / 60_000_000;
+    const lon = Number(tag(body, 'Longitude')) / 60_000_000;
+    if (!atonCode || !name || !registry || !Number.isFinite(lat) || !Number.isFinite(lon)
+      || Math.abs(lat) > 90 || Math.abs(lon) > 180) return [];
+    const floating = /poi|tooder/i.test(registry.typeName);
+    const season = tag(body, 'Season');
+    const kind = floating ? (season && season !== 'Aastaringne' ? 'seasonal' : 'floating') : 'fixed';
+    const light = tag(body, 'LightActive');
+    return [{
+      id: `aton:nma:${atonCode}`,
+      atonCode, name, lat, lon, kind,
+      registryType: registry.typeName,
+      category: categoryFromRegistry(name, kind, undefined, registry.typeName),
+      markColours: markColoursFromNma(registry),
+      lightActive: light === '1' ? true : light === '0' ? false : undefined,
+      lightDetails: tag(body, 'LightChar'),
+      owner: tag(body, 'HolderName'),
+      location: tag(body, 'Loc_descr'),
+      fairwayName: tag(body, 'Fairway'),
+      sources: ['registry'],
+    } satisfies NavigationAid];
   });
-  return value;
 }
 
 /** Eksporditud eraldi, et ametliku XML-i kuju saaks võrguta testida. */

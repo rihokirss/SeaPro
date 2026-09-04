@@ -145,6 +145,8 @@
   "navigation.lightDetails": "Valon tiedot",
   "navigation.lightSectors": "Valosektorit",
   "navigation.updatedAt": "Päivitetty",
+  "navigation.registryFetchedAt": "Rekisteritiedot haettu",
+  "navigation.registryStale": "Näytetään vanhoja rekisteritietoja. Turvalaitteen nykyinen sijainti ja tila ovat voineet muuttua.",
   "navigation.fairway": "Väylä",
   "navigation.depth": "Syvyys",
   "navigation.shipDraught": "Sallittu syväys",
