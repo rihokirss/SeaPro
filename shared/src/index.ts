@@ -547,6 +547,10 @@ export interface Fairway {
   shipDraughtM?: number;
   widthM?: number;
   type?: string;
+  /** Liitsihi peiling ja töötsooni kaugused alumisest märgist. */
+  bearingDegrees?: number;
+  workingRangeStartM?: number;
+  workingRangeEndM?: number;
 }
 
 export type TrafficSchemeKind =

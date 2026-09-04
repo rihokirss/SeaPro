@@ -127,7 +127,10 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
       depthM: fairway.depthM ?? null,
       shipDraughtM: fairway.shipDraughtM ?? null,
       widthM: fairway.widthM ?? null,
-      fairwayType: fairway.type ?? '',
+        fairwayType: fairway.type ?? '',
+        bearingDegrees: fairway.bearingDegrees ?? null,
+        workingRangeStartM: fairway.workingRangeStartM ?? null,
+        workingRangeEndM: fairway.workingRangeEndM ?? null,
     };
     // Täielik registrigeomeetria kuulub ainult läbipaistvasse klikikihti.
     features.push({

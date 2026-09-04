@@ -378,7 +378,10 @@ proovitakse sama päringut uuesti kõige varem viie minuti pärast. Uuendamine
 käivitub andmete küsimisel, mitte eraldi kogu registri taustatööna.
 
 Kui Nutimere päring ei õnnestu ja selle ala koopiat pole, loetakse märgid NMA
-XML-ist. Täielik Eesti koopia katab ka varem vaatamata kaardialad. Soome ja
+XML-ist. XML-i `LeadingLines` plokkidest taastatakse ka liitsihid: registri
+peiling on merelt märkide poole, seega kulgeb joon ülemisest märgist läbi
+alumise märgi vastupeilingul töötsooni lõpuni ning hüpikaken näitab
+peilingut ja töötsooni kaugusi. Täielik Eesti koopia katab ka varem vaatamata kaardialad. Soome ja
 Nutimere GeoJSON-koopiad katavad ainult varem laaditud päringualad. NMA XML ei
 asenda laevateede geomeetriat: sellisel juhul tagastab API märgid, kuid säilitab
 `official` veatähise puuduva laevateede kihi jaoks. XML-koordinaadid teisendatakse

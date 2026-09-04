@@ -836,11 +836,18 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     }
   } else if (kind === 'fairway') {
     title ||= t('navigation.fairway');
-    kindLabel = t('navigation.fairway');
+    const leadingLine = p.fairwayType === 'leading-line';
+    kindLabel = leadingLine ? t('navigation.leadingLine') : t('navigation.fairway');
     addMetric(rows, t('navigation.depth'), p.depthM, 'm');
     addMetric(rows, t('navigation.shipDraught'), p.shipDraughtM, 'm');
     addMetric(rows, t('navigation.width'), p.widthM, 'm');
-    addText(rows, t('navigation.fairway'), p.fairwayType);
+    if (leadingLine) {
+      addMetric(rows, t('navigation.bearing'), p.bearingDegrees, '°');
+      addMetric(rows, t('navigation.workingRangeStart'), p.workingRangeStartM, 'm');
+      addMetric(rows, t('navigation.workingRangeEnd'), p.workingRangeEndM, 'm');
+    } else {
+      addText(rows, t('navigation.fairway'), p.fairwayType);
+    }
   }
 
   const source = kind === 'aid'

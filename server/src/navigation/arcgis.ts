@@ -9,7 +9,7 @@ import type {
 import { cache } from '../cache.js';
 import { fetchJson } from '../http.js';
 import { categoryFromRegistry } from './categories.js';
-import { fetchNmaAidIndex, fetchNmaNavigationAids, markColoursFromNma, type NmaAidIndex } from './nmaRegistry.js';
+import { fetchNmaAidIndex, fetchNmaLeadingLines, fetchNmaNavigationAids, markColoursFromNma, type NmaAidIndex } from './nmaRegistry.js';
 import { navigationSnapshots, snapshotAids, isNavigationAidArray } from './snapshots.js';
 
 const WARNINGS =
@@ -128,11 +128,26 @@ export async function fetchOfficialNavigation(
   bbox: [number, number, number, number],
 ): Promise<{ aids: NavigationAid[]; fairways: Fairway[]; partial?: boolean }> {
   try {
-    return await fetchNutimeriNavigation(bbox);
+    const primary = await fetchNutimeriNavigation(bbox);
+    const leadingLines = await fetchNmaLeadingLines(bbox).catch(() => []);
+    const existingNames = new Set(primary.fairways.map((fairway) => fairway.name.trim().toLowerCase()));
+    return {
+      ...primary,
+      // Nutimeri taastumisel võib sama siht olla juba tema laevateekihis.
+      // Nime järgi deduplikatsioon väldib kahe kattuva joone kuvamist.
+      fairways: [
+        ...primary.fairways,
+        ...leadingLines.filter((line) => !existingNames.has(line.name.trim().toLowerCase())),
+      ],
+    };
   } catch {
     // NMA on eraldi avalik teenus; selle täiskoopia annab märgid ka ArcGIS-ita.
     // XML ei sisalda laevateede geomeetriat: API märgib vastuse osaliseks.
-    return { aids: await fetchNmaNavigationAids(bbox), fairways: [], partial: true };
+    const [aids, fairways] = await Promise.all([
+      fetchNmaNavigationAids(bbox),
+      fetchNmaLeadingLines(bbox),
+    ]);
+    return { aids, fairways, partial: true };
   }
 }
 

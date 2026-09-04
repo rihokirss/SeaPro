@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { markColoursFromNma, parseNmaAidIndex, parseNmaNavigationAids } from '../src/navigation/nmaRegistry.js';
+import { markColoursFromNma, parseNmaAidIndex, parseNmaLeadingLines, parseNmaNavigationAids } from '../src/navigation/nmaRegistry.js';
 
 describe('NMA navigatsioonimärkide avaandmed', () => {
   it('teisendab NMA kaareminutid kraadideks ja säilitab märgi liigi', () => {
@@ -21,6 +21,35 @@ describe('NMA navigatsioonimärkide avaandmed', () => {
     expect(aids[0]!.lat).toBeCloseTo(59.46810617, 7);
     expect(aids[0]!.lon).toBeCloseTo(28.040366, 7);
     expect(aids[1]).toMatchObject({ lat: 59, lon: 24, kind: 'seasonal', category: 'cardinal-north' });
+  });
+
+  it('koostab korduvast XML-i liitsihist ühe joone läbi mõlema märgi ja töötsooni', () => {
+    const line = `<LeadingLines><LeadingLine><LineName>Suurupi siht</LineName>
+      <Bearing>246.5</Bearing><FrontFwBegin>7826</FrontFwBegin><FrontFwEnd>18860</FrontFwEnd>
+      <LeadingLineAtoNs>
+        <LeadingLineAton><LdgLnAtonEstNo>374</LdgLnAtonEstNo><LdgLnAtonOrderNo>1</LdgLnAtonOrderNo></LeadingLineAton>
+        <LeadingLineAton><LdgLnAtonEstNo>375</LdgLnAtonEstNo><LdgLnAtonOrderNo>2</LdgLnAtonOrderNo></LeadingLineAton>
+      </LeadingLineAtoNs></LeadingLine></LeadingLines>`;
+    const xml = `<Navimarks>
+      <Navimark><Name>Suurupi sihi alumine tuletorn</Name><EstNo>374</EstNo><TypeName>Tuletorn, sihi alumine</TypeName>
+        <Latitude>3568300960</Latitude><Longitude>1464997640</Longitude>${line}</Navimark>
+      <Navimark><Name>Suurupi tuletorn</Name><EstNo>375</EstNo><TypeName>Tuletorn, sihi ülemine</TypeName>
+        <Latitude>3567814620</Latitude><Longitude>1462815320</Longitude>${line}</Navimark>
+      </Navimarks>`;
+    const lines = parseNmaLeadingLines(xml);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      id: 'leading-line:nma:374:375', name: 'Suurupi siht', type: 'leading-line',
+      bearingDegrees: 246.5, workingRangeStartM: 7826, workingRangeEndM: 18860,
+      geometry: { type: 'LineString' },
+    });
+    const coordinates = lines[0]!.geometry.type === 'LineString' ? lines[0]!.geometry.coordinates : [];
+    expect(coordinates).toHaveLength(3);
+    expect(coordinates[0]).toEqual([1462815320 / 60_000_000, 3567814620 / 60_000_000]);
+    expect(coordinates[1]).toEqual([1464997640 / 60_000_000, 3568300960 / 60_000_000]);
+    // 246,5° on merelt märkide poole; töötsoon kulgeb vastupeilingul 66,5°.
+    expect(coordinates[2]![0]).toBeGreaterThan(coordinates[1]![0]);
+    expect(coordinates[2]![1]).toBeGreaterThan(coordinates[1]![1]);
   });
 
   it('indekseerib registri märgi numbri järgi ja dekodeerib XML-i', () => {
