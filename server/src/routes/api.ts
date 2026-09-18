@@ -475,11 +475,11 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     try {
       if (wantDay) {
         const result = await provider.gridDay!({ bbox: snapped, steps, variables, time, modelId, waveModelId });
-        reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+        reply.header('Cache-Control', 'no-store');
         return result;
       }
       const frame = await provider.grid({ bbox: snapped, steps, variables, time, modelId, waveModelId });
-      reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+      reply.header('Cache-Control', 'no-store');
       return frame;
     } catch (err) {
       // Eelarve täis ei ole serveri viga, vaid teadaolev seisund. 500 tähendaks

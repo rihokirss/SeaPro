@@ -780,7 +780,18 @@ export class OpenMeteoProvider implements WeatherProvider {
       }
     }
 
-    return { frames, ...(warning ? { warning } : {}) };
+    const parts = fetched.filter((part) => part !== null);
+    const fetchedAt = Math.min(...parts.map((part) => part.fetchedAt));
+    return {
+      frames,
+      freshness: {
+        fetchedAt: new Date(fetchedAt).toISOString(),
+        expiresAt: new Date(fetchedAt + config.ttl.openMeteo * 1000).toISOString(),
+        stale: parts.some((part) => part.stale),
+        partial: parts.length < tiles.length,
+      },
+      ...(warning ? { warning } : {}),
+    };
   }
 
   /**
@@ -803,6 +814,8 @@ export class OpenMeteoProvider implements WeatherProvider {
     lons: number[];
     value: OmResponse | OmResponse[];
     fallbackError?: unknown;
+    fetchedAt: number;
+    stale: boolean;
   }> {
     const { api, apiVars, isMarine, modelId, spacing, tile, blockStart, blockEnd } = opts;
     const lats: number[] = [];
@@ -855,6 +868,8 @@ export class OpenMeteoProvider implements WeatherProvider {
       lats,
       lons,
       value: cached.value,
+      fetchedAt: Date.now() - cached.ageSeconds * 1000,
+      stale: cached.stale,
       ...(cached.fallbackError ? { fallbackError: cached.fallbackError } : {}),
     };
   }

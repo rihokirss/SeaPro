@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type {
   GridFrame,
@@ -19,7 +19,8 @@ import type {
 } from '@seapro/shared';
 import { bearingDegrees, crossTrackDistanceMetres, distanceMetres, isWaveVariable, routeDistanceNm, segmentProgress } from '@seapro/shared';
 import { I18nContext, detectLang, makeTranslate, saveLang, type Lang } from './i18n';
-import { RateLimitedError, api, type AppConfig } from './lib/api';
+import { api, type AppConfig } from './lib/api';
+import { useGridDays } from './lib/useGridDays';
 import { useGeolocation } from './lib/geolocation';
 import { useFavorites } from './lib/favorites';
 import { useTheme } from './lib/theme';
@@ -119,21 +120,6 @@ const FORECAST_HOURS = 240;
  */
 const SLIDER_HOURS = 120;
 
-/**
- * Mitu punkti serverilt küsida.
- *
- * Open-Meteo loeb iga võrgupunkti eraldi API-kutseks, seega ei küsi me
- * ekraanipikslite tihedust. Samas peab võrk olema piisavalt tihe, et kitsad
- * rannikumere tuulekoridorid ei kaoks ülevaatekaardil proovipunktide vahele.
- * Server paneb punktid jagatud vahemäluga paanidesse, mistõttu sama piirkonna
- * järgmised vaated ei maksa neid punkte uuesti.
- */
-function gridStepsFor(width: number): number {
-  if (width < 480) return 12;
-  if (width < 1024) return 16;
-  return 20;
-}
-
 /** Ajaliugurile lähim kaader juba mälus olevast ööpäevast. */
 function frameAt(frames: GridFrame[], time: Date): GridFrame | null {
   if (frames.length === 0) return null;
@@ -150,91 +136,8 @@ function frameAt(frames: GridFrame[], time: Date): GridFrame | null {
   return best;
 }
 
-/**
- * Ühe muutujakomplekti ööpäevased kaadrid.
- *
- * Kaks tarbijat, kaks eraldi kutset: tuulenooled ja valevärvi-väli. Varem oli
- * see loogika ainult tuule jaoks ja valevärvi-välja kaadrit ei tõmmanud MITTE
- * KEEGI — `fieldFrame` jäi igaveseks `null`-iks, mistõttu töötas ainus
- * valevärvi-valik, mis tuule kaadrit taaskasutas (tuulekiirus). Kõik ülejäänud
- * — lained, pilved, temperatuur, rõhk — joonistasid tühja välja.
- *
- * Tagastab koristusfunktsiooni, mille useEffect otse edasi annab.
- */
-function fetchGridDay(opts: {
-  bbox: [number, number, number, number];
-  vars: Variable[];
-  time: Date;
-  model: string;
-  waveModel?: string;
-  onFrames(frames: GridFrame[]): void;
-  onNotice(notice: { kind: 'rateLimited'; retryAfterSeconds: number } | { kind: 'error' } | null): void;
-}): () => void {
-  const ac = new AbortController();
-  api
-    .gridDay(
-      {
-        bbox: opts.bbox,
-        steps: gridStepsFor(window.innerWidth),
-        vars: opts.vars,
-        time: opts.time.toISOString(),
-        model: opts.model === 'best_match' ? undefined : opts.model,
-        waveModel: opts.waveModel,
-      },
-      ac.signal,
-    )
-    .then((res) => {
-      opts.onFrames(res.frames);
-      opts.onNotice(
-        res.warning?.kind === 'rate_limited'
-          ? { kind: 'rateLimited', retryAfterSeconds: res.warning.retryAfterSeconds }
-          : res.warning?.kind === 'error'
-            ? { kind: 'error' }
-            : null,
-      );
-    })
-    .catch((err: unknown) => {
-      if (ac.signal.aborted) return;
-      // Ainult kaardikiht kadus; punktiprognoos ja jaamad töötavad edasi.
-      // Aga kasutaja peab teadma, MIKS kiht seisma jäi.
-      opts.onNotice(
-        err instanceof RateLimitedError
-          ? { kind: 'rateLimited', retryAfterSeconds: err.retryAfterSeconds }
-          : { kind: 'error' },
-      );
-    });
-  return () => ac.abort();
-}
-
 const WIND_VARS: Variable[] = ['wind_speed', 'wind_dir', 'wind_gust'];
-/** Stabiilne viide, et tühi valik ei käivitaks efekti iga renderi peale. */
 const EMPTY_VARS: Variable[] = [];
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Milliseid ööpäevi korraga mälus hoiame, valitud päeva suhtes.
- *
- * Esimene katse oli [0, +1] ehk praegune ja järgmine. See tegi ÜHE
- * ööpäevapiiri sujuvaks, aga liugurit järjest edasi sikutades jõudsid kohe
- * uuesti akna serva: hetkel, mil ületasid esimese piiri, alles hakati
- * ülejärgmist tõmbama, ja kiire lohistamise juures jõudsid sinna enne andmeid.
- *
- * Liikuv aken tähendab, et valitud hetke ümber on ALATI ööpäev igas suunas,
- * mitte ainult ühes. Hind on kolm ööpäeva ühe asemel, aga paanide vahemälu
- * teeb korduvad tõmbed tasuta ja aken nihkub ühe päeva kaupa, mitte tervikuna.
- */
-const DAY_OFFSETS = [-1, 0, 1];
-
-/**
- * Mitu ööpäevakomplekti vahemälus hoiame.
- *
- * Kolm on korraga vaja (DAY_OFFSETS); ülejäänu on ajalugu, mis teeb
- * tagasi-panimise ja päeva vahetamise hetkeliseks. Kaks korda rohkem on
- * piisavalt, et tavaline edasi-tagasi liikumine mahuks, ja piisavalt vähe,
- * et mälu ei kasvaks piiramatult.
- */
-const CACHE_LIMIT = 6;
 
 /**
  * Küsitav ala, ruudustikule kleebitult.
@@ -266,136 +169,6 @@ function snapBbox(
     Math.ceil((n + padLat) / qLat) * qLat,
     Math.ceil((e + padLon) / qLon) * qLon,
   ];
-}
-
-/**
- * Kaardikihi kaadrid ööpäevade kaupa, JÄRGMINE ÖÖPÄEV ETTE TÕMMATUD.
- *
- * Terve ööpäev ühe päringuga tähendas juba seda, et tunni vahetamine liuguril
- * on mäluvalik, mitte võrgupäring. Aga ööpäeva PIIRIL algas kõik otsast: kell
- * 23-lt 00-le liikudes polnud järgmise päeva kaadreid kuskilt võtta ja väli
- * jäi hetkeks seisma, täpselt nagu vanasti iga tunni peal.
- *
- * Nüüd hoiame korraga kahte ööpäeva — valitut ja järgmist. Ülemineku hetkel on
- * andmed juba mälus ja päev vahetub sama sujuvalt kui tund. Kui kasutaja siis
- * edasi liigub, saab endisest "järgmisest" praegune ja ette tõmmatakse
- * ülejärgmine.
- *
- * Vahemälu on `ref`-is, mitte olekus: võti sisaldab ala, mudelit ja muutujaid,
- * seega vana vaate kaadrid ei saa kogemata uue peal kasutusse minna, ja
- * puhastamine ei tohi vallandada uut renderit keset tõmbamist. Renderi äratab
- * `bump`.
- */
-function useGridDays(params: {
-  bbox: [number, number, number, number] | null;
-  vars: Variable[];
-  time: Date;
-  model: string;
-  waveModel?: string;
-  onNotice(notice: { kind: 'rateLimited'; retryAfterSeconds: number } | { kind: 'error' } | null): void;
-}): GridFrame[] {
-  const { bbox, vars, time, model, waveModel, onNotice } = params;
-  const cache = useRef(new Map<string, GridFrame[]>());
-  const [tick, bump] = useReducer((n: number) => n + 1, 0);
-
-  const varsKey = vars.join(',');
-  const bboxKey = bbox ? bbox.map((n) => n.toFixed(3)).join(',') : '';
-  const dayKey = time.toISOString().slice(0, 10);
-  const timeRef = useRef(time);
-  timeRef.current = time;
-
-  /**
-   * Soovitud võtmed arvutame RENDERIS, mitte ainult efektis: tagastus peab
-   * teadma, millised kaadrid on praegu õiged, ja millised on vana vaate omad,
-   * mida hoiame ainult seni, kuni asendus kohale jõuab.
-   */
-  const wanted = useMemo(() => {
-    const base = timeRef.current.getTime();
-    return DAY_OFFSETS.map(
-      (d) =>
-        `${bboxKey}|${model}|${waveModel ?? '-'}|${varsKey}|${new Date(base + d * DAY_MS)
-          .toISOString()
-          .slice(0, 10)}`,
-    );
-    // `time` asemel `dayKey`: täpne tund ei tohi võtmeid ümber arvutada.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bboxKey, model, waveModel, varsKey, dayKey]);
-
-  const wantedKey = wanted.join(';');
-  const lastGood = useRef<GridFrame[]>([]);
-
-  useEffect(() => {
-    if (!bbox || vars.length === 0) {
-      if (cache.current.size > 0) {
-        cache.current.clear();
-        lastGood.current = [];
-        bump();
-      }
-      return;
-    }
-
-    const base = timeRef.current.getTime();
-    const days = DAY_OFFSETS.map((d) => new Date(base + d * DAY_MS));
-
-    const cancels: Array<() => void> = [];
-    days.forEach((d, i) => {
-      const key = wanted[i]!;
-      if (cache.current.has(key)) return;
-      cancels.push(
-        fetchGridDay({
-          bbox,
-          vars,
-          time: d,
-          model,
-          waveModel,
-          onFrames: (frames) => {
-            cache.current.set(key, frames);
-            /**
-             * Koristame ALLES NÜÜD, kui asendus on käes.
-             *
-             * Varem käis puhastus efekti alguses ja see oligi panimise
-             * vilkumise põhjus: vana ala kaadrid kustutati kohe, `bump()`
-             * renderdas tühja komplektiga, kihiefektid said `null`-i ja
-             * peitsid nooled ning valevärvi-välja ära, kuni võrk vastas.
-             * Ekraanil paistis see nii, nagu kaart laadiks end iga nihke
-             * peale uuesti.
-             *
-             * Ülempiir hoiab mälu paigas ka siis, kui kasutaja mööda kaarti
-             * ringi rändab: alles jäävad soovitud võtmed ja natuke ajalugu
-             * (tagasi-panimine on tavaline), ülejäänu läheb vanuse järjekorras.
-             */
-            for (const stale of [...cache.current.keys()]) {
-              if (cache.current.size <= CACHE_LIMIT) break;
-              if (!wanted.includes(stale)) cache.current.delete(stale);
-            }
-            bump();
-          },
-          // Eelhaare EI TOHI teadet muuta. Muidu ütleks rakendus "limiit täis"
-          // olukorras, kus nähtav päev on tegelikult ilusti ekraanil ja ainult
-          // ülehomme jäi tõmbamata.
-          onNotice: days[i]!.toISOString().slice(0, 10) === dayKey ? onNotice : () => {},
-        }),
-      );
-    });
-    return () => cancels.forEach((c) => c());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantedKey, onNotice]);
-
-  return useMemo(() => {
-    const out: GridFrame[] = [];
-    for (const key of wanted) {
-      const frames = cache.current.get(key);
-      if (frames) out.push(...frames);
-    }
-    // Kuni uuest alast ei ole veel ÜHTKI kaadrit, jääb ekraanile eelmine
-    // pilt. Vale ala kaader on hetkeks vähem vale kui tühi kaart — nihe on
-    // väike (vt snapBbox) ja alternatiiv on kihi kadumine.
-    if (out.length === 0) return lastGood.current;
-    lastGood.current = out;
-    return out;
-    // `tick` on siin ainus päris sõltuvus — vahemälu ise on ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tick, wantedKey]);
 }
 
 const makeId = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -707,15 +480,6 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.bbox.join(',')]);
 
-  /**
-   * Kaardikihi seisund, kui andmed EI tule. Varem neelasime need vead vaikselt
-   * alla ja kasutaja jaoks näis, nagu rakendus lihtsalt lakkaks uuenemast —
-   * ilma ühegi vihjeta, kas asi on võrgus, allikas või meis.
-   */
-  const [layerNotice, setLayerNotice] = useState<
-    { kind: 'rateLimited'; retryAfterSeconds: number } | { kind: 'error' } | null
-  >(null);
-
   const geo = useGeolocation();
   const favorites = useFavorites();
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -864,7 +628,7 @@ export function App() {
   // näitab tuulekiirust — muidu jääks väli tühjaks just selles kombinatsioonis.
   const needWind = layers.windDisplay !== 'off' || fieldVar === 'wind_speed';
 
-  const dayFrames = useGridDays({
+  const windData = useGridDays({
     bbox: dataBbox,
     vars: needWind ? WIND_VARS : EMPTY_VARS,
     // `selectedTime`, mitte viivitatud `dataTime`: aken peab nihkuma juba
@@ -873,7 +637,6 @@ export function App() {
     // maksa siin midagi.
     time: selectedTime,
     model: activeModel,
-    onNotice: setLayerNotice,
   });
 
   /**
@@ -900,20 +663,19 @@ export function App() {
    * jätame `model` automaatseks.
    */
   const fieldIsWave = fieldVar !== null && isWaveVariable(fieldVar);
-  const fieldDayFrames = useGridDays({
+  const fieldData = useGridDays({
     bbox: dataBbox,
     vars: fieldVars,
     time: selectedTime,
     model: fieldIsWave ? 'best_match' : activeModel,
     waveModel: fieldIsWave ? activeWaveModel : undefined,
-    onNotice: setLayerNotice,
   });
 
   /** Valitud tunni kaader mälust. Kerimine ei puuduta võrku. */
-  const gridFrame = useMemo(() => frameAt(dayFrames, selectedTime), [dayFrames, selectedTime]);
+  const gridFrame = useMemo(() => frameAt(windData.frames, selectedTime), [windData.frames, selectedTime]);
   const fieldFrame = useMemo(
-    () => frameAt(fieldDayFrames, selectedTime),
-    [fieldDayFrames, selectedTime],
+    () => frameAt(fieldData.frames, selectedTime),
+    [fieldData.frames, selectedTime],
   );
 
   // Interpoleeritud tuuleväli — sellest toituvad nii nooled kui osakesed.
@@ -1555,20 +1317,6 @@ export function App() {
     ? [savedView.lat, savedView.lon]
     : [config?.defaultLat ?? 59.0, config?.defaultLon ?? 23.5];
 
-  /**
-   * Kui kaardikiht ei saanud valitud aja kohta andmeid, jääb ekraanile eelmine
-   * kaader. Siin arvutame, MIS aega see kaader tegelikult näitab, et seda
-   * saaks kasutajale öelda.
-   */
-  const staleFieldTime = useMemo(() => {
-    if (!layerNotice || !gridFrame) return null;
-    const shown = new Date(gridFrame.time);
-    if (Number.isNaN(shown.getTime())) return null;
-    const diffHours = Math.abs(shown.getTime() - selectedTime.getTime()) / 3600_000;
-    if (diffHours < 1) return null;
-    return formatDateTime(shown, lang);
-  }, [layerNotice, gridFrame, selectedTime, lang]);
-
   const modelLabel = useMemo(() => {
     const models = providers.find((p) => p.id === 'open-meteo')?.models;
     return models?.find((m) => m.id === activeModel)?.label;
@@ -1638,30 +1386,14 @@ export function App() {
           onStop={stopNavigation}
         /> : null}
 
-        {layerNotice ? (
+        {windData.notice || fieldData.notice ? (
           <div className="layer-notice" role="status">
-            <div>
-              {layerNotice.kind === 'rateLimited'
-                ? t('layer.rateLimited', {
-                    min: Math.max(1, Math.ceil(layerNotice.retryAfterSeconds / 60)),
-                  })
-                : t('layer.failed')}
-              {layerNotice.kind === 'rateLimited' && gridFrame
-                ? t('layer.showingCached')
-                : null}
-            </div>
-            {/* Kui kaardil on mõne muu tunni andmed, tuleb see VÄLJA ÖELDA.
-                Vaikselt vale aja näitamine on mereilmakaardil ohtlikum kui
-                andmete puudumine — kasutaja usub kella, mida ta näeb. */}
-            {staleFieldTime ? (
-              <strong>{t('layer.showingTime', { time: staleFieldTime })}</strong>
-            ) : null}
-            {config?.sponsorSearchEnabled && layerNotice.kind === 'rateLimited' ? (
+            {windData.notice ? <div>{t('weather.wind')}: {t(`weather.${windData.notice}`)}</div> : null}
+            {fieldData.notice ? <div>{t('weather.field')}: {t(`weather.${fieldData.notice}`)}</div> : null}
+            {config?.sponsorSearchEnabled && (windData.notice === 'limited' || fieldData.notice === 'limited') ? (
               <div className="layer-notice__sponsor">
                 {t('sponsor.pitch')}{' '}
-                <a href="mailto:riho@kirss.ee?subject=SeaPro%20Open-Meteo%20sponsorlus">
-                  {t('sponsor.contact')}
-                </a>
+                <a href="mailto:riho@kirss.ee?subject=SeaPro%20Open-Meteo%20sponsorlus">{t('sponsor.contact')}</a>
               </div>
             ) : null}
           </div>

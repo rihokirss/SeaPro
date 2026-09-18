@@ -65,9 +65,20 @@ export default defineConfig({
             },
           },
           {
-            // Prognoosiväli võib avaneda kohe viimase kaadriga: tunni aja
-            // prognoos ei ole sama ajatundlik kui jaama hetkemõõtmine.
-            urlPattern: /\/api\/(grid|providers)(?:\?|$)/,
+            // Serveri vastus kannab oma tegelikku värskusaega. Võrku kasutame
+            // alati esimesena; Cache API koopia on ainult offline-käivituse
+            // varu ja klient märgib aegunud vastuse selle metadata järgi.
+            urlPattern: /\/api\/grid(?:\?|$)/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'seapro-weather-grid',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 300, maxAgeSeconds: 24 * 3600 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: /\/api\/providers(?:\?|$)/,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'seapro-api',

@@ -226,7 +226,7 @@ export const api = {
     if (opts.provider) p.set('provider', opts.provider);
     if (opts.model) p.set('model', opts.model);
     if (opts.waveModel) p.set('waveModel', opts.waveModel);
-    return get<GridDayResult>(`/api/grid?${p}`, signal);
+    return get<GridDayResult>(`/api/grid?${p}`, signal, 'no-store');
   },
 
   harbours(bbox: [number, number, number, number], signal?: AbortSignal) {

@@ -313,14 +313,10 @@
   "source.model.atmo": "Tuul ja õhk",
   "source.model.wave": "Lained",
   "source.model.wave.hint": "Lainemudel kehtib ainult lainekihtidele. Meretemperatuur, veetase ja hoovused tulevad alati automaatvalikust — lainemudelid neid välju ei arvuta.",
-  "layer.rateLimited": "Ilmaandmeid ei saa uuendada — Open-Meteo päringulimiit on täis, uus katse {min} min pärast.",
-  "layer.showingCached": " Kaardil kuvatakse viimati tõmmatud andmeid.",
-  "layer.failed": "Tuulekiht ei uuene — allikas ei vasta. Kaardil on viimased tõmmatud andmed.",
   "sponsor.heading": "Open-Meteo API toetaja",
   "sponsor.pitch": "Otsime toetajat, kes aitaks katta API paketi (umbes 29 € kuus). Toetaja nimi kuvatakse SeaPro lehel.",
   "sponsor.contact": "Võta ühendust",
   "chart.dragHint": "Lohista graafikut ajas edasi-tagasi",
-  "layer.showingTime": "Kaardil on {time} seis.",
   "layer.harbours": "Sadamad",
   "harbour.title": "Sadam",
   "harbour.maxDraught": "Suurim süvis",
@@ -524,5 +520,11 @@
   "nav.record": "Salvesta track",
   "nav.recording": "Track salvestub",
   "nav.saveTrack": "Kas salvestada selle sõidu tegelik track seadmesse?",
-  "nav.stop": "Lõpeta"
+  "nav.stop": "Lõpeta",
+  "weather.wind": "Tuul",
+  "weather.field": "Värvikiht",
+  "weather.missing": "Osa selle ala või aja ilmaandmeid puudub.",
+  "weather.stale": "Kuvatakse varem laaditud prognoosi.",
+  "weather.error": "Uuendamine ebaõnnestus. Kuvatakse varem laaditud prognoosi.",
+  "weather.limited": "Uuendamist piirab Open-Meteo päringulimiit. Kuvatakse varem laaditud prognoosi."
 }

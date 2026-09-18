@@ -202,6 +202,8 @@ export interface GridFrame {
 /** Kaardivälja vastus võib olla osaline, kui mõni võrgupaan ei tulnud. */
 export interface GridDayResult {
   frames: GridFrame[];
+  /** Vanima kasutatud paani laadimis- ja värskuse lõppaeg (UTC). */
+  freshness?: { fetchedAt: string; expiresAt: string; stale: boolean; partial: boolean };
   warning?:
     | { kind: 'rate_limited'; retryAfterSeconds: number }
     | { kind: 'error' };
