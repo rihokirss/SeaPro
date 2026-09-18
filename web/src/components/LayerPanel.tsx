@@ -365,6 +365,9 @@ export function LayerPanel({
                   </button>
                 ))}
               </div>
+              {modelSkillEnabled ? (
+                <p className="panel__hint">{t('source.model.atmo.recommendation')}</p>
+              ) : null}
 
               {/*
                 Lained eraldi, sest need tulevad teisest API-st teiste
