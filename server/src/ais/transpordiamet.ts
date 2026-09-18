@@ -4,7 +4,7 @@ import { vessels } from './registry.js';
 
 const URL =
   'wss://gis.transpordiamet.ee/gisevent/ws/services/' +
-  'AIS-vessels-stream-out/StreamServer/subscribe';
+  'AIS-vessels-addit-fields-stream-out/StreamServer/subscribe';
 
 const MAX_BACKOFF_MS = 5 * 60 * 1000;
 
@@ -29,6 +29,12 @@ interface StreamMessage {
     width?: number | null;
     draught?: number | null;
     fix_type?: number | null;
+    callsign?: string;
+    true_heading?: number | null;
+    dim_bow?: number | null;
+    dim_stern?: number | null;
+    dim_port?: number | null;
+    dim_starb?: number | null;
   };
 }
 
@@ -85,7 +91,8 @@ export class TranspordiametAis {
             },
             outFields:
               'name,timestamp,mmsi,imo,flag,type_and_cargo,nav_status,destination,' +
-              'eta,sog,cog,length,width,draught,fix_type',
+              'eta,sog,cog,length,width,draught,fix_type,callsign,true_heading,' +
+              'dim_bow,dim_stern,dim_port,dim_starb',
           },
         }),
       );
@@ -141,6 +148,7 @@ export class TranspordiametAis {
       lon: lon!,
       sog: validRange(attrs.sog, 0, 102.2),
       cog: validRange(attrs.cog, 0, 360),
+      heading: validRange(attrs.true_heading, 0, 360),
       navStat: finiteNumber(attrs.nav_status),
       positionFixType: validRange(attrs.fix_type, 0, 15),
       timestamp,
@@ -149,6 +157,7 @@ export class TranspordiametAis {
 
     vessels.upsertMeta(mmsi, {
       name: clean(attrs.name),
+      callSign: clean(attrs.callsign),
       imo: positiveInteger(attrs.imo),
       shipType: attrs.type_and_cargo,
       flag: clean(attrs.flag),
@@ -157,6 +166,10 @@ export class TranspordiametAis {
       draughtM: positiveNumber(attrs.draught),
       lengthM: positiveNumber(attrs.length),
       beamM: positiveNumber(attrs.width),
+      toBow: nonNegativeNumber(attrs.dim_bow),
+      toStern: nonNegativeNumber(attrs.dim_stern),
+      toPort: nonNegativeNumber(attrs.dim_port),
+      toStarboard: nonNegativeNumber(attrs.dim_starb),
       positionFixType: validRange(attrs.fix_type, 0, 15),
     });
   }
@@ -183,6 +196,12 @@ function finiteNumber(value: number | null | undefined): number | undefined {
 
 function positiveNumber(value: number | null | undefined): number | undefined {
   return value !== null && value !== undefined && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
+}
+
+function nonNegativeNumber(value: number | null | undefined): number | undefined {
+  return value !== null && value !== undefined && Number.isFinite(value) && value >= 0
     ? value
     : undefined;
 }

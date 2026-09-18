@@ -293,7 +293,7 @@ mitte juhuslikus suunas või vaikimisi põhja pööratud laevakeret.
 
 | | |
 |---|---|
-| Otspunkt | `gis.transpordiamet.ee/.../AIS-vessels-stream-out/StreamServer` |
+| Otspunkt | `gis.transpordiamet.ee/.../AIS-vessels-addit-fields-stream-out/StreamServer` |
 | Võti | ei vaja |
 | Katvus | Eesti kaldajaamade AIS-võrk |
 
@@ -302,6 +302,11 @@ StreamServer võib ühenduse avamise ja filtri rakendumise vahel juba sõnumeid
 saata, kontrollib provider sama ala ka lokaalselt. Voog taasühendub katkestuse
 järel eksponentsiaalselt kasvava ootega. Vaikimisi ala `53,9,66,31.5` katab
 kogu Läänemere Taani väinadest Botnia lahe põhjaosani.
+
+Kasutusel on lisaandmetega voog, sest see sisaldab lisaks põhivoo väljadele
+kutsungit, vöörisuunda ja antenni suhtes mõõdetud laevakere mõõtmeid. Teenuse
+metaandmetes avaldatud põhivoo `/subscribe` aadress võib vastata serveripoolse
+`403` veaga ka siis, kui lisaandmetega avalik tellimus töötab.
 
 ### Fintraffic Digitraffic — `ais/digitraffic.ts`
 
