@@ -1,8 +1,14 @@
+import { randomUUID } from 'node:crypto';
+import type { Vessel } from '@seapro/shared';
+import mqtt, { type MqttClient } from 'mqtt';
 import { config } from '../config.js';
 import { fetchJson } from '../http.js';
 import { vessels } from './registry.js';
 
 const BASE = 'https://meri.digitraffic.fi/api/ais/v1';
+const MQTT_URL = 'wss://meri.digitraffic.fi:443/mqtt';
+const MQTT_TOPIC = 'vessels-v2/#';
+const STREAM_STALE_MS = 2 * 60_000;
 
 interface LocationFeature {
   mmsi: number;
@@ -62,6 +68,57 @@ interface VesselMetadata {
   referencePointD?: number;
 }
 
+interface MqttLocation {
+  time?: number;
+  sog?: number;
+  cog?: number;
+  heading?: number;
+  navStat?: number;
+  lon?: number;
+  lat?: number;
+}
+
+interface MqttMetadata {
+  timestamp?: number;
+  name?: string;
+  callSign?: string;
+  imo?: number;
+  type?: number;
+  destination?: string;
+  eta?: number;
+  draught?: number;
+  posType?: number;
+  refA?: number;
+  refB?: number;
+  refC?: number;
+  refD?: number;
+}
+
+interface DecodedMetadata {
+  mmsi: number;
+  value: {
+    name?: string;
+    callSign?: string;
+    imo?: number;
+    shipType?: number;
+    destination?: string;
+    eta?: string;
+    draughtM?: number;
+    lengthM?: number;
+    beamM?: number;
+    positionFixType?: number;
+    toBow?: number;
+    toStern?: number;
+    toPort?: number;
+    toStarboard?: number;
+  };
+}
+
+export type DigitrafficMqttEvent =
+  | { kind: 'position'; value: Vessel }
+  | { kind: 'metadata'; value: DecodedMetadata }
+  | null;
+
 /**
  * Fintraffic Digitraffic — Soome riiklik AIS-vöö.
  *
@@ -76,18 +133,83 @@ interface VesselMetadata {
 export class DigitrafficAis {
   readonly id = 'digitraffic';
   #metaLoadedAt = 0;
+  #mqtt: MqttClient | null = null;
+  #lastStreamMessageAt = 0;
+  #log: ((message: string) => void) | undefined;
 
   get enabled(): boolean {
     return true;
   }
 
-  /** Tõmbab kõik positsioonid meie huvipiirkonnas registrisse. */
-  async poll(): Promise<number> {
-    const [south, west, north, east] = config.aisBbox;
+  get streamHealthy(): boolean {
+    return Boolean(
+      this.#mqtt?.connected
+      && this.#lastStreamMessageAt >= Date.now() - STREAM_STALE_MS,
+    );
+  }
 
-    // Digitraffic pakub raadius- või täisnimekirja päringut, aga mitte bbox'i.
-    // Täisnimekiri on ~2000 laeva ja tuleb gzip'itult paarisaja kilobaidina;
-    // filtreerime ise, sest see on ühe päringuga odavam kui mitu raadiust.
+  /**
+   * Püsiv MQTT-over-WebSocket voog. Digitraffic ei paku geograafilist
+   * topic-filtrit, seega võtame kogu voo vastu. API-päring filtreerib ühise
+   * registri kasutaja nähtava kaardiala järgi.
+   */
+  start(log?: (message: string) => void): void {
+    if (this.#mqtt) return;
+    this.#log = log;
+
+    const client = mqtt.connect(MQTT_URL, {
+      clientId: `SeaPro/${config.appVersion}; ${randomUUID()}`,
+      clean: true,
+      connectTimeout: 25_000,
+      keepalive: 60,
+      protocolVersion: 4,
+      reconnectPeriod: 5_000,
+    });
+    this.#mqtt = client;
+
+    client.on('connect', () => {
+      client.subscribe(MQTT_TOPIC, { qos: 0 }, (error) => {
+        if (error) {
+          this.#log?.(`AIS Digitraffic MQTT tellimine ebaõnnestus: ${error.message}`);
+          return;
+        }
+        // Ühendus ja tellimus on korras. Kui broker vaikib üle kahe minuti,
+        // loeb streamHealthy voo ikkagi katkiseks ja REST-varu käivitub.
+        this.#lastStreamMessageAt = Date.now();
+        this.#log?.('AIS Digitraffic MQTT: ühendatud');
+      });
+    });
+
+    client.on('message', (topic, payload) => {
+      this.#lastStreamMessageAt = Date.now();
+      try {
+        const event = decodeDigitrafficMqtt(topic, payload.toString('utf8'));
+        if (event?.kind === 'position') {
+          vessels.upsertPosition(event.value);
+        } else if (event?.kind === 'metadata') {
+          vessels.upsertMeta(event.value.mmsi, event.value.value);
+        }
+      } catch {
+        // Üks vigane sõnum ei tohi voogu katkestada.
+      }
+    });
+
+    client.on('reconnect', () => this.#log?.('AIS Digitraffic MQTT: ühendan uuesti'));
+    client.on('error', (error) => this.#log?.(`AIS Digitraffic MQTT: ${error.message}`));
+  }
+
+  stop(): void {
+    const client = this.#mqtt;
+    this.#mqtt = null;
+    this.#lastStreamMessageAt = 0;
+    if (client) client.end(true);
+  }
+
+  /** Tõmbab käivitamisel või vootõrke ajal kõik positsioonid registrisse. */
+  async poll(): Promise<number> {
+    // Täisnimekiri on ~2000 laeva ja tuleb gzip'itult paarisaja kilobaidina.
+    // Hoiame kõik registris: vastus on juba tervikuna kohale tulnud ning
+    // nähtava kaardiala filter rakendub /api/ais päringus.
     const res = await fetchJson<LocationsResponse>(`${BASE}/locations`, {
       headers: { 'Digitraffic-User': `SeaPro/${config.appVersion}` },
       timeoutMs: 25_000,
@@ -98,7 +220,6 @@ export class DigitrafficAis {
       const coords = f.geometry?.coordinates;
       if (!coords) continue;
       const [lon, lat] = coords;
-      if (lat < south || lat > north || lon < west || lon > east) continue;
 
       const props = f.properties ?? {};
       const stamp = props.timestampExternal;
@@ -123,6 +244,11 @@ export class DigitrafficAis {
     }
 
     return count;
+  }
+
+  /** Hoiab harva muutuvad nimed ja mõõtmed värskena ka terve MQTT-ühenduse ajal. */
+  async refreshMetadata(): Promise<void> {
+    if (Date.now() - this.#metaLoadedAt > 12 * 3600_000) await this.#loadMetadata();
   }
 
   async #loadMetadata(): Promise<void> {
@@ -157,6 +283,67 @@ export class DigitrafficAis {
       // Nimed puuduvad, positsioonid töötavad edasi. Proovime järgmisel ringil.
     }
   }
+}
+
+/** Muudab brokeri topicu ja JSON-i samasse kujusse, mida ühine register kasutab. */
+export function decodeDigitrafficMqtt(topic: string, payload: string): DigitrafficMqttEvent {
+  const parts = topic.split('/');
+  if (parts[0] !== 'vessels-v2' || parts.length !== 3) return null;
+  const mmsi = Number(parts[1]);
+  if (!Number.isInteger(mmsi) || mmsi <= 0) return null;
+
+  const kind = parts[2];
+  if (kind === 'location' || kind === 'locations') {
+    const msg = JSON.parse(payload) as MqttLocation;
+    if (!Number.isFinite(msg.lat) || !Number.isFinite(msg.lon)) return null;
+    const reportedMs = Number.isFinite(msg.time)
+      ? msg.time! > 1_000_000_000_000 ? msg.time! : msg.time! * 1000
+      : Date.now();
+    return {
+      kind: 'position',
+      value: {
+        mmsi,
+        lat: msg.lat!,
+        lon: msg.lon!,
+        sog: realSog(msg.sog),
+        cog: realCog(msg.cog),
+        heading: msg.heading === undefined || msg.heading >= 511 ? undefined : msg.heading,
+        navStat: msg.navStat,
+        timestamp: new Date(reportedMs).toISOString(),
+        source: 'digitraffic',
+      },
+    };
+  }
+
+  if (kind === 'metadata') {
+    const msg = JSON.parse(payload) as MqttMetadata;
+    const lengthM = sumPositive(msg.refA, msg.refB);
+    const beamM = sumPositive(msg.refC, msg.refD);
+    return {
+      kind: 'metadata',
+      value: {
+        mmsi,
+        value: {
+          name: msg.name?.trim() || undefined,
+          callSign: msg.callSign?.trim() || undefined,
+          imo: msg.imo || undefined,
+          shipType: msg.type,
+          destination: msg.destination?.trim() || undefined,
+          eta: decodePackedEta(msg.eta, msg.timestamp ?? Date.now()),
+          draughtM: msg.draught && msg.draught < 255 ? msg.draught / 10 : undefined,
+          lengthM,
+          beamM,
+          positionFixType: msg.posType !== undefined && msg.posType < 15 ? msg.posType : undefined,
+          toBow: msg.refA || undefined,
+          toStern: msg.refB || undefined,
+          toPort: msg.refC || undefined,
+          toStarboard: msg.refD || undefined,
+        },
+      },
+    };
+  }
+
+  return null;
 }
 
 function sumPositive(a: number | undefined, b: number | undefined): number | undefined {

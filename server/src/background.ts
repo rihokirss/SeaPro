@@ -84,22 +84,31 @@ export function startBackgroundJobs(log: Logger): void {
 /**
  * AIS-i taustatööd.
  *
- * Digitraffic on REST ja vajab küsimist; aisstream ning Transpordiamet on
- * WebSocketid ja lükkavad ise. Kõik kirjutavad samasse registrisse, seega ühe
- * kadumine jätab teised tööle.
+ * Kõik kolm laevaallikat lükkavad tavaliselt WebSocketi kaudu ise. Digitraffici
+ * REST jääb algseisu laadimiseks ja MQTT-voo katkestuse varuks. Kõik kirjutavad
+ * samasse registrisse, seega ühe kadumine jätab teised tööle.
  */
 function startAis(log: Logger): void {
-  const pollAis = async (): Promise<void> => {
+  let digitrafficPollRunning = false;
+  const pollDigitraffic = async (reason: 'initial' | 'fallback'): Promise<void> => {
+    if (digitrafficPollRunning) return;
+    digitrafficPollRunning = true;
     try {
       const n = await digitraffic.poll();
-      log.info(`AIS Digitraffic: ${n} laeva piirkonnas`);
+      log.info(`AIS Digitraffic REST (${reason}): ${n} laeva`);
     } catch (err) {
-      log.warn(`AIS Digitraffic ebaõnnestus: ${err instanceof Error ? err.message : String(err)}`);
+      log.warn(`AIS Digitraffic REST ebaõnnestus: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      digitrafficPollRunning = false;
     }
   };
 
-  void pollAis();
-  const poll = setInterval(() => void pollAis(), Math.max(30, config.ttl.ais) * 1000);
+  digitraffic.start((msg) => log.info(msg));
+  void pollDigitraffic('initial');
+  const poll = setInterval(() => {
+    if (digitraffic.streamHealthy) void digitraffic.refreshMetadata();
+    else void pollDigitraffic('fallback');
+  }, Math.max(30, config.ttl.ais) * 1000);
   poll.unref();
   timers.push(poll);
 
@@ -129,6 +138,7 @@ export function stopBackgroundJobs(): void {
   for (const t of timers) clearInterval(t);
   timers.length = 0;
   aisstream.stop();
+  digitraffic.stop();
   transpordiamet.stop();
   aisAtons.stop();
   aisBaseStations.stop();
