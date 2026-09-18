@@ -137,6 +137,35 @@ describe('mudelitäpsuse statistika', () => {
     expect(series.sources.find((source) => source.sourceId === 'open-meteo:gfs_seamless')?.entries).toHaveLength(1);
     expect(series.sources.find((source) => source.sourceId === 'windfinder')?.entries).toHaveLength(0);
   });
+
+  it('tühistab valmis raporti cache’i uue valimi lisamisel', () => {
+    const store = temporaryStore(directories);
+    const now = new Date('2026-08-20T12:00:00Z').getTime();
+    addPair(store, 'tallinnamadal', '2026-08-20T10:00:00Z', 5, 6);
+    expect(store.report(7, 0, now, 'tallinnamadal').sources
+      .find((source) => source.sourceId === 'open-meteo:gfs_seamless')?.samples).toBe(1);
+
+    addPair(store, 'tallinnamadal', '2026-08-20T11:00:00Z', 5, 7);
+    expect(store.report(7, 0, now, 'tallinnamadal').sources
+      .find((source) => source.sourceId === 'open-meteo:gfs_seamless')?.samples).toBe(2);
+  });
+
+  it('arvutab suure ajaloo indeksi kaudu ilma ruutkeerukuseta', () => {
+    const store = temporaryStore(directories);
+    const now = new Date('2026-08-20T12:00:00Z').getTime();
+    for (let index = 0; index < 4000; index++) {
+      const time = new Date(now - (index + 1) * 60_000).toISOString();
+      addPair(store, 'tallinnamadal', time, 5, 6);
+    }
+
+    const startedAt = performance.now();
+    const report = store.report(7, 0, now, 'tallinnamadal');
+    const elapsed = performance.now() - startedAt;
+    expect(report.sources.find((source) => source.sourceId === 'open-meteo:gfs_seamless')?.samples)
+      .toBe(4000);
+    // Vana lineaarne lähima mõõtmise otsing tegi siin 16 miljonit kuupäevaparsingut.
+    expect(elapsed).toBeLessThan(1000);
+  });
 });
 
 function temporaryStore(directories: string[]): ModelVerificationStore {

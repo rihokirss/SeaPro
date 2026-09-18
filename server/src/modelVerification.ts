@@ -96,6 +96,16 @@ interface PersistedVerification {
   forecasts: ForecastSample[];
 }
 
+interface TimedObservation {
+  sample: ObservationSample;
+  time: number;
+}
+
+interface TimedForecast {
+  sample: ForecastSample;
+  validTime: number;
+}
+
 function finite(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -131,6 +141,16 @@ function observationKey(sample: ObservationSample): string {
 export class ModelVerificationStore {
   #state: PersistedVerification;
   #dirty = false;
+  #observationPositions = new Map<string, number>();
+  #forecastPositions = new Map<string, number>();
+  #observationsByPoint = new Map<string, TimedObservation[]>();
+  #forecastsByLeadPoint = new Map<VerificationLead, Map<string, TimedForecast[]>>();
+  #latestObservationAt: string | null = null;
+  #latestForecastAt: string | null = null;
+  #indexesDirty = false;
+  #lastPrunedAt = 0;
+  #revision = 0;
+  #queryCache = new Map<string, ModelSkillReport | ModelSkillSeriesReport>();
 
   constructor(private readonly file: string) {
     this.#state = {
@@ -149,6 +169,7 @@ export class ModelVerificationStore {
       }
       this.#state = parsed;
       this.#prune();
+      this.#rebuildIndexes();
       this.#dirty = false;
       log?.(`Mudelitäpsuse ajalugu kettalt: ${parsed.observations.length} mõõtmist, ${parsed.forecasts.length} prognoosi`);
     } catch (error) {
@@ -159,21 +180,27 @@ export class ModelVerificationStore {
   }
 
   recordObservation(sample: ObservationSample): void {
+    this.#maybePrune();
     const key = observationKey(sample);
-    const index = this.#state.observations.findIndex((item) => observationKey(item) === key);
+    const index = this.#observationPositions.get(key) ?? -1;
     if (index >= 0) this.#state.observations[index] = sample;
-    else this.#state.observations.push(sample);
-    this.#dirty = true;
-    this.#prune();
+    else {
+      this.#observationPositions.set(key, this.#state.observations.length);
+      this.#state.observations.push(sample);
+    }
+    this.#markChanged();
   }
 
   recordForecast(sample: ForecastSample): void {
+    this.#maybePrune();
     const key = forecastKey(sample);
-    const index = this.#state.forecasts.findIndex((item) => forecastKey(item) === key);
+    const index = this.#forecastPositions.get(key) ?? -1;
     if (index >= 0) this.#state.forecasts[index] = sample;
-    else this.#state.forecasts.push(sample);
-    this.#dirty = true;
-    this.#prune();
+    else {
+      this.#forecastPositions.set(key, this.#state.forecasts.length);
+      this.#state.forecasts.push(sample);
+    }
+    this.#markChanged();
   }
 
   flush(log?: (message: string) => void): void {
@@ -187,12 +214,16 @@ export class ModelVerificationStore {
   }
 
   report(days: VerificationDays, leadHours: VerificationLead, now = Date.now(), pointId?: string): ModelSkillReport {
+    this.#ensureIndexes();
+    const cacheKey = `report|${this.#revision}|${Math.floor(now / 60_000)}|${days}|${leadHours}|${pointId ?? '*'}`;
+    const cached = this.#queryCache.get(cacheKey);
+    if (cached) return cached as ModelSkillReport;
+
     const cutoff = now - days * 24 * 3600_000;
     const selectedPoints = pointId
       ? VERIFICATION_POINTS.filter((point) => point.id === pointId)
       : VERIFICATION_POINTS;
     const selectedIds = new Set(selectedPoints.map((point) => point.id));
-    const observations = this.#observationsByPoint(cutoff, now, selectedIds);
 
     interface Accumulator {
       speedAbs: number;
@@ -209,45 +240,50 @@ export class ModelVerificationStore {
     const accumulators = new Map<string, Map<string, Accumulator>>();
     for (const source of SOURCES) accumulators.set(source.id, new Map());
 
-    for (const forecast of this.#state.forecasts) {
-      if (forecast.leadHours !== leadHours || !selectedIds.has(forecast.pointId)) continue;
-      const validAt = isoTime(forecast.validAt);
-      if (validAt === null || validAt < cutoff || validAt > now) continue;
-      const observation = nearestObservation(observations.get(forecast.pointId) ?? [], validAt);
-      if (!observation) continue;
-      const sourceAccumulators = accumulators.get(forecast.sourceId);
-      if (!sourceAccumulators) continue;
-      let accumulator = sourceAccumulators.get(forecast.pointId);
-      if (!accumulator) {
-        accumulator = {
-          speedAbs: 0, speedSquared: 0, speedBias: 0, speedN: 0,
-          gustAbs: 0, gustN: 0, directionAbs: 0, directionN: 0,
-          distance: 0, distanceN: 0,
-        };
-        sourceAccumulators.set(forecast.pointId, accumulator);
-      }
+    const forecastsByPoint = this.#forecastsByLeadPoint.get(leadHours);
+    for (const selectedPointId of selectedIds) {
+      const forecasts = forecastsByPoint?.get(selectedPointId) ?? [];
+      const observations = this.#observationsByPoint.get(selectedPointId) ?? [];
+      for (let index = lowerBound(forecasts, cutoff, (item) => item.validTime); index < forecasts.length; index++) {
+        const timedForecast = forecasts[index]!;
+        if (timedForecast.validTime > now) break;
+        const forecast = timedForecast.sample;
+        const observation = nearestObservation(observations, timedForecast.validTime);
+        if (!observation) continue;
+        const sourceAccumulators = accumulators.get(forecast.sourceId);
+        if (!sourceAccumulators) continue;
+        let accumulator = sourceAccumulators.get(forecast.pointId);
+        if (!accumulator) {
+          accumulator = {
+            speedAbs: 0, speedSquared: 0, speedBias: 0, speedN: 0,
+            gustAbs: 0, gustN: 0, directionAbs: 0, directionN: 0,
+            distance: 0, distanceN: 0,
+          };
+          sourceAccumulators.set(forecast.pointId, accumulator);
+        }
 
-      if (forecast.windSpeed !== null && observation.windSpeed !== null) {
-        const error = forecast.windSpeed - observation.windSpeed;
-        accumulator.speedAbs += Math.abs(error);
-        accumulator.speedSquared += error ** 2;
-        accumulator.speedBias += error;
-        accumulator.speedN++;
-      }
-      if (forecast.windGust !== null && observation.windGust !== null) {
-        accumulator.gustAbs += Math.abs(forecast.windGust - observation.windGust);
-        accumulator.gustN++;
-      }
-      if (
-        forecast.windDirection !== null && observation.windDirection !== null
-        && (observation.windSpeed ?? 0) >= 1
-      ) {
-        accumulator.directionAbs += circularDifference(forecast.windDirection, observation.windDirection);
-        accumulator.directionN++;
-      }
-      if (forecast.locationDistanceKm !== null) {
-        accumulator.distance += forecast.locationDistanceKm;
-        accumulator.distanceN++;
+        if (forecast.windSpeed !== null && observation.windSpeed !== null) {
+          const error = forecast.windSpeed - observation.windSpeed;
+          accumulator.speedAbs += Math.abs(error);
+          accumulator.speedSquared += error ** 2;
+          accumulator.speedBias += error;
+          accumulator.speedN++;
+        }
+        if (forecast.windGust !== null && observation.windGust !== null) {
+          accumulator.gustAbs += Math.abs(forecast.windGust - observation.windGust);
+          accumulator.gustN++;
+        }
+        if (
+          forecast.windDirection !== null && observation.windDirection !== null
+          && (observation.windSpeed ?? 0) >= 1
+        ) {
+          accumulator.directionAbs += circularDifference(forecast.windDirection, observation.windDirection);
+          accumulator.directionN++;
+        }
+        if (forecast.locationDistanceKm !== null) {
+          accumulator.distance += forecast.locationDistanceKm;
+          accumulator.distanceN++;
+        }
       }
     }
 
@@ -288,11 +324,11 @@ export class ModelVerificationStore {
       return a.windSpeedMae - b.windSpeedMae;
     });
 
-    return {
+    const result: ModelSkillReport = {
       generatedAt: new Date(now).toISOString(),
       collectionStartedAt: this.#state.collectionStartedAt,
-      lastObservationAt: latest(this.#state.observations.map((item) => item.observedAt)),
-      lastForecastAt: latest(this.#state.forecasts.map((item) => item.capturedAt)),
+      lastObservationAt: this.#latestObservationAt,
+      lastForecastAt: this.#latestForecastAt,
       days,
       leadHours,
       pointId: pointId ?? null,
@@ -301,97 +337,170 @@ export class ModelVerificationStore {
       })),
       sources,
     };
+    this.#cacheQuery(cacheKey, result);
+    return result;
   }
 
   series(days: VerificationDays, leadHours: VerificationLead, pointId: string, now = Date.now()): ModelSkillSeriesReport {
     const point = VERIFICATION_POINTS.find((item) => item.id === pointId);
     if (!point) throw new Error(`Tundmatu kontrollpunkt: ${pointId}`);
-    const cutoff = now - days * 24 * 3600_000;
-    const observations = this.#observationsByPoint(cutoff, now, new Set([pointId])).get(pointId) ?? [];
+    this.#ensureIndexes();
+    const cacheKey = `series|${this.#revision}|${Math.floor(now / 60_000)}|${days}|${leadHours}|${pointId}`;
+    const cached = this.#queryCache.get(cacheKey);
+    if (cached) return cached as ModelSkillSeriesReport;
 
+    const cutoff = now - days * 24 * 3600_000;
+    const observations = this.#observationsByPoint.get(pointId) ?? [];
+    const entries = new Map<string, ModelSkillSeriesReport['sources'][number]['entries']>();
+    for (const source of SOURCES) entries.set(source.id, []);
+    const forecasts = this.#forecastsByLeadPoint.get(leadHours)?.get(pointId) ?? [];
+    for (let index = lowerBound(forecasts, cutoff, (item) => item.validTime); index < forecasts.length; index++) {
+      const timedForecast = forecasts[index]!;
+      if (timedForecast.validTime > now) break;
+      const forecast = timedForecast.sample;
+      const observation = nearestObservation(observations, timedForecast.validTime);
+      if (!observation) continue;
+      entries.get(forecast.sourceId)?.push({
+        capturedAt: forecast.capturedAt,
+        validAt: forecast.validAt,
+        observedAt: observation.observedAt,
+        forecastWindSpeed: forecast.windSpeed,
+        forecastWindGust: forecast.windGust,
+        forecastWindDirection: forecast.windDirection,
+        observedWindSpeed: observation.windSpeed,
+        observedWindGust: observation.windGust,
+        observedWindDirection: observation.windDirection,
+      });
+    }
     const sources = SOURCES.map((source) => ({
       sourceId: source.id,
       label: source.label,
-      entries: this.#state.forecasts
-        .filter((forecast) => forecast.pointId === pointId && forecast.sourceId === source.id && forecast.leadHours === leadHours)
-        .flatMap((forecast) => {
-          const validAt = isoTime(forecast.validAt);
-          if (validAt === null || validAt < cutoff || validAt > now) return [];
-          const observation = nearestObservation(observations, validAt);
-          if (!observation) return [];
-          return [{
-            capturedAt: forecast.capturedAt,
-            validAt: forecast.validAt,
-            observedAt: observation.observedAt,
-            forecastWindSpeed: forecast.windSpeed,
-            forecastWindGust: forecast.windGust,
-            forecastWindDirection: forecast.windDirection,
-            observedWindSpeed: observation.windSpeed,
-            observedWindGust: observation.windGust,
-            observedWindDirection: observation.windDirection,
-          }];
-        })
-        .sort((a, b) => (isoTime(a.validAt) ?? 0) - (isoTime(b.validAt) ?? 0)),
+      entries: entries.get(source.id)!,
     }));
 
-    return {
+    const result: ModelSkillSeriesReport = {
       generatedAt: new Date(now).toISOString(),
       days,
       leadHours,
       point: { id: point.id, name: point.name, country: point.country, observationProviderId: point.observationProviderId },
       sources,
     };
+    this.#cacheQuery(cacheKey, result);
+    return result;
   }
 
-  #observationsByPoint(cutoff: number, now: number, pointIds: Set<string>): Map<string, ObservationSample[]> {
-    const observations = new Map<string, ObservationSample[]>();
-    for (const observation of this.#state.observations) {
-      if (!pointIds.has(observation.pointId)) continue;
-      const time = isoTime(observation.observedAt);
-      if (time === null || time < cutoff - OBSERVATION_MATCH_MS || time > now + OBSERVATION_MATCH_MS) continue;
-      const items = observations.get(observation.pointId) ?? [];
-      items.push(observation);
-      observations.set(observation.pointId, items);
-    }
-    for (const items of observations.values()) {
-      items.sort((a, b) => (isoTime(a.observedAt) ?? 0) - (isoTime(b.observedAt) ?? 0));
-    }
-    return observations;
+  #cacheQuery(key: string, value: ModelSkillReport | ModelSkillSeriesReport): void {
+    if (this.#queryCache.size >= 256) this.#queryCache.clear();
+    this.#queryCache.set(key, value);
   }
 
-  #prune(now = Date.now()): void {
+  #markChanged(): void {
+    this.#dirty = true;
+    this.#indexesDirty = true;
+    this.#revision++;
+    this.#queryCache.clear();
+  }
+
+  #ensureIndexes(): void {
+    if (this.#indexesDirty) this.#rebuildIndexes();
+  }
+
+  /** Ehitab stringiaegadest ühe korra arvulised, sorteeritud otsinguindeksid. */
+  #rebuildIndexes(): void {
+    this.#observationPositions.clear();
+    this.#forecastPositions.clear();
+    this.#observationsByPoint.clear();
+    this.#forecastsByLeadPoint.clear();
+    this.#latestObservationAt = null;
+    this.#latestForecastAt = null;
+    let latestObservationTime = -Infinity;
+    let latestForecastTime = -Infinity;
+
+    this.#state.observations.forEach((sample, index) => {
+      this.#observationPositions.set(observationKey(sample), index);
+      const time = isoTime(sample.observedAt);
+      if (time === null) return;
+      const items = this.#observationsByPoint.get(sample.pointId) ?? [];
+      items.push({ sample, time });
+      this.#observationsByPoint.set(sample.pointId, items);
+      if (time > latestObservationTime) {
+        latestObservationTime = time;
+        this.#latestObservationAt = sample.observedAt;
+      }
+    });
+    for (const items of this.#observationsByPoint.values()) {
+      items.sort((a, b) => a.time - b.time);
+    }
+
+    this.#state.forecasts.forEach((sample, index) => {
+      this.#forecastPositions.set(forecastKey(sample), index);
+      const validTime = isoTime(sample.validAt);
+      const capturedTime = isoTime(sample.capturedAt);
+      if (capturedTime !== null && capturedTime > latestForecastTime) {
+        latestForecastTime = capturedTime;
+        this.#latestForecastAt = sample.capturedAt;
+      }
+      if (validTime === null) return;
+      let byPoint = this.#forecastsByLeadPoint.get(sample.leadHours);
+      if (!byPoint) {
+        byPoint = new Map();
+        this.#forecastsByLeadPoint.set(sample.leadHours, byPoint);
+      }
+      const items = byPoint.get(sample.pointId) ?? [];
+      items.push({ sample, validTime });
+      byPoint.set(sample.pointId, items);
+    });
+    for (const byPoint of this.#forecastsByLeadPoint.values()) {
+      for (const items of byPoint.values()) items.sort((a, b) => a.validTime - b.validTime);
+    }
+    this.#indexesDirty = false;
+  }
+
+  #maybePrune(now = Date.now()): void {
+    if (now - this.#lastPrunedAt < 3600_000) return;
+    const changed = this.#prune(now);
+    this.#rebuildIndexes();
+    if (changed) {
+      this.#dirty = true;
+      this.#revision++;
+      this.#queryCache.clear();
+    }
+  }
+
+  #prune(now = Date.now()): boolean {
     const cutoff = now - RETENTION_MS;
+    const observationsBefore = this.#state.observations.length;
+    const forecastsBefore = this.#state.forecasts.length;
     this.#state.observations = this.#state.observations.filter((item) => (isoTime(item.observedAt) ?? 0) >= cutoff);
     this.#state.forecasts = this.#state.forecasts.filter((item) => (isoTime(item.validAt) ?? 0) >= cutoff);
+    this.#lastPrunedAt = now;
+    this.#indexesDirty = true;
+    return observationsBefore !== this.#state.observations.length
+      || forecastsBefore !== this.#state.forecasts.length;
   }
 }
 
-function nearestObservation(items: ObservationSample[], target: number): ObservationSample | null {
-  let best: ObservationSample | null = null;
-  let bestDistance = Infinity;
-  for (const item of items) {
-    const time = isoTime(item.observedAt);
-    if (time === null) continue;
-    const distance = Math.abs(time - target);
-    if (distance < bestDistance) {
-      best = item;
-      bestDistance = distance;
-    }
+function lowerBound<T>(items: T[], target: number, timeOf: (item: T) => number): number {
+  let low = 0;
+  let high = items.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (timeOf(items[middle]!) < target) low = middle + 1;
+    else high = middle;
   }
-  return bestDistance <= OBSERVATION_MATCH_MS ? best : null;
+  return low;
 }
 
-function latest(values: string[]): string | null {
-  let result: string | null = null;
-  let latestTime = -Infinity;
-  for (const value of values) {
-    const time = isoTime(value);
-    if (time !== null && time > latestTime) {
-      result = value;
-      latestTime = time;
-    }
-  }
-  return result;
+function nearestObservation(items: TimedObservation[], target: number): ObservationSample | null {
+  const next = lowerBound(items, target, (item) => item.time);
+  const before = items[next - 1];
+  const after = items[next];
+  const best = !before
+    ? after
+    : !after || target - before.time <= after.time - target
+      ? before
+      : after;
+  return best && Math.abs(best.time - target) <= OBSERVATION_MATCH_MS ? best.sample : null;
 }
 
 const dataDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../../data');
