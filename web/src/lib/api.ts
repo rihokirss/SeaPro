@@ -17,6 +17,7 @@ import type {
   RoutePlanRequest,
   RoutePlanResponse,
   ModelSkillReport,
+  ModelSkillWindReport,
   ModelSkillSeriesReport,
 } from '@seapro/shared';
 import { getSessionId } from './session';
@@ -123,6 +124,12 @@ export const api = {
   modelSkillSeries(days: 7 | 30 | 90, leadHours: 0 | 3 | 12 | 24 | 48, pointId: string, signal?: AbortSignal) {
     const p = new URLSearchParams({ days: String(days), leadHours: String(leadHours), pointId });
     return get<ModelSkillSeriesReport>(`/api/model-skill/series?${p}`, signal);
+  },
+
+  modelSkillWind(days: 7 | 30 | 90, leadHours: 0 | 3 | 12 | 24 | 48, pointId?: string, signal?: AbortSignal) {
+    const p = new URLSearchParams({ days: String(days), leadHours: String(leadHours) });
+    if (pointId) p.set('pointId', pointId);
+    return get<ModelSkillWindReport>(`/api/model-skill/wind?${p}`, signal);
   },
 
   radarTimes: (signal?: AbortSignal) => get<RadarTimeline>('/api/radar-times', signal),

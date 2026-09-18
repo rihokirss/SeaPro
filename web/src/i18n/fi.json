@@ -1,4 +1,13 @@
 {
+  "modelSkill.tab.wind": "Tuulennopeus",
+  "modelSkill.wind.title": "Tarkkuus tuulennopeuden mukaan",
+  "modelSkill.wind.hint": "Alempi käyrä tarkoittaa pienempää ennustevirhettä.",
+  "modelSkill.wind.all": "Kaikki havaintopisteet",
+  "modelSkill.wind.axis": "Havaittu tuulennopeus · m/s",
+  "modelSkill.wind.legend": "Harmaat pylväät näyttävät vertailumäärän. Ontto piste: alle 10 vertailua. Valitse nopeusväli kaaviosta tai luettelosta.",
+  "modelSkill.wind.range": "Nopeusväli",
+  "modelSkill.wind.method": "Malleilla on samat asemat ja ennusteajat. Asemilla on sama paino kussakin nopeusvälissä. Mallin piilottaminen ei muuta otosta. Vertailut voivat olla samasta säätilanteesta.",
+  "modelSkill.wind.empty": "Valitulta ajalta ei ole mallien yhteistä vertailuotosta.",
   "app.title": "SeaPro",
   "app.subtitle": "Merisää",
   "app.author": "Tekijä:",

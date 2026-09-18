@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type {
   ModelSkillPoint,
   ModelSkillReport,
+  ModelSkillWindReport,
   ModelSkillSeriesReport,
   ModelSkillSourceStats,
   StationReading,
@@ -150,7 +151,7 @@ export class ModelVerificationStore {
   #indexesDirty = false;
   #lastPrunedAt = 0;
   #revision = 0;
-  #queryCache = new Map<string, ModelSkillReport | ModelSkillSeriesReport>();
+  #queryCache = new Map<string, ModelSkillReport | ModelSkillSeriesReport | ModelSkillWindReport>();
 
   constructor(private readonly file: string) {
     this.#state = {
@@ -389,7 +390,66 @@ export class ModelVerificationStore {
     return result;
   }
 
-  #cacheQuery(key: string, value: ModelSkillReport | ModelSkillSeriesReport): void {
+  windReport(days: VerificationDays, leadHours: VerificationLead, now = Date.now(), pointId?: string): ModelSkillWindReport {
+    this.#ensureIndexes();
+    const key = `wind|${this.#revision}|${Math.floor(now / 60_000)}|${days}|${leadHours}|${pointId ?? '*'}`;
+    const cached = this.#queryCache.get(key);
+    if (cached) return cached as ModelSkillWindReport;
+    const points = VERIFICATION_POINTS.filter((point) => !pointId || point.id === pointId);
+    const reports = points.map((point) => this.series(days, leadHours, point.id, now));
+    const sources = SOURCES.filter((source) => reports.some((report) => report.sources.some(
+      (item) => item.sourceId === source.id && item.entries.some((entry) => entry.forecastWindSpeed !== null && entry.observedWindSpeed !== null),
+    ))).map((source) => ({ sourceId: source.id, label: source.label }));
+    const bins = Array.from({ length: 11 }, (_, index) => ({
+      from: index * 2, to: index === 10 ? null : index * 2 + 2,
+      stations: new Map<string, Map<string, { abs: number; bias: number; n: number }>>(),
+    }));
+    for (const report of reports) {
+      // Üks võrdlus jaama ja prognoosiaja kohta; kõigil mudelitel sama valim.
+      const bySource = new Map(report.sources.map((source) => {
+        const times = new Map<number, typeof source.entries[number]>();
+        for (const entry of source.entries) {
+          if (entry.forecastWindSpeed === null || entry.observedWindSpeed === null) continue;
+          const validTime = Date.parse(entry.validAt);
+          const previous = times.get(validTime);
+          if (!previous || Date.parse(entry.capturedAt) > Date.parse(previous.capturedAt)) times.set(validTime, entry);
+        }
+        return [source.sourceId, times] as const;
+      }));
+      const first = sources[0] && bySource.get(sources[0].sourceId);
+      if (!first) continue;
+      for (const [time, observation] of first) {
+        const entries = sources.map((source) => bySource.get(source.sourceId)?.get(time));
+        if (entries.some((entry) => !entry)) continue;
+        const speed = observation.observedWindSpeed!;
+        if (speed < 0) continue;
+        const bin = bins[Math.min(10, Math.floor(speed / 2))]!;
+        let station = bin.stations.get(report.point.id);
+        if (!station) { station = new Map(); bin.stations.set(report.point.id, station); }
+        sources.forEach((source, index) => {
+          const error = entries[index]!.forecastWindSpeed! - speed;
+          const acc = station!.get(source.sourceId) ?? { abs: 0, bias: 0, n: 0 };
+          acc.abs += Math.abs(error); acc.bias += error; acc.n++;
+          station!.set(source.sourceId, acc);
+        });
+      }
+    }
+    const result: ModelSkillWindReport = {
+      generatedAt: new Date(now).toISOString(), days, leadHours, pointId: pointId ?? null, sources,
+      bins: bins.map((bin) => ({
+        from: bin.from, to: bin.to, stations: bin.stations.size,
+        samples: [...bin.stations.values()].reduce((sum, station) => sum + (station.values().next().value?.n ?? 0), 0),
+        sources: bin.stations.size === 0 ? [] : sources.map((source) => {
+          const values = [...bin.stations.values()].map((station) => station.get(source.sourceId)!);
+          return { sourceId: source.sourceId, mae: macroAverage(values, (value) => value.abs / value.n)!, bias: macroAverage(values, (value) => value.bias / value.n)! };
+        }),
+      })),
+    };
+    this.#cacheQuery(key, result);
+    return result;
+  }
+
+  #cacheQuery(key: string, value: ModelSkillReport | ModelSkillSeriesReport | ModelSkillWindReport): void {
     if (this.#queryCache.size >= 256) this.#queryCache.clear();
     this.#queryCache.set(key, value);
   }

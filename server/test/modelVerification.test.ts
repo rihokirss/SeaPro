@@ -138,6 +138,34 @@ describe('mudelitäpsuse statistika', () => {
     expect(series.sources.find((source) => source.sourceId === 'windfinder')?.entries).toHaveLength(0);
   });
 
+  it('võrdleb tuulevahemikes sama valimit ning kaalub jaamu võrdselt', () => {
+    const store = temporaryStore(directories);
+    const now = new Date('2026-08-20T12:00:00Z').getTime();
+    for (const [point, hour, observed, error] of [
+      ['tilgu', 6, 10, 2], ['tilgu', 7, 11, 2], ['naissaare', 8, 10, 6],
+      ['tilgu', 9, 9.9, 1], ['tilgu', 10, 12, 3],
+    ] as const) {
+      const time = `2026-08-20T${String(hour).padStart(2, '0')}:00:00Z`;
+      addPair(store, point, time, observed, observed + error);
+      addPair(store, point, time, observed, observed - 1, 'open-meteo:icon_eu', 'ICON');
+    }
+    // Ainult ühel mudelil olev prognoos ei lähe ühisesse valimisse.
+    addPair(store, 'tilgu', '2026-08-20T11:00:00Z', 10, 40);
+    // Sama hetk ilma millisekunditeta peab sobituma teiste allikate ISO-ajaga.
+    store.recordForecast({
+      pointId: 'tilgu', sourceId: 'open-meteo:icon_eu', sourceLabel: 'ICON',
+      capturedAt: '2026-08-20T06:00:00.000Z', validAt: '2026-08-20T06:00:00Z',
+      leadHours: 0, windSpeed: 9, windGust: 11, windDirection: 350, locationDistanceKm: null,
+    });
+    const result = store.windReport(7, 0, now);
+    expect(result.bins[4]?.samples).toBe(1);
+    expect(result.bins[5]).toMatchObject({ samples: 3, stations: 2 });
+    expect(result.bins[5]?.sources.find((item) => item.sourceId === 'open-meteo:gfs_seamless'))
+      .toMatchObject({ mae: 4, bias: 4 });
+    expect(result.bins[6]?.samples).toBe(1);
+    expect(store.windReport(7, 0, now, 'tilgu').bins[5]).toMatchObject({ samples: 2, stations: 1 });
+  });
+
   it('tühistab valmis raporti cache’i uue valimi lisamisel', () => {
     const store = temporaryStore(directories);
     const now = new Date('2026-08-20T12:00:00Z').getTime();

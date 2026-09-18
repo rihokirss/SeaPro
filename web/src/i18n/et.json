@@ -1,4 +1,13 @@
 {
+  "modelSkill.tab.wind": "Tuulekiirus",
+  "modelSkill.wind.title": "Täpsus tuulekiiruse järgi",
+  "modelSkill.wind.hint": "Madalam joon tähendab väiksemat prognoosiviga.",
+  "modelSkill.wind.all": "Kõik mõõtepunktid",
+  "modelSkill.wind.axis": "Mõõdetud tuulekiirus · m/s",
+  "modelSkill.wind.legend": "Hallid tulbad näitavad võrdluste arvu. Õõnes punkt: alla 10 võrdluse. Vali vahemik graafikult või loendist.",
+  "modelSkill.wind.range": "Tuulevahemik",
+  "modelSkill.wind.method": "Mudelite ühine valim: samad jaamad ja prognoosiajad. Jaamad on igas vahemikus võrdse kaaluga. Mudeli peitmine ei muuda valimit. Võrdlused võivad pärineda samast ilmaolukorrast.",
+  "modelSkill.wind.empty": "Valitud perioodil pole mudelite ühist võrdlusvalimit.",
   "app.title": "SeaPro",
   "app.subtitle": "Mereilm",
   "app.author": "Autor:",

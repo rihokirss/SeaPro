@@ -1,4 +1,13 @@
 {
+  "modelSkill.tab.wind": "Wind speed",
+  "modelSkill.wind.title": "Accuracy by wind speed",
+  "modelSkill.wind.hint": "A lower line means a smaller forecast error.",
+  "modelSkill.wind.all": "All observation points",
+  "modelSkill.wind.axis": "Observed wind speed · m/s",
+  "modelSkill.wind.legend": "Grey bars show comparison counts. Hollow point: fewer than 10 comparisons. Select a band on the chart or from the list.",
+  "modelSkill.wind.range": "Wind band",
+  "modelSkill.wind.method": "Models share the same stations and forecast times. Stations have equal weight within each band. Hiding a model does not change the sample. Comparisons may come from the same weather event.",
+  "modelSkill.wind.empty": "No common comparison sample exists for this period.",
   "app.title": "SeaPro",
   "app.subtitle": "Marine weather",
   "app.author": "Author:",

@@ -274,6 +274,20 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     return modelVerification.series(days, leadHours, pointId);
   });
 
+  app.get('/api/model-skill/wind', async (req, reply) => {
+    if (!config.modelSkillEnabled) return reply.code(404).send({ error: 'Mudelitäpsuse diagnostika ei ole sisse lülitatud' });
+    const q = req.query as Record<string, unknown>;
+    const days = Number(q.days ?? 30) as VerificationDays;
+    const lead = Number(q.leadHours ?? 24) as VerificationLead;
+    const pointId = typeof q.pointId === 'string' && q.pointId ? q.pointId : undefined;
+    if (!VERIFICATION_DAYS.includes(days) || !VERIFICATION_LEADS.includes(lead)
+      || (pointId && !VERIFICATION_POINTS.some((point) => point.id === pointId))) {
+      return reply.code(400).send({ error: 'Vigane mudelitäpsuse filter' });
+    }
+    reply.header('Cache-Control', 'public, max-age=60');
+    return modelVerification.windReport(days, lead, Date.now(), pointId);
+  });
+
   /** Saadaval vaatlus- ja nowcast-kaadrite ajad Keskkonnaagentuuri WMS-ist. */
   app.get('/api/radar-times', async (_req, reply) => {
     const timeline = await fetchRadarTimeline();

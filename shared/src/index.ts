@@ -280,6 +280,21 @@ export interface ModelSkillReport {
   sources: ModelSkillSourceStats[];
 }
 
+export interface ModelSkillWindReport {
+  generatedAt: string;
+  days: 7 | 30 | 90;
+  leadHours: 0 | 3 | 12 | 24 | 48;
+  pointId: string | null;
+  sources: { sourceId: string; label: string }[];
+  bins: {
+    from: number;
+    to: number | null;
+    samples: number;
+    stations: number;
+    sources: { sourceId: string; mae: number; bias: number }[];
+  }[];
+}
+
 export interface ModelSkillSeriesEntry {
   capturedAt: string;
   validAt: string;

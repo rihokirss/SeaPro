@@ -1131,6 +1131,16 @@ textarea {
   text-decoration: underline;
 }
 
+.model-skill-wind__location { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); margin: var(--s4) 0; font-size: var(--t-cap); }
+.model-skill-wind__location select { max-width: 100%; min-height: 40px; padding: 0 var(--s3); color: var(--text); background: var(--surface-solid); border: 1px solid var(--line-strong); border-radius: var(--r-sm); }
+.model-skill-wind__plot { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); padding: var(--s2); }
+.model-skill-wind__plot svg { display: block; width: 100%; max-height: 360px; color: var(--text-dim); font: 11px system-ui, sans-serif; }
+.model-skill-wind__note { color: var(--text-dim); font-size: var(--t-cap); line-height: 1.5; }
+.model-skill-wind__details { padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); }
+.model-skill-wind__details table { width: 100%; border-collapse: collapse; font-size: var(--t-cap); font-variant-numeric: tabular-nums; }
+.model-skill-wind__details th, .model-skill-wind__details td { padding: var(--s2); text-align: right; }
+.model-skill-wind__details th:first-child, .model-skill-wind__details td:first-child { text-align: left; }
+.model-skill-wind__details td i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--s2); }
 .model-skill-launcher { padding: var(--s2) 0; }
 .model-skill-launcher > button { width: 100%; min-height: 62px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--s3); padding: var(--s3); color: var(--text); text-align: left; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 9%, var(--surface-2)), var(--surface-2)); border: 1px solid var(--line-strong); border-radius: var(--r-md); cursor: pointer; transition: border-color .15s, transform .15s; }
 .model-skill-launcher > button:hover { border-color: var(--accent); transform: translateY(-1px); }

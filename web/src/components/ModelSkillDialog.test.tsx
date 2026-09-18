@@ -11,6 +11,7 @@ vi.mock('../lib/api', () => ({
   api: {
     modelSkill: vi.fn(),
     modelSkillSeries: vi.fn(),
+    modelSkillWind: vi.fn(),
   },
 }));
 
@@ -52,6 +53,7 @@ describe('mudelitäpsuse modaal', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('annab kompaktse menüürea kaudu avaja elemendi tagasi', async () => {
@@ -60,6 +62,28 @@ describe('mudelitäpsuse modaal', () => {
     await userEvent.click(screen.getByRole('button', { name: /mudelite täpsus/i }));
     expect(onOpen).toHaveBeenCalledOnce();
     expect(onOpen.mock.calls[0]?.[0]).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  it('laeb tuulevaate eraldi ning mudeli peitmine ei tee uut päringut', async () => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.mocked(api.modelSkill).mockResolvedValue(report);
+    vi.mocked(api.modelSkillWind).mockResolvedValue({
+      generatedAt: report.generatedAt, days: 30, leadHours: 24, pointId: null,
+      sources: [{ sourceId: 'windfinder', label: 'Windfinder' }],
+      bins: Array.from({ length: 11 }, (_, index) => ({ from: index * 2, to: index === 10 ? null : index * 2 + 2,
+        samples: index === 5 ? 12 : 0, stations: index === 5 ? 1 : 0,
+        sources: index === 5 ? [{ sourceId: 'windfinder', mae: 2, bias: -1 }] : [],
+      })),
+    });
+    render(<Wrapper><ModelSkillDialog open onClose={() => {}} /></Wrapper>);
+    expect(api.modelSkillWind).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('tab', { name: 'Tuulekiirus' }));
+    expect(await screen.findByRole('img', { name: 'Täpsus tuulekiiruse järgi' })).toBeTruthy();
+    expect(screen.getByText('2.00 m/s')).toBeTruthy();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Windfinder' }));
+    expect(api.modelSkillWind).toHaveBeenCalledTimes(1);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Mõõtepunkt' }), 'helsinki-harmaja');
+    await waitFor(() => expect(api.modelSkillWind).toHaveBeenLastCalledWith(30, 24, 'helsinki-harmaja', expect.any(AbortSignal)));
   });
 
   it('vahetab punktivaates jaama ning sulgub Escape-klahviga', async () => {

@@ -4,10 +4,11 @@ import { BarChart3, CalendarDays, ChevronRight, CircleHelp, Clock3, Database, Ma
 import { localeTag, useI18n } from '../i18n';
 import { api } from '../lib/api';
 import { modelSkillColor, ModelSkillChart, type ModelSkillMetric } from './ModelSkillChart';
+import { ModelSkillWind } from './ModelSkillWind';
 
 type Days = 7 | 30 | 90;
 type LeadHours = 0 | 3 | 12 | 24 | 48;
-type Tab = 'overview' | 'points';
+type Tab = 'overview' | 'wind' | 'points';
 
 const PERIODS: Days[] = [7, 30, 90];
 const LEADS: LeadHours[] = [0, 3, 12, 24, 48];
@@ -167,7 +168,7 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
 
         <div className="model-skill-dialog__toolbar">
           <div className="model-skill-tabs" role="tablist" aria-label={t('modelSkill.view')}>
-            {(['overview', 'points'] as Tab[]).map((value) => (
+            {(['overview', 'wind', 'points'] as Tab[]).map((value) => (
               <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? 'is-active' : ''} onClick={() => setTab(value)}>
                 {t(`modelSkill.tab.${value}`)}
               </button>
@@ -208,6 +209,8 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
                 ))}</div>
               </> : null}
             </>
+          ) : tab === 'wind' ? (
+            <ModelSkillWind days={days} leadHours={leadHours} points={report?.points ?? []} />
           ) : (
             <>
               <div className="model-skill-point-controls">
