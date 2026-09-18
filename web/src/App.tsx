@@ -79,6 +79,7 @@ const DEFAULT_LAYERS: LayerState = {
   placeLabels: true,
   navigationWarnings: true,
   navigationAids: true,
+  aisBaseStations: false,
   trafficSchemes: true,
   wrecks: false,
   officialNavigation: true,
@@ -89,6 +90,7 @@ const EMPTY_NAVIGATION: NavigationData = {
   warnings: [],
   wrecks: [],
   aids: [],
+  baseStations: [],
   fairways: [],
   trafficSchemes: [],
 };
@@ -1074,6 +1076,7 @@ export function App() {
   const wantNavigationData =
     layers.navigationWarnings ||
     layers.navigationAids ||
+    layers.aisBaseStations ||
     layers.wrecks ||
     layers.officialNavigation;
   const wantNavigation = wantNavigationData || layers.trafficSchemes;
@@ -1082,9 +1085,10 @@ export function App() {
     if (!wantNavigationData || !view) return;
     let cancelled = false;
 
-    const include: Array<'warnings' | 'aids' | 'wrecks' | 'official'> = [];
+    const include: Array<'warnings' | 'aids' | 'baseStations' | 'wrecks' | 'official'> = [];
     if (layers.navigationWarnings) include.push('warnings');
     if (layers.navigationAids) include.push('aids');
+    if (layers.aisBaseStations) include.push('baseStations');
     if (layers.wrecks) include.push('wrecks');
     if (layers.officialNavigation) include.push('official');
 
@@ -1101,7 +1105,7 @@ export function App() {
     };
 
     load();
-    // AIS AToN on reaalajas. Staatilised ArcGIS-kihid tulevad sama päringuga
+    // AIS AToN ja baasjaamad on reaalajas. Staatilised ArcGIS-kihid tulevad sama päringuga
     // vahemälust, seega 30 s klientpoll ei koorma nende algallikat.
     const timer = window.setInterval(load, 30_000);
     return () => {
@@ -1112,6 +1116,7 @@ export function App() {
     wantNavigationData,
     layers.navigationWarnings,
     layers.navigationAids,
+    layers.aisBaseStations,
     layers.wrecks,
     layers.officialNavigation,
     view?.bbox.join(','),
@@ -1145,12 +1150,13 @@ export function App() {
     setNavigationVisibility(map, {
       warnings: layers.navigationWarnings,
       aids: layers.navigationAids,
+      baseStations: layers.aisBaseStations,
       traffic: layers.trafficSchemes,
       falseColors: layers.scalarField !== null,
       wrecks: layers.wrecks,
       official: layers.officialNavigation,
     });
-  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.trafficSchemes, layers.scalarField, layers.wrecks, layers.officialNavigation, mapReady]);
+  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.aisBaseStations, layers.trafficSchemes, layers.scalarField, layers.wrecks, layers.officialNavigation, mapReady]);
 
   // --- Ettevalmistatud routingugraafi diagnostikakiht ---------------------
   useEffect(() => {
@@ -1690,6 +1696,7 @@ export function App() {
             showStations={layers.stations}
             showHarbours={layers.harbours}
             showNavigationAids={layers.navigationAids || layers.officialNavigation}
+            showBaseStations={layers.aisBaseStations}
             showNavigationWarnings={layers.navigationWarnings}
             showWrecks={layers.wrecks}
             showWind={layers.windDisplay !== 'off'}

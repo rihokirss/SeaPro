@@ -28,6 +28,7 @@ export interface LayerState {
   placeLabels: boolean;
   navigationWarnings: boolean;
   navigationAids: boolean;
+  aisBaseStations: boolean;
   trafficSchemes: boolean;
   wrecks: boolean;
   officialNavigation: boolean;
@@ -188,6 +189,12 @@ export function LayerPanel({
               checked={layers.navigationAids}
               onChange={(v) => set({ navigationAids: v })}
               label={t('layer.navigationAids')}
+            />
+            <Toggle
+              checked={layers.aisBaseStations}
+              onChange={(v) => set({ aisBaseStations: v })}
+              label={t('layer.aisBaseStations')}
+              hint={t('layer.aisBaseStations.hint')}
             />
             <Toggle
               checked={layers.trafficSchemes}

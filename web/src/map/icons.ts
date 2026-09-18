@@ -495,6 +495,7 @@ function navigationAidMarker(category: string): ImageData {
 
 export const NAVIGATION_WARNING_ICON = 'navigation-warning';
 export const WRECK_ICON = 'navigation-wreck';
+export const AIS_BASE_STATION_ICON = 'ais-base-station';
 export const TRAFFIC_DIRECTION_ICON = 'traffic-direction';
 export const TRAFFIC_DIRECTION_WHITE_ICON = 'traffic-direction-white';
 
@@ -606,6 +607,55 @@ function navigationWarningMarker(): ImageData {
   return toImageData(c);
 }
 
+/** AIS baasjaam: antennimast ja raadiolained tumeda kuusnurga sees. */
+function aisBaseStationMarker(): ImageData {
+  const size = 32;
+  const c = makeCanvas(size);
+  const { ctx } = c;
+  const mid = size / 2;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(6,22,34,.45)';
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 1;
+  ctx.beginPath();
+  ctx.moveTo(mid, 3);
+  ctx.lineTo(27, 9.5);
+  ctx.lineTo(27, 22.5);
+  ctx.lineTo(mid, 29);
+  ctx.lineTo(5, 22.5);
+  ctx.lineTo(5, 9.5);
+  ctx.closePath();
+  ctx.fillStyle = '#246b84';
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#ffffff';
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(mid, 12);
+  ctx.lineTo(mid, 24);
+  ctx.moveTo(12, 24);
+  ctx.lineTo(mid, 17);
+  ctx.lineTo(20, 24);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(mid, 10, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(mid, 10, 5, Math.PI + 0.55, Math.PI * 2 - 0.55);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(mid, 10, 8, Math.PI + 0.65, Math.PI * 2 - 0.65);
+  ctx.stroke();
+  return toImageData(c);
+}
+
 /** Jaama ikooninimi kuju ja värskuse järgi. */
 export function stationIcon(kind: string, freshness: string): string {
   const shape = kind === 'buoy' || kind === 'offshore' ? kind : 'coastal';
@@ -642,6 +692,7 @@ export function registerIcons(map: MapLibreMap): void {
     [ANCHORAGE_ICON]: harbourMarker(HARBOUR_COLORS.anchorage, 7.5),
     [NAVIGATION_WARNING_ICON]: navigationWarningMarker(),
     [WRECK_ICON]: wreckMarker(),
+    [AIS_BASE_STATION_ICON]: aisBaseStationMarker(),
     [TRAFFIC_DIRECTION_ICON]: trafficDirectionArrow('#a93ab4'),
     [TRAFFIC_DIRECTION_WHITE_ICON]: trafficDirectionArrow('#ffffff'),
   };

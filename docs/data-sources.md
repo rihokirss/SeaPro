@@ -370,6 +370,7 @@ et server ei tõmba ega saada väljalülitatud kihte.
 | Eesti navigatsioonihoiatused | `Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer`, kihid 7–9 | 2 min vahemälu; aegunud hoiatused filtreeritakse välja |
 | Soome navigatsioonihoiatused | Traficomi avalik WFS, `navigational_warnings_p`, `_l` ja `_a` | 2 min vahemälu; teenus väljastab ainult kehtivad hoiatused |
 | AIS navigatsioonimärgid | `AIS-aton-stream-out/StreamServer/subscribe` | püsiv WebSocket; klient küsib serveri registrit iga 30 s |
+| AIS baasjaamad | `AIS-base-station-stream-out/StreamServer/subscribe` | püsiv WebSocket; jaam kaob kaardilt, kui 30 min jooksul pole teadet tulnud |
 | Vrakid | `HIS/HIS_avalik/MapServer`, kiht 7 | 24 h vahemälu |
 | Ametlikud laevateed ja püsi-, ujuv- ning hooajalised märgid | `Nutimeri/pohiandmed/MapServer`, kihid 0–3 | uuendus 24 h järel; viimane edukas vastus säilib kettal |
 | Eesti märkide varuallikas | NMA avalik `https://nma.transpordiamet.ee/xml_file/` | kogu Eesti XML-koopia; uuendus 24 h järel, kettal tähtajatu |

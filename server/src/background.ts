@@ -5,6 +5,7 @@ import { transpordiamet } from './ais/transpordiamet.js';
 import { config } from './config.js';
 import { listProviders } from './providers/registry.js';
 import { aisAtons } from './navigation/aisAton.js';
+import { aisBaseStations } from './navigation/aisBaseStation.js';
 import { startModelVerification, stopModelVerification } from './modelVerification.js';
 
 interface Logger {
@@ -106,6 +107,7 @@ function startAis(log: Logger): void {
   const prune = setInterval(() => {
     vessels.prune();
     aisAtons.prune();
+    aisBaseStations.prune();
   }, 5 * 60 * 1000);
   prune.unref();
   timers.push(prune);
@@ -118,6 +120,7 @@ function startAis(log: Logger): void {
 
   transpordiamet.start((msg) => log.info(msg));
   aisAtons.start((msg) => log.info(msg));
+  aisBaseStations.start((msg) => log.info(msg));
 }
 
 export function stopBackgroundJobs(): void {
@@ -128,5 +131,6 @@ export function stopBackgroundJobs(): void {
   aisstream.stop();
   transpordiamet.stop();
   aisAtons.stop();
+  aisBaseStations.stop();
   stopModelVerification();
 }

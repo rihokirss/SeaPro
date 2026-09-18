@@ -4,6 +4,7 @@ import type { NavigationData } from '@seapro/shared';
 import { insertBefore } from '../layerOrder';
 import {
   fixedAidIconCategory,
+  AIS_BASE_STATION_ICON,
   NAVIGATION_WARNING_ICON,
   TRAFFIC_DIRECTION_ICON,
   TRAFFIC_DIRECTION_WHITE_ICON,
@@ -29,6 +30,9 @@ export const NAVIGATION_AID_HIT_LAYER = 'navigation-aid-hit';
 export const NAVIGATION_AIDS_LAYER = 'navigation-aids';
 export const NAVIGATION_AID_ALERTS_LAYER = 'navigation-aid-alerts';
 export const NAVIGATION_AID_LABELS_LAYER = 'navigation-aid-labels';
+export const AIS_BASE_STATION_HIT_LAYER = 'ais-base-station-hit';
+export const AIS_BASE_STATIONS_LAYER = 'ais-base-stations';
+export const AIS_BASE_STATION_LABELS_LAYER = 'ais-base-station-labels';
 
 export const NAVIGATION_CLICK_LAYERS = [
   WARNING_POINTS_LAYER,
@@ -36,6 +40,7 @@ export const NAVIGATION_CLICK_LAYERS = [
   WARNING_AREAS_LAYER,
   WRECKS_LAYER,
   NAVIGATION_AID_HIT_LAYER,
+  AIS_BASE_STATION_HIT_LAYER,
   FAIRWAY_HIT_LAYER,
 ];
 
@@ -45,6 +50,7 @@ export interface NavigationVisibility {
   warnings: boolean;
   wrecks: boolean;
   aids: boolean;
+  baseStations: boolean;
   traffic: boolean;
   falseColors: boolean;
   official: boolean;
@@ -114,6 +120,19 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
         status: aid.status ?? null,
         atonType: aid.atonType ?? null,
         lightActive: aid.lightActive ?? null,
+      },
+    });
+  }
+
+  for (const station of data.baseStations ?? []) {
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [station.lon, station.lat] },
+      properties: {
+        featureKind: 'base-station',
+        ...station,
+        messageType: station.messageType ?? null,
+        previousMessageType: station.previousMessageType ?? null,
       },
     });
   }
@@ -510,6 +529,59 @@ function ensureLayers(map: MapLibreMap): void {
       },
     }, insertBefore(map, NAVIGATION_AID_LABELS_LAYER));
   }
+
+  if (!map.getLayer(AIS_BASE_STATION_HIT_LAYER)) {
+    map.addLayer({
+      id: AIS_BASE_STATION_HIT_LAYER,
+      type: 'circle',
+      source: SOURCE_ID,
+      filter: ['==', ['get', 'featureKind'], 'base-station'],
+      minzoom: 7,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 11, 13, 15],
+        'circle-color': 'rgba(0,0,0,0.01)',
+      },
+    }, insertBefore(map, AIS_BASE_STATION_HIT_LAYER));
+  }
+
+  if (!map.getLayer(AIS_BASE_STATIONS_LAYER)) {
+    map.addLayer({
+      id: AIS_BASE_STATIONS_LAYER,
+      type: 'symbol',
+      source: SOURCE_ID,
+      filter: ['==', ['get', 'featureKind'], 'base-station'],
+      minzoom: 7,
+      layout: {
+        'icon-image': AIS_BASE_STATION_ICON,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 7, 0.7, 11, 0.9, 15, 1.05],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    }, insertBefore(map, AIS_BASE_STATIONS_LAYER));
+  }
+
+  if (!map.getLayer(AIS_BASE_STATION_LABELS_LAYER)) {
+    map.addLayer({
+      id: AIS_BASE_STATION_LABELS_LAYER,
+      type: 'symbol',
+      source: SOURCE_ID,
+      filter: ['==', ['get', 'featureKind'], 'base-station'],
+      minzoom: 9,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Open Sans Regular'],
+        'text-size': 10,
+        'text-offset': [0, 1.5],
+        'text-anchor': 'top',
+        'text-optional': true,
+      },
+      paint: {
+        'text-color': '#183544',
+        'text-halo-color': 'rgba(255,255,255,0.92)',
+        'text-halo-width': 1.2,
+      },
+    }, insertBefore(map, AIS_BASE_STATION_LABELS_LAYER));
+  }
 }
 
 export function setNavigationVisibility(map: MapLibreMap, visibility: NavigationVisibility): void {
@@ -519,6 +591,11 @@ export function setNavigationVisibility(map: MapLibreMap, visibility: Navigation
     visibility.warnings,
   );
   setVisible(map, [WRECKS_LAYER, WRECK_LABELS_LAYER], visibility.wrecks);
+  setVisible(
+    map,
+    [AIS_BASE_STATION_HIT_LAYER, AIS_BASE_STATIONS_LAYER, AIS_BASE_STATION_LABELS_LAYER],
+    visibility.baseStations,
+  );
   setVisible(
     map,
     [

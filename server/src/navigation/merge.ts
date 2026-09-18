@@ -40,6 +40,7 @@ export function mergeNavigationAids(
         : incoming.category,
       atonType: incoming.atonType ?? base.atonType,
       status: incoming.status ?? base.status,
+      lightActive: incoming.lightActive ?? base.lightActive,
       offPosition: incoming.offPosition ?? base.offPosition,
       mmsi: incoming.mmsi ?? base.mmsi,
       updatedAt: incoming.updatedAt ?? base.updatedAt,

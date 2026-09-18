@@ -834,6 +834,40 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
         '',
       ));
     }
+  } else if (kind === 'base-station') {
+    title ||= t('navigation.base-station');
+    addText(rows, 'MMSI', p.mmsi);
+    addText(rows, t('navigation.country'), p.country);
+    addText(rows, t('navigation.fixType'), p.fixType);
+    addText(rows, t('navigation.messageType'), p.messageType);
+    const updatedAt = String(p.updatedAt ?? '').trim();
+    if (updatedAt) {
+      const updated = new Date(updatedAt);
+      if (Number.isFinite(updated.getTime())) {
+        rows.push(row(
+          t('navigation.updatedAt'),
+          escapeHtml(new Intl.DateTimeFormat(localeTag(ctx.lang), {
+            dateStyle: 'short',
+            timeStyle: 'medium',
+          }).format(updated)),
+          '',
+        ));
+      }
+    }
+    const previousAt = String(p.previousMessageAt ?? '').trim();
+    if (previousAt) {
+      const previous = new Date(previousAt);
+      if (Number.isFinite(previous.getTime())) {
+        rows.push(row(
+          t('navigation.previousMessageAt'),
+          escapeHtml(new Intl.DateTimeFormat(localeTag(ctx.lang), {
+            dateStyle: 'short',
+            timeStyle: 'medium',
+          }).format(previous)),
+          '',
+        ));
+      }
+    }
   } else if (kind === 'fairway') {
     title ||= t('navigation.fairway');
     const leadingLine = p.fairwayType === 'leading-line';
@@ -852,6 +886,8 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
 
   const source = kind === 'aid'
     ? navigationAidSource(String(p.sources ?? '').trim())
+    : kind === 'base-station'
+      ? 'AIS · Transpordiamet · Nutimeri'
     : kind === 'warning'
       ? navigationWarningSource(String(p.source ?? '').trim())
       : 'Transpordiamet · Nutimeri';

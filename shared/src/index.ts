@@ -536,6 +536,21 @@ export interface NavigationAid {
   sources: Array<'registry' | 'vaylavirasto' | 'ais'>;
 }
 
+export interface AisBaseStation {
+  id: string;
+  /** Baasjaama 9-kohaline MMSI; string säilitab algusnullid. */
+  mmsi: string;
+  name: string;
+  lat: number;
+  lon: number;
+  country?: string;
+  fixType?: string;
+  messageType?: number;
+  previousMessageType?: number;
+  previousMessageAt?: string;
+  updatedAt?: string;
+}
+
 export interface Fairway {
   id: string;
   geometry:
@@ -586,6 +601,7 @@ export interface NavigationData {
   warnings: NavigationWarning[];
   wrecks: Wreck[];
   aids: NavigationAid[];
+  baseStations: AisBaseStation[];
   fairways: Fairway[];
   trafficSchemes: TrafficScheme[];
 }

@@ -22,6 +22,7 @@ interface Props {
   showStations: boolean;
   showHarbours: boolean;
   showNavigationAids: boolean;
+  showBaseStations: boolean;
   showNavigationWarnings: boolean;
   showWrecks: boolean;
   showWind: boolean;
@@ -34,6 +35,7 @@ export function MapKey({
   showStations,
   showHarbours,
   showNavigationAids,
+  showBaseStations,
   showNavigationWarnings,
   showWrecks,
   showWind,
@@ -44,7 +46,7 @@ export function MapKey({
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const tabs: KeyTab[] = [
-    ...(showNavigationAids || showNavigationWarnings || showWrecks ? ['navigation' as const] : []),
+    ...(showNavigationAids || showBaseStations || showNavigationWarnings || showWrecks ? ['navigation' as const] : []),
     ...(showVessels ? ['vessels' as const] : []),
     ...(showStations || showWind ? ['weather' as const] : []),
     ...(showHarbours ? ['places' as const] : []),
@@ -126,6 +128,9 @@ export function MapKey({
               ) : null}
               {showNavigationWarnings ? (
                 <p className="mapkey__legend-row"><WarningMark />{t('layer.navigationWarnings')}</p>
+              ) : null}
+              {showBaseStations ? (
+                <p className="mapkey__legend-row"><BaseStationMark />{t('layer.aisBaseStations')}</p>
               ) : null}
               {showWrecks ? (
                 <p className="mapkey__legend-row"><WreckMark />{t('layer.wrecks')}</p>
@@ -308,6 +313,19 @@ function WarningMark() {
       <path d="M10 1.8 18.5 18H1.5Z" fill="#f1b51c" stroke="#6d4700" strokeWidth="1" strokeLinejoin="round" />
       <path d="M10 7v5.2" stroke="#31240b" strokeWidth="2" strokeLinecap="round" />
       <circle cx="10" cy="14.6" r="1.1" fill="#31240b" />
+    </svg>
+  );
+}
+
+function BaseStationMark() {
+  return (
+    <svg className="mapkey__mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 1.5 21 7v10l-9 5.5L3 17V7Z" fill="#246b84" stroke="#fff" strokeWidth="1.6" />
+      <g fill="none" stroke="#fff" strokeWidth="1.3" strokeLinecap="round">
+        <path d="M12 9v10M8.5 19l3.5-6 3.5 6" />
+        <path d="M8.5 8.5a4 4 0 0 1 7 0M6.5 7.5a6.5 6.5 0 0 1 11 0" />
+      </g>
+      <circle cx="12" cy="7" r="1.4" fill="#fff" />
     </svg>
   );
 }

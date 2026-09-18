@@ -42,6 +42,7 @@ import {
   fetchWrecks,
 } from '../navigation/arcgis.js';
 import { aisAtons } from '../navigation/aisAton.js';
+import { aisBaseStations } from '../navigation/aisBaseStation.js';
 import { mergeHarbours, mergeNavigationAids } from '../navigation/merge.js';
 import { fetchFinnishNavigationAids } from '../navigation/vaylavirasto.js';
 import { fetchFinnishNavigationWarnings } from '../navigation/traficomWarnings.js';
@@ -605,11 +606,13 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       'wrecks',
       'official',
       'aids',
+      'baseStations',
     ]);
     const wantWarnings = requested.has('warnings');
     const wantWrecks = requested.has('wrecks');
     const wantOfficial = requested.has('official');
     const wantAisAids = requested.has('aids');
+    const wantBaseStations = requested.has('baseStations');
     const [
       estonianWarningResult,
       finnishWarningResult,
@@ -653,6 +656,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       aids: wantOfficial
         ? mergedAids
         : mergedAids.filter((aid) => aid.sources.includes('ais')),
+      baseStations: wantBaseStations ? aisBaseStations.query(bbox) : [],
       errors: [
         estonianWarningResult,
         finnishWarningResult,

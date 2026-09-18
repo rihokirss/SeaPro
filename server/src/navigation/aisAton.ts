@@ -15,10 +15,10 @@ interface StreamMessage {
     timestamp?: number | string;
     name?: string;
     mmsi?: number | string;
-    aton_type?: number;
-    off_pos?: number | boolean;
-    aton_status?: number;
-    virtual_aton?: number | boolean;
+    aton_type?: number | string;
+    off_pos?: number | boolean | string;
+    aton_status?: number | string;
+    virtual_aton?: number | boolean | string;
     lon?: number;
     lat?: number;
   };
@@ -122,7 +122,7 @@ export class AisAtonStream {
     if (lat < south || lat > north || lon < west || lon > east) return;
 
     const virtual = boolValue(attributes.virtual_aton) ?? false;
-    const atonType = finiteNumber(attributes.aton_type);
+    const atonType = atonTypeValue(attributes.aton_type);
     const timestamp = dateValue(attributes.timestamp);
     const existing = this.#items.get(mmsi);
     if (existing && timestamp && existing.aid.updatedAt) {
@@ -139,6 +139,7 @@ export class AisAtonStream {
         atonType,
         category: categoryFromAtonType(atonType) ?? (virtual ? 'virtual' : 'unknown'),
         status: finiteNumber(attributes.aton_status),
+        lightActive: litValue(attributes.aton_status),
         offPosition: boolValue(attributes.off_pos),
         virtual,
         mmsi,
@@ -163,6 +164,7 @@ export class AisAtonStream {
 }
 
 function finiteNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;
 }
@@ -170,8 +172,58 @@ function finiteNumber(value: unknown): number | undefined {
 function boolValue(value: unknown): boolean | undefined {
   if (value === null || value === undefined || value === '') return undefined;
   if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'yes' || normalized === 'true') return true;
+    if (normalized === 'no' || normalized === 'false') return false;
+  }
   const number = Number(value);
   return Number.isFinite(number) ? number !== 0 : undefined;
+}
+
+function litValue(value: unknown): boolean | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'lit') return true;
+  if (normalized === 'unlit' || normalized === 'not lit') return false;
+  return undefined;
+}
+
+/** GeoEvent avaldab AIS tüübi inimloetava tekstina, mitte alati ITU koodina. */
+function atonTypeValue(value: unknown): number | undefined {
+  const numeric = finiteNumber(value);
+  if (numeric !== undefined) return numeric;
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const types: Record<string, number> = {
+    'reference point': 1,
+    racon: 2,
+    'fixed structure': 3,
+    'light without sectors': 5,
+    'light with sectors': 6,
+    'leading light front': 7,
+    'leading light rear': 8,
+    'cardinal beacon n': 9,
+    'cardinal beacon e': 10,
+    'cardinal beacon s': 11,
+    'cardinal beacon w': 12,
+    'port hand beacon': 13,
+    'starboard hand beacon': 14,
+    'isolated danger beacon': 17,
+    'safe water beacon': 18,
+    'special mark beacon': 19,
+    'cardinal mark n': 20,
+    'cardinal mark e': 21,
+    'cardinal mark s': 22,
+    'cardinal mark w': 23,
+    'port hand mark': 24,
+    'starboard hand mark': 25,
+    'isolated danger': 28,
+    'safe water': 29,
+    'special mark': 30,
+    'light vessel': 31,
+  };
+  return types[normalized];
 }
 
 function dateValue(value: unknown): string | undefined {

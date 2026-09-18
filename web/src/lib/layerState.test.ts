@@ -13,6 +13,7 @@ const defaults: LayerState = {
   placeLabels: true,
   navigationWarnings: false,
   navigationAids: false,
+  aisBaseStations: false,
   trafficSchemes: false,
   wrecks: false,
   officialNavigation: true,
@@ -43,12 +44,22 @@ describe('layer state routing graph migration', () => {
     });
   });
 
-  it('persists the routing graph toggle in version 3', () => {
-    saveLayerState({ ...defaults, routingGraph: true });
+  it('turns the AIS base-station layer off when migrating an older preference', () => {
+    values.set('seapro.layers', JSON.stringify({
+      version: 4,
+      aisBaseStations: true,
+    }));
+
+    expect(loadLayerState(defaults).aisBaseStations).toBe(false);
+  });
+
+  it('persists the toggles in version 5', () => {
+    saveLayerState({ ...defaults, routingGraph: true, aisBaseStations: true });
 
     expect(JSON.parse(values.get('seapro.layers')!)).toMatchObject({
-      version: 3,
+      version: 5,
       routingGraph: true,
+      aisBaseStations: true,
     });
   });
 });
