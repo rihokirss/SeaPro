@@ -194,7 +194,7 @@ The project is an npm workspaces monorepo:
 - `docs/` — technical documentation for data sources and API keys;
 - `deploy/` — examples for deployment with systemd and Nginx.
 
-Node.js 22.12 or newer and npm are required.
+Node.js 22.22.2+ (Node 22 LTS), 24.15.0+, or 26+ and npm are required.
 
 ## Running locally
 

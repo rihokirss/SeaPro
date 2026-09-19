@@ -1,6 +1,6 @@
 # SeaPro paigaldus (ilma Dockerita)
 
-Node 22+ on ainus eeldus. Rakendus jookseb ühe protsessina, mis serveerib nii API-d
+Node 22.22.2+ (Node 22 LTS), 24.15.0+ või 26+ on ainus eeldus. Rakendus jookseb ühe protsessina, mis serveerib nii API-d
 kui frontendi ühelt pordilt (vaikimisi 8080).
 
 ## Esmapaigaldus

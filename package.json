@@ -11,7 +11,7 @@
     "shared"
   ],
   "engines": {
-    "node": ">=22.12.0"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "scripts": {
     "dev": "NODE_ENV=development npm run dev --workspace=server & NODE_ENV=development npm run dev --workspace=web",
