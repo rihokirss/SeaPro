@@ -491,7 +491,8 @@ export function App() {
   const [navigationActive, setNavigationActive] = useState(false);
   const [nextWaypointIndex, setNextWaypointIndex] = useState(1);
   const [followingPosition, setFollowingPosition] = useState(true);
-  const vesselTracking = useVesselTracking(mapReady ? mapRef.current : null, () => setFollowingPosition(false));
+  const [vessels, setVessels] = useState<Vessel[]>([]);
+  const vesselTracking = useVesselTracking(mapReady ? mapRef.current : null, () => setFollowingPosition(false), vessels);
   const [recordTrack, setRecordTrack] = useState(false);
   const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([]);
   const [offRouteWarning, setOffRouteWarning] = useState(false);
@@ -949,7 +950,6 @@ export function App() {
   }, [layers.routingGraph, mapReady, view?.bbox.join(',')]);
 
   // --- Laevad (AIS) --------------------------------------------------------
-  const [vessels, setVessels] = useState<Vessel[]>([]);
 
   useEffect(() => {
     if (!layers.vessels || !view) {
@@ -970,8 +970,7 @@ export function App() {
     };
 
     load();
-    // Laevad liiguvad; 30 s vastab serveri Digitraffici pollimise sammule,
-    // tihedam küsimine annaks sama vastuse.
+    // Küsi serveri AIS-voogudest kogutud kaardiseisu iga 30 sekundi järel.
     const timer = window.setInterval(load, 30_000);
     return () => {
       cancelled = true;
@@ -982,10 +981,10 @@ export function App() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    if (layers.vessels && vessels.length > 0) {
+    if (layers.vessels && vesselTracking.mapVessels.length > 0) {
       // Kere või ikoon otsustatakse zoomi järgi, seega kiht tuleb uuesti
       // ehitada ka pärast suumimist, mitte ainult uute andmete saabudes.
-      updateVessels(map, vessels, view?.zoom ?? map.getZoom());
+      updateVessels(map, vesselTracking.mapVessels, view?.zoom ?? map.getZoom());
     } else {
       setVesselsVisible(map, false);
       // Tühi AIS-vastus on kaardi liigutamisel täiesti tavaline ega tohi
@@ -993,7 +992,7 @@ export function App() {
       // ainult siis, kui kasutaja laevakihi päriselt välja lülitab.
       if (!layers.vessels) closePopup('vessel:');
     }
-  }, [vessels, layers.vessels, mapReady, view]);
+  }, [vesselTracking.mapVessels, layers.vessels, mapReady, view]);
 
   // --- Punktiprognoos ------------------------------------------------------
   useEffect(() => {

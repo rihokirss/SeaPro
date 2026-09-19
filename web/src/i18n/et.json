@@ -537,6 +537,7 @@
   "weather.stale": "Kuvatakse varem laaditud prognoosi.",
   "weather.error": "Uuendamine ebaõnnestus. Kuvatakse varem laaditud prognoosi.",
   "weather.limited": "Uuendamist piirab Open-Meteo päringulimiit. Kuvatakse varem laaditud prognoosi.",
+  "history.activeTracks": "Nähtavad teekonnad",
   "history.title": "Laevade jälgimine",
   "history.track": "Näita teekonda",
   "history.follow": "Jälgi kaardil",

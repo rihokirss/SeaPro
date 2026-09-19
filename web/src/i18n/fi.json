@@ -537,6 +537,7 @@
   "weather.stale": "Näytetään aiemmin ladattu ennuste.",
   "weather.error": "Päivitys epäonnistui. Näytetään aiemmin ladattu ennuste.",
   "weather.limited": "Open-Meteon kyselyraja estää päivityksen. Näytetään aiemmin ladattu ennuste.",
+  "history.activeTracks": "Näkyvät reitit",
   "history.title": "Alusten seuranta",
   "history.track": "Näytä reitti",
   "history.follow": "Seuraa kartalla",

@@ -537,6 +537,7 @@
   "weather.stale": "Showing an older cached forecast.",
   "weather.error": "Update failed. Showing the previously loaded forecast.",
   "weather.limited": "Open-Meteo’s request limit prevents updates. Showing the previously loaded forecast.",
+  "history.activeTracks": "Visible tracks",
   "history.title": "Vessel tracking",
   "history.track": "Show track",
   "history.follow": "Follow on map",

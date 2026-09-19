@@ -81,8 +81,8 @@ export function VesselHistoryPanel({ tracking: h }: { tracking: ReturnType<typeo
               <Route size={16} />
               {t('history.track')}
             </button>
-            {h.track ? (
-              <button type="button" onClick={h.hideTrack}>
+            {h.range ? (
+              <button type="button" onClick={() => h.hideTrack()}>
                 {t('history.hideTrack')}
               </button>
             ) : null}
@@ -155,6 +155,20 @@ export function VesselHistoryPanel({ tracking: h }: { tracking: ReturnType<typeo
           ) : null}
         </>
       ) : null}
+      {h.activeTracks.length ? <>
+        <h3>{t('history.activeTracks')}</h3>
+        <ul>
+          {h.activeTracks.map(entry => <li key={entry.vessel.mmsi}>
+            <button type="button" onClick={() => h.select(entry.vessel)} aria-pressed={selected?.mmsi === entry.vessel.mmsi}>
+              <strong><span className="vessel-history__swatch" style={{ backgroundColor: entry.color }} />{h.vessels.find(v => v.mmsi === entry.vessel.mmsi)?.name || entry.vessel.name || entry.vessel.mmsi}</strong>
+              {h.trackResults[entry.vessel.mmsi]?.error ? <small>{t('history.unavailable')}</small> : null}
+            </button>
+            <button type="button" onClick={() => h.hideTrack(entry.vessel.mmsi)} aria-label={`${t('history.hideTrack')} ${entry.vessel.name || entry.vessel.mmsi}`}>
+              <X size={16} />
+            </button>
+          </li>)}
+        </ul>
+      </> : null}
       <h3>{t('history.favorites')}</h3>
       {!h.favorites.length ? (
         <p>{t('history.noFavorites')}</p>
