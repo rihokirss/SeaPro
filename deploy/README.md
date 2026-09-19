@@ -1,6 +1,7 @@
 # SeaPro paigaldus (ilma Dockerita)
 
-Node 22.22.2+ (Node 22 LTS), 24.15.0+ või 26+ on ainus eeldus. Rakendus jookseb ühe protsessina, mis serveerib nii API-d
+Vajalikud on Node 22.22.2+ (Node 22 LTS), 24.15.0+ või 26+ ning PostgreSQL 18 koos PostGIS-iga.
+Andmebaasi paigaldus, migratsioon, säilitamine ja öine varundus: [andmebaasi juhend](../docs/database.md). Rakendus jookseb ühe protsessina, mis serveerib nii API-d
 kui frontendi ühelt pordilt (vaikimisi 8080).
 
 ## Esmapaigaldus
@@ -20,11 +21,14 @@ sudo -u seapro cp .env.example .env
 sudo -u seapro nano .env          # täida CONTACT_EMAIL, vajadusel AISSTREAM_KEY
 sudo chmod 600 .env               # .env sisaldab API võtit
 
-# 4. Ehitus
+# 4. Andmebaas (seadista DATABASE_URL ja DATABASE_MAINTENANCE_URL)
+sudo -u seapro npm run db:migrate
+
+# 5. Ehitus
 sudo -u seapro npm ci
 sudo -u seapro npm run build
 
-# 5. Teenus
+# 6. Teenus
 sudo cp deploy/seapro.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now seapro
@@ -37,6 +41,7 @@ sudo systemctl status seapro
 cd /opt/seapro
 sudo -u seapro git pull
 sudo -u seapro npm ci
+sudo -u seapro npm run db:migrate
 sudo -u seapro npm run build
 sudo systemctl restart seapro
 ```
@@ -94,3 +99,6 @@ edukaid koopiaid, mida kasutatakse ka pika allikakatkestuse korral. Kaasa see
 varundusse ja säilita uuendamisel: kustutatud koopiat saab taastada ainult siis,
 kui algallikas töötab. Ülejäänud vahemälu ehitab rakendus allikate kättesaadavusel
 uuesti. `data/` on ainus kataloog, kuhu systemd unit kirjutusõiguse annab.
+
+PostgreSQL-i ajalugu ei asu `data/` kaustas. Varunda ka andmebaas ning paigalda
+`seapro-database.timer`, nagu kirjeldatud andmebaasi juhendis.

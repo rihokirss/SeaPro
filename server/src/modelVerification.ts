@@ -1,6 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { database } from './db/pool.js';
+import { writeQueue } from './db/queue.js';
+import { historyConfig, DAY, cutoff } from './db/config.js';
 import type {
   ModelSkillPoint,
   ModelSkillReport,
@@ -61,7 +61,7 @@ const SOURCES = [
 
 const WIND_VARIABLES: Variable[] = ['wind_speed', 'wind_gust', 'wind_dir'];
 const THREE_HOURS_MS = 3 * 3600_000;
-const RETENTION_MS = 100 * 24 * 3600_000;
+const RETENTION_MS = historyConfig.weatherDays ? historyConfig.weatherDays * DAY : Infinity;
 // Jaamad raporteerivad 5–15 min sammuga ja prognoos on täistunnine; kuni
 // poole tunni kaugune mõõtmine kirjeldab sama prognoositundi veel ausalt.
 const OBSERVATION_MATCH_MS = 30 * 60_000;
@@ -90,7 +90,7 @@ export interface ForecastSample {
   locationDistanceKm: number | null;
 }
 
-interface PersistedVerification {
+export interface PersistedVerification {
   version: 1;
   collectionStartedAt: string;
   observations: ObservationSample[];
@@ -153,32 +153,23 @@ export class ModelVerificationStore {
   #revision = 0;
   #queryCache = new Map<string, ModelSkillReport | ModelSkillSeriesReport | ModelSkillWindReport>();
 
-  constructor(private readonly file: string) {
+  constructor(state?: PersistedVerification) {
     this.#state = {
       version: 1,
       collectionStartedAt: new Date().toISOString(),
       observations: [],
       forecasts: [],
     };
+    if (state) this.restore(state);
   }
 
-  load(log?: (message: string) => void): void {
-    try {
-      const parsed = JSON.parse(readFileSync(this.file, 'utf8')) as PersistedVerification;
-      if (parsed.version !== 1 || !Array.isArray(parsed.observations) || !Array.isArray(parsed.forecasts)) {
-        throw new Error('tundmatu failivorming');
-      }
-      this.#state = parsed;
-      this.#prune();
-      this.#rebuildIndexes();
-      this.#dirty = false;
-      log?.(`Mudelitäpsuse ajalugu kettalt: ${parsed.observations.length} mõõtmist, ${parsed.forecasts.length} prognoosi`);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        log?.(`Mudelitäpsuse ajalugu ei saanud lugeda: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
+  restore(state: PersistedVerification): void {
+    this.#state = structuredClone(state);
+    this.#rebuildIndexes();
+    this.#queryCache.clear();
   }
+
+  snapshot(): PersistedVerification { return structuredClone(this.#state); }
 
   recordObservation(sample: ObservationSample): void {
     this.#maybePrune();
@@ -202,16 +193,6 @@ export class ModelVerificationStore {
       this.#state.forecasts.push(sample);
     }
     this.#markChanged();
-  }
-
-  flush(log?: (message: string) => void): void {
-    if (!this.#dirty) return;
-    mkdirSync(dirname(this.file), { recursive: true });
-    const temporary = `${this.file}.tmp`;
-    writeFileSync(temporary, JSON.stringify(this.#state));
-    renameSync(temporary, this.file);
-    this.#dirty = false;
-    log?.(`Mudelitäpsuse ajalugu kettale: ${this.#state.observations.length} mõõtmist, ${this.#state.forecasts.length} prognoosi`);
   }
 
   report(days: VerificationDays, leadHours: VerificationLead, now = Date.now(), pointId?: string): ModelSkillReport {
@@ -563,17 +544,43 @@ function nearestObservation(items: TimedObservation[], target: number): Observat
   return best && Math.abs(best.time - target) <= OBSERVATION_MATCH_MS ? best.sample : null;
 }
 
-const dataDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../../data');
-export const modelVerification = new ModelVerificationStore(join(dataDirectory, 'model-verification.json'));
+/** Query-scoped calculator: production never loads the complete archive into memory. */
+class DatabaseVerificationStore {
+  private cache = new Map<string, {at: number; value: unknown}>();
+  recordObservation(sample: ObservationSample) { writeQueue.enqueue({kind:'observation', data:sample}); this.cache.clear(); }
+  recordForecast(sample: ForecastSample) { writeQueue.enqueue({kind:'forecast', data:sample}); this.cache.clear(); }
+  async calculate(kind: 'report' | 'series' | 'windReport', days: VerificationDays, lead: VerificationLead, now: number, pointId?: string): Promise<any> {
+    const key=JSON.stringify([kind,days,lead,pointId,Math.floor(now/60000)]);
+    const cached=this.cache.get(key); if(cached && now-cached.at<60000) return cached.value;
+    const lower=Math.max(now-days*DAY, cutoff(historyConfig.weatherDays,now));
+    const retention=new Date(cutoff(historyConfig.weatherDays,now)).toISOString();
+    const [observations,forecasts,meta,latest]=await Promise.all([
+      database.query('SELECT data FROM weather_observations WHERE observed_at >= $1 AND observed_at <= $2 AND ($3::text IS NULL OR point_id=$3)',[new Date(Math.max(lower-1800000,cutoff(historyConfig.weatherDays,now))).toISOString(),new Date(now+1800000).toISOString(),pointId??null]),
+      database.query('SELECT data FROM weather_forecasts WHERE valid_at >= $1 AND valid_at <= $2 AND lead_hours=$3 AND ($4::text IS NULL OR point_id=$4)',[new Date(lower).toISOString(),new Date(now).toISOString(),lead,pointId??null]),
+      database.query("SELECT value FROM app_metadata WHERE key='verificationStartedAt'"),
+      database.query("SELECT (SELECT data->>'observedAt' FROM weather_observations WHERE observed_at >= $1 ORDER BY observed_at DESC LIMIT 1) AS observation, (SELECT data->>'capturedAt' FROM weather_forecasts WHERE valid_at >= $1 ORDER BY captured_at DESC LIMIT 1) AS forecast",[retention]),
+    ]);
+    const calculator=new ModelVerificationStore({version:1,collectionStartedAt:meta.rows[0]?.value??new Date(now).toISOString(),observations:observations.rows.map(r=>r.data),forecasts:forecasts.rows.map(r=>r.data)});
+    const value=kind==='series' ? calculator.series(days,lead,pointId!,now) : calculator[kind](days,lead,now,pointId);
+    if(kind==='report') Object.assign(value,{ lastObservationAt:latest.rows[0].observation??null, lastForecastAt:latest.rows[0].forecast??null });
+    if(this.cache.size>=32) this.cache.clear(); this.cache.set(key,{at:now,value}); return value;
+  }
+  report(days: VerificationDays, lead: VerificationLead, now=Date.now(), pointId?: string) { return this.calculate('report',days,lead,now,pointId); }
+  series(days: VerificationDays, lead: VerificationLead, pointId: string, now=Date.now()) { return this.calculate('series',days,lead,now,pointId); }
+  windReport(days: VerificationDays, lead: VerificationLead, now=Date.now(), pointId?: string) { return this.calculate('windReport',days,lead,now,pointId); }
+}
+export const modelVerification = new DatabaseVerificationStore();
+type SampleWriter = Pick<ModelVerificationStore, 'recordObservation' | 'recordForecast'>;
 
 let observationTimer: NodeJS.Timeout | null = null;
 let forecastTimer: NodeJS.Timeout | null = null;
-let persistTimer: NodeJS.Timeout | null = null;
+const collectionTasks = new Set<Promise<void>>();
+function trackCollection(task: Promise<void>) { collectionTasks.add(task); void task.finally(() => collectionTasks.delete(task)); }
 let observationsRunning = false;
 let forecastsRunning = false;
 
 export function startModelVerification(log: Logger): void {
-  modelVerification.load((message) => log.info(message));
+  writeQueue.enqueue({kind:'metadata',data:{key:'verificationStartedAt',value:new Date().toISOString()}});
 
   const collectObservations = async (): Promise<void> => {
     if (observationsRunning) return;
@@ -599,28 +606,24 @@ export function startModelVerification(log: Logger): void {
     }
   };
 
-  void collectObservations();
-  void collectForecasts();
-  observationTimer = setInterval(() => void collectObservations(), 5 * 60_000);
-  forecastTimer = setInterval(() => void collectForecasts(), THREE_HOURS_MS);
-  persistTimer = setInterval(() => modelVerification.flush((message) => log.debug?.(message)), 60_000);
+  trackCollection(collectObservations());
+  trackCollection(collectForecasts());
+  observationTimer = setInterval(() => trackCollection(collectObservations()), 5 * 60_000);
+  forecastTimer = setInterval(() => trackCollection(collectForecasts()), THREE_HOURS_MS);
   observationTimer.unref();
   forecastTimer.unref();
-  persistTimer.unref();
   log.info(`Mudelitäpsuse taustakoguja: ${VERIFICATION_POINTS.length} punkti, prognoos iga 3 h`);
 }
 
-export function stopModelVerification(): void {
+export async function stopModelVerification(): Promise<void> {
   if (observationTimer) clearInterval(observationTimer);
   if (forecastTimer) clearInterval(forecastTimer);
-  if (persistTimer) clearInterval(persistTimer);
   observationTimer = null;
   forecastTimer = null;
-  persistTimer = null;
-  modelVerification.flush();
+  await Promise.allSettled(collectionTasks);
 }
 
-export async function collectObservationSamples(store: ModelVerificationStore): Promise<void> {
+export async function collectObservationSamples(store: SampleWriter): Promise<void> {
   const providers = new Map<string, VerificationPoint[]>();
   for (const point of VERIFICATION_POINTS) {
     const points = providers.get(point.observationProviderId) ?? [];
@@ -641,7 +644,7 @@ export async function collectObservationSamples(store: ModelVerificationStore): 
   }
 }
 
-function recordReading(store: ModelVerificationStore, point: VerificationPoint, reading: StationReading): void {
+function recordReading(store: SampleWriter, point: VerificationPoint, reading: StationReading): void {
   const windSpeed = finite(reading.values.wind_speed);
   const windGust = finite(reading.values.wind_gust);
   const windDirection = finite(reading.values.wind_dir);
@@ -649,7 +652,7 @@ function recordReading(store: ModelVerificationStore, point: VerificationPoint, 
   store.recordObservation({ pointId: point.id, observedAt: reading.observedAt!, windSpeed, windGust, windDirection });
 }
 
-export async function collectForecastSamples(store: ModelVerificationStore, now = Date.now()): Promise<void> {
+export async function collectForecastSamples(store: SampleWriter, now = Date.now()): Promise<void> {
   const openMeteo = getProvider('open-meteo');
   const windfinder = getProvider('windfinder');
   if (!openMeteo?.point) return;
@@ -700,7 +703,7 @@ export async function collectForecastSamples(store: ModelVerificationStore, now 
 }
 
 function recordSeries(
-  store: ModelVerificationStore,
+  store: SampleWriter,
   point: VerificationPoint,
   series: TimeSeries,
   sourceId: string,

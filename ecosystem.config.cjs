@@ -24,7 +24,7 @@ module.exports = {
       exec_mode: 'fork',
 
       // Vahemälu kettale kirjutamine käib SIGINT/SIGTERM pealt — anna aega.
-      kill_timeout: 10_000,
+      kill_timeout: 60_000,
       autorestart: true,
       restart_delay: 5_000,
       // Kui mõni väline allikas on pikalt maas, ei tohi see teenust surnuks lugeda.

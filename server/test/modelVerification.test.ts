@@ -55,11 +55,11 @@ describe('mudelitäpsuse statistika', () => {
     });
   });
 
-  it('ei sega hetkeprognoose 24 h statistikasse ja taastab ajaloo kettalt', () => {
+  it('ei sega hetkeprognoose 24 h statistikasse ja taastab salvestatud ajaloo', () => {
     const directory = mkdtempSync(join(tmpdir(), 'seapro-model-skill-'));
     directories.push(directory);
     const file = join(directory, 'verification.json');
-    const first = new ModelVerificationStore(file);
+    const first = new ModelVerificationStore();
     first.recordForecast({
       pointId: 'naissaare', sourceId: 'windfinder', sourceLabel: 'Windfinder',
       capturedAt: '2026-08-20T12:00:00.000Z', validAt: '2026-08-20T12:00:00.000Z',
@@ -69,10 +69,10 @@ describe('mudelitäpsuse statistika', () => {
       pointId: 'naissaare', observedAt: '2026-08-20T12:03:00.000Z',
       windSpeed: 4, windGust: 6, windDirection: 200,
     });
-    first.flush();
+    const saved = first.snapshot();
 
-    const restored = new ModelVerificationStore(file);
-    restored.load();
+    const restored = new ModelVerificationStore();
+    restored.restore(saved);
     const now = new Date('2026-08-20T13:00:00Z').getTime();
     expect(restored.report(7, 24, now).sources.find((source) => source.sourceId === 'windfinder')?.samples).toBe(0);
     expect(restored.report(7, 0, now).sources.find((source) => source.sourceId === 'windfinder')).toMatchObject({
@@ -199,7 +199,7 @@ describe('mudelitäpsuse statistika', () => {
 function temporaryStore(directories: string[]): ModelVerificationStore {
   const directory = mkdtempSync(join(tmpdir(), 'seapro-model-skill-'));
   directories.push(directory);
-  return new ModelVerificationStore(join(directory, 'verification.json'));
+  return new ModelVerificationStore();
 }
 
 function addPair(

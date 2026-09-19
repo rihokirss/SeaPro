@@ -28,6 +28,7 @@ export interface PopupContext {
   lang: Lang;
   /** Marsruudi redigeerimisel kuuluvad kõik kaardi žestid redaktorile. */
   interactionBlocked: boolean;
+  onVesselAction?(vessel: {mmsi:number;name:string}, action: 'track' | 'follow' | 'favorite'): void;
 }
 
 let popup: maplibregl.Popup | null = null;
@@ -147,6 +148,14 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
       .setHTML(html)
       .addTo(map);
 
+    popup.getElement().querySelectorAll<HTMLButtonElement>('[data-vessel-action]').forEach(button => {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        const mmsi=Number(button.dataset.mmsi), action=button.dataset.vesselAction;
+        if(Number.isInteger(mmsi) && (action==='track'||action==='follow'||action==='favorite')) getContext().onVesselAction?.({mmsi,name:button.dataset.name??''},action);
+        closePopup();
+      });
+    });
     keepPopupInView(map, popup);
 
     // Kui kasutaja sulgeb popupi nupust või mujale klõpsates, peab ka meie
@@ -692,6 +701,16 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     rows.push(row(t('vessel.positionFix'), escapeHtml(positionFixName(positionFixType)), ''));
   }
 
+  const actionIcons = {
+    track: '<circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><path d="M6 15V6a3 3 0 0 1 3-3h2M18 9v9a3 3 0 0 1-3 3h-2"/>',
+    follow: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/>',
+    favorite: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/>',
+  };
+  const actions = (['track', 'follow', 'favorite'] as const).map((action) => {
+    const label = escapeHtml(t(`history.${action}`));
+    return `<button type="button" title="${label}" aria-label="${label}" data-vessel-action="${action}" data-mmsi="${Number(p.mmsi)}" data-name="${escapeHtml(name)}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${actionIcons[action]}</svg></button>`;
+  }).join('');
+
   const stopped = sog !== null && sog < 0.5;
 
   return `
@@ -703,6 +722,7 @@ function vesselHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
       ${stopped ? `<div class="popup__age">${escapeHtml(t('vessel.moored'))}</div>` : ''}
       <table class="popup__table">${rows.join('')}</table>
       <div class="popup__source">AIS · ${escapeHtml(String(p.source ?? ''))}</div>
+      <div class="vessel-history__actions vessel-popup-actions">${actions}</div>
     </div>`;
 }
 

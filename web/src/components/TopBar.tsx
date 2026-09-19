@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, Pencil, Route, Ship, Star, Trash2 } from 'lucide-react';
+import { Menu, Pencil, Route, Ship, Star, Trash2, Radar } from 'lucide-react';
 import { useI18n } from '../i18n';
 import type { GeoState } from '../lib/geolocation';
 import type { useFavorites } from '../lib/favorites';
@@ -7,6 +7,7 @@ import { SearchBox } from './SearchBox';
 
 interface Props {
   onOpenLayers(): void;
+  onOpenVesselHistory(): void;
   onGoHome(): void;
   geo: GeoState;
   favorites: ReturnType<typeof useFavorites>;
@@ -31,7 +32,7 @@ function CompassRose() {
   );
 }
 
-export function TopBar({ onOpenLayers, onGoHome, onOpenRoutes, onOpenVesselSettings, geo, favorites, onGoTo, bbox }: Props) {
+export function TopBar({ onOpenVesselHistory, onOpenLayers, onGoHome, onOpenRoutes, onOpenVesselSettings, geo, favorites, onGoTo, bbox }: Props) {
   const { t } = useI18n();
   const [favOpen, setFavOpen] = useState(false);
 
@@ -74,6 +75,7 @@ export function TopBar({ onOpenLayers, onGoHome, onOpenRoutes, onOpenVesselSetti
       {/* "Minu asukoht" oli varem siin. Kolis alla paremasse nurka
           (`LocateButton` `.mapctl` virnas) — pöidla ulatusse. */}
       <div className="topbar__actions">
+        <button type="button" className="icon-btn icon-btn--brass" onClick={onOpenVesselHistory} title={t('history.title')} aria-label={t('history.title')}><Radar size={20}/></button>
         <button type="button" className="icon-btn icon-btn--brass" onClick={onOpenRoutes} title={t('route.title')} aria-label={t('route.title')}>
           <Route size={20} aria-hidden="true" />
         </button>

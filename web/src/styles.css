@@ -3584,3 +3584,25 @@ button.sheet__grip::before {
 .popup__table a:hover {
   text-decoration: underline;
 }
+
+.vessel-history { position: absolute; z-index: 35; top: 76px; right: 16px; width: min(370px, calc(100vw - 32px)); max-height: calc(100dvh - 170px); overflow: auto; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-solid); color: var(--text); box-shadow: 0 12px 40px #0006; }
+.vessel-history header, .vessel-history__actions, .vessel-history__presets { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vessel-history header { justify-content: space-between; }
+.vessel-history button, .vessel-history__actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; min-height: 44px; border: 1px solid var(--line); border-radius: 7px; color: inherit; background: transparent; cursor: pointer; }
+.vessel-history button:disabled { opacity: .4; cursor: default; }
+.vessel-history button[aria-pressed="true"] { color: var(--accent); border-color: currentColor; }
+.vessel-history__actions { margin: 12px 0; }
+.vessel-history h3 { font-size: 15px; margin: 16px 0 6px; }
+.vessel-history small { color: var(--text-dim); }
+.vessel-history p { font-size: 13px; line-height: 1.5; }
+.vessel-history form { display: grid; gap: 8px; margin: 12px 0; }
+.vessel-history label { display: grid; gap: 4px; font-size: 12px; }
+.vessel-history input { width: 100%; min-width: 0; padding: 8px; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: inherit; }
+.vessel-history ul { list-style: none; padding: 0; margin: 8px 0; }
+.vessel-history li { display: flex; gap: 4px; margin-bottom: 6px; }
+.vessel-history li > button:first-child { flex: 1; align-items: flex-start; flex-direction: column; text-align: left; }
+@media(max-width: 600px) { .vessel-history { top: 68px; right: 8px; width: calc(100vw - 16px); max-height: calc(100dvh - 155px); } }
+
+.vessel-popup-actions button { width: 44px; padding: 0; }
+.vessel-popup-actions button:hover { background: var(--line); }
+.vessel-popup-actions button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

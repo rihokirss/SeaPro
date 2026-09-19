@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly SeaPro history maintenance and backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

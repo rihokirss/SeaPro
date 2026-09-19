@@ -1,3 +1,4 @@
+import { aisRecorder } from './history.js';
 import type { Vessel } from '@seapro/shared';
 
 /**
@@ -84,6 +85,7 @@ export class VesselRegistry {
   #directions = new Map<number, VesselDirection>();
 
   upsertPosition(vessel: Vessel): void {
+    aisRecorder.observe({ ...vessel, ...stripUndefined(this.#meta.get(vessel.mmsi) ?? {updatedAt:Date.now()}) });
     const existing = this.#positions.get(vessel.mmsi);
     const incoming = new Date(vessel.timestamp).getTime();
 
@@ -103,6 +105,7 @@ export class VesselRegistry {
   }
 
   upsertMeta(mmsi: number, meta: Omit<VesselMeta, 'updatedAt'>): void {
+    aisRecorder.metadata(mmsi,meta);
     const existing = this.#meta.get(mmsi) ?? { updatedAt: 0 };
     this.#meta.set(mmsi, {
       // Tühjad väljad ei tohi olemasolevat infot kustutada.

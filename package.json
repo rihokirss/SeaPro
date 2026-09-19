@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "GPL-3.0-only",
-  "description": "Mereilma kaardirakendus Läänemere ja Eesti ranniku jaoks",
+  "description": "Mereilma kaardirakendus L\u00e4\u00e4nemere ja Eesti ranniku jaoks",
   "type": "module",
   "workspaces": [
     "server",
@@ -21,6 +21,10 @@
     "start": "NODE_ENV=production node --env-file-if-exists=.env server/dist/index.js",
     "test": "npm run test --workspaces --if-present",
     "test:live": "npm run test:live --workspace=server",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:migrate": "tsx --env-file-if-exists=.env server/src/db/cli.ts migrate",
+    "db:maintain": "tsx --env-file-if-exists=.env server/src/db/cli.ts maintain",
+    "db:import": "tsx --env-file-if-exists=.env server/src/db/cli.ts import",
+    "db:export": "tsx --env-file-if-exists=.env server/src/db/cli.ts export"
   }
 }

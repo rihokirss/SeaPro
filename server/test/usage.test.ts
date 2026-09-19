@@ -19,7 +19,7 @@ describe('UsageMeter', () => {
     vi.setSystemTime(new Date('2026-08-02T12:00:00Z'));
     const directory = mkdtempSync(join(tmpdir(), 'seapro-usage-'));
     temporaryDirectories.push(directory);
-    const meter = new UsageMeter(join(directory, 'usage.json'));
+    const meter = new UsageMeter(false);
 
     meter.recordApiRequest('session-aaaaaaaaaaaaaaaa');
     meter.recordApiRequest('session-aaaaaaaaaaaaaaaa');
@@ -51,24 +51,24 @@ describe('UsageMeter', () => {
     });
   });
 
-  it('püsib kettal ega salvesta brauseri algset seansi-ID-d', () => {
+  it('taastub salvestatud andmetest ega salvesta brauseri algset seansi-ID-d', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-02T12:00:00Z'));
     const directory = mkdtempSync(join(tmpdir(), 'seapro-usage-'));
     temporaryDirectories.push(directory);
     const file = join(directory, 'usage.json');
     const originalSession = 'session-cccccccccccccccc';
-    const first = new UsageMeter(file);
+    const first = new UsageMeter(false);
 
     first.recordApiRequest(originalSession);
     first.recordUpstreamRequest('forecast', 'grid', 16);
     first.recordUpstreamResult('forecast', 'grid', true);
-    first.flush();
+    const saved = first.export();
 
-    expect(readFileSync(file, 'utf8')).not.toContain(originalSession);
+    expect(JSON.stringify(saved)).not.toContain(originalSession);
 
-    const restored = new UsageMeter(file);
-    restored.loadFromDisk();
+    const restored = new UsageMeter(false);
+    restored.restore(saved);
     const snapshot = restored.snapshot(1_000_000);
     expect(snapshot.today.sessions).toBe(1);
     expect(snapshot.today.upstream.estimatedUnits).toBe(16);

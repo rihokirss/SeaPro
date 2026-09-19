@@ -296,3 +296,10 @@ SeaPro's source code is released under the
 [GNU General Public License v3.0 only](LICENSE). In short, you may use, study,
 modify, and distribute the code, but distributed derivative versions must
 remain under the same licence and their source code must be made available.
+
+## Laevade ajalugu ja PostgreSQL
+
+AIS-teekonnad, mudelitäpsuse ajalugu ja Open-Meteo kasutusstatistika salvestatakse PostgreSQL-i.
+Laeva popupist saab avada raja, jälgida laeva kaardil ja lisada brauseripõhise lemmiku.
+Säilitusajad on `.env` kaudu seadistatavad; heatmapi alus kogutakse liikumisjoontena.
+Paigaldus, migratsioon ja varundus: [andmebaasi juhend](docs/database.md).

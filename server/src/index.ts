@@ -1,3 +1,7 @@
+import { startHistoryMonitor, stopHistoryMonitor } from './db/monitor.js';
+import { checkDatabase, database } from './db/pool.js';
+import { writeQueue } from './db/queue.js';
+import { aisRecorder } from './ais/history.js';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,7 +28,12 @@ const app = Fastify({
   requestTimeout: 60_000,
 });
 
-usageMeter.loadFromDisk((msg) => app.log.info(msg));
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL on kohustuslik; käivita esmalt andmebaasi migratsioon');
+await checkDatabase();
+await writeQueue.start();
+await usageMeter.load();
+aisRecorder.start();
+startHistoryMonitor();
 usageMeter.startPersisting(60, (msg) => app.log.debug(msg));
 
 // Brauser saadab juhusliku anonüümse seansi-ID. Loeme ainult API-päringuid;
@@ -82,13 +91,17 @@ if (config.routingPrewarm) {
 
 async function shutdown(signal: string): Promise<void> {
   app.log.info(`${signal} — sulgen`);
-  stopBackgroundJobs();
+  await stopBackgroundJobs();
   routingWarmup.stop();
   // Kirjuta vahemälu kettale enne väljumist, et taaskäivitus algaks soojalt.
   cache.stopPersisting();
   cache.flush((msg) => app.log.info(msg));
   usageMeter.stopPersisting();
   usageMeter.flush((msg) => app.log.info(msg));
+  stopHistoryMonitor();
+  aisRecorder.stop();
+  await writeQueue.stop();
+  await database.end();
   await app.close();
   process.exit(0);
 }

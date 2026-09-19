@@ -1,3 +1,5 @@
+import { useVesselTracking } from './lib/vesselTracking';
+import { VesselHistoryPanel } from './components/VesselHistoryPanel';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type {
@@ -489,6 +491,7 @@ export function App() {
   const [navigationActive, setNavigationActive] = useState(false);
   const [nextWaypointIndex, setNextWaypointIndex] = useState(1);
   const [followingPosition, setFollowingPosition] = useState(true);
+  const vesselTracking = useVesselTracking(mapReady ? mapRef.current : null, () => setFollowingPosition(false));
   const [recordTrack, setRecordTrack] = useState(false);
   const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([]);
   const [offRouteWarning, setOffRouteWarning] = useState(false);
@@ -522,6 +525,7 @@ export function App() {
     setFollowingPosition(true);
     setTrackPoints([]); setRecordTrack(false); setOffRouteWarning(false);
     navigationStartedAt.current = Date.now(); setRouteOpen(false); setRouteEditing(false);
+    vesselTracking.follow(null);
     geo.startWatch();
   }, [candidateNavigationWaypoints.length, cancelRoutePlanRequest, route, routeAnalysis, geo.position, geo.startWatch]);
 
@@ -1251,8 +1255,8 @@ export function App() {
   // Popupid loevad ühikut ja keelt renderdamise hetkel; hoiame neid ref'is,
   // et kaardi klikikäsitlejaid ei peaks iga seadistuse muutuse peale uuesti
   // registreerima.
-  const popupCtx = useRef({ t, speedUnit, lang, interactionBlocked: routeEditing || mapPointPicking });
-  popupCtx.current = { t, speedUnit, lang, interactionBlocked: routeEditing || mapPointPicking };
+  const popupCtx = useRef({ t, speedUnit, lang, interactionBlocked: routeEditing || mapPointPicking, onVesselAction: vesselTracking.show });
+  popupCtx.current = { t, speedUnit, lang, interactionBlocked: routeEditing || mapPointPicking, onVesselAction: vesselTracking.show };
 
   useEffect(() => {
     if (routeEditing || mapPointPicking) closePopup();
@@ -1326,6 +1330,7 @@ export function App() {
     <I18nContext.Provider value={i18nValue}>
       <div className={`app${picked ? ' has-point-forecast' : ''}`}>
         <TopBar
+          onOpenVesselHistory={() => vesselTracking.setOpen(true)}
           onOpenLayers={() => setPanelOpen(true)}
           onGoHome={goHome}
           onOpenRoutes={() => { setRouteOpen(true); setPicked(null); }}
@@ -1368,7 +1373,7 @@ export function App() {
             if (!(routePlanPreview ?? route.plan)) return;
             setSelectedPlanSegmentIndex(index); setRouteOpen(true); setPicked(null);
           }}
-          onUserMove={() => { if (navigationActive) setFollowingPosition(false); }}
+          onUserMove={() => { vesselTracking.follow(null); if (navigationActive) setFollowingPosition(false); }}
         />
 
         {navigationActive ? <NavigationBar
@@ -1381,7 +1386,7 @@ export function App() {
           warning={offRouteWarning}
           following={followingPosition}
           recording={recordTrack}
-          onResume={() => { setFollowingPosition(true); if (geo.position) goTo(geo.position.lat, geo.position.lon, 13); }}
+          onResume={() => { vesselTracking.follow(null); setFollowingPosition(true); if (geo.position) goTo(geo.position.lat, geo.position.lon, 13); }}
           onToggleRecording={() => setRecordTrack((value) => !value)}
           onStop={stopNavigation}
         /> : null}
@@ -1433,7 +1438,7 @@ export function App() {
             showWrecks={layers.wrecks}
             showWind={layers.windDisplay !== 'off'}
           />
-          <LocateButton geo={geo} onGoTo={goTo} />
+          <LocateButton geo={geo} onGoTo={(lat,lon,zoom) => { vesselTracking.follow(null); goTo(lat,lon,zoom); }} />
         </div>
 
         <TimeSlider
@@ -1573,6 +1578,8 @@ export function App() {
           onCancelMapPick={() => setHomeHarbourPicking(false)}
           onMapPointApplied={clearHomeHarbourMapPoint}
         /> : null}
+
+        <VesselHistoryPanel tracking={vesselTracking} />
 
         <PointSheet
           open={picked !== null}

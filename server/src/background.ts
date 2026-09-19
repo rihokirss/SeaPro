@@ -132,7 +132,7 @@ function startAis(log: Logger): void {
   aisBaseStations.start((msg) => log.info(msg));
 }
 
-export function stopBackgroundJobs(): void {
+export async function stopBackgroundJobs(): Promise<void> {
   for (const stop of jobStops) stop();
   jobStops.length = 0;
   for (const t of timers) clearInterval(t);
@@ -142,5 +142,5 @@ export function stopBackgroundJobs(): void {
   transpordiamet.stop();
   aisAtons.stop();
   aisBaseStations.stop();
-  stopModelVerification();
+  await stopModelVerification();
 }

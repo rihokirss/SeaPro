@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { database } from './db/pool.js';
+import { writeQueue } from './db/queue.js';
+import { cutoff, historyConfig, DAY } from './db/config.js';
 
 export type OpenMeteoApi = 'forecast' | 'marine';
 export type OpenMeteoUse = 'grid' | 'point';
@@ -36,7 +36,7 @@ interface PersistedHourBucket extends Omit<HourBucket, 'sessions'> {
   sessions: string[];
 }
 
-interface UsageFile {
+export interface UsageFile {
   version: 1;
   startedAt: number;
   hours: PersistedHourBucket[];
@@ -60,10 +60,6 @@ interface PeriodSummary {
   };
 }
 
-const here = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = resolve(here, '../../data');
-const USAGE_FILE = join(DATA_DIR, 'openmeteo-usage.json');
-const RETENTION_MS = 45 * 24 * 3600 * 1000;
 const SESSION_HEADER_RE = /^[A-Za-z0-9_-]{16,80}$/;
 
 function upstreamCounter(): UpstreamCounter {
@@ -120,7 +116,8 @@ export class UsageMeter {
   #dirty = false;
   #timer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly file = USAGE_FILE) {}
+  constructor(private readonly persist = true) {}
+  #changedHours = new Set<string>();
 
   #current(now = Date.now()): HourBucket {
     const hour = new Date(now).toISOString().slice(0, 13);
@@ -129,6 +126,7 @@ export class UsageMeter {
       current = bucket(hour);
       this.#hours.set(hour, current);
     }
+    this.#changedHours.add(hour);
     return current;
   }
 
@@ -226,13 +224,14 @@ export class UsageMeter {
       limitUsedPercent: number;
     };
   } {
+    this.#prune(now);
     const date = new Date(now);
     const dayPrefix = date.toISOString().slice(0, 10);
     const monthPrefix = date.toISOString().slice(0, 7);
     const month = this.#summarize(monthPrefix);
     const monthStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
     const monthEnd = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
-    const observedStart = Math.max(monthStart, this.#startedAt);
+    const observedStart = Math.max(monthStart, this.#startedAt, cutoff(historyConfig.usageDays, now));
     const observedMs = Math.max(1, now - observedStart);
     const projected = Math.round(
       month.upstream.estimatedUnits * ((monthEnd - monthStart) / observedMs),
@@ -252,23 +251,24 @@ export class UsageMeter {
     };
   }
 
-  loadFromDisk(log?: (message: string) => void): void {
-    let raw: string;
-    try {
-      raw = readFileSync(this.file, 'utf8');
-    } catch {
-      return;
-    }
+  async load(): Promise<void> {
+    const [hours,meta]=await Promise.all([
+      database.query('SELECT data FROM usage_hours WHERE hour >= $1',[new Date(cutoff(historyConfig.usageDays)).toISOString()]),
+      database.query("SELECT value FROM app_metadata WHERE key='usageStartedAt'"),
+    ]);
+    this.restore({version:1,startedAt:meta.rows[0]?.value??Date.now(),hours:hours.rows.map(r=>r.data)});
+  }
 
+  restore(parsed: UsageFile): void {
+    this.#hours.clear();
     try {
-      const parsed = JSON.parse(raw) as UsageFile;
       if (parsed.version !== 1 || !Array.isArray(parsed.hours)) return;
       this.#startedAt = Number.isFinite(parsed.startedAt) ? parsed.startedAt : Date.now();
-      const cutoff = Date.now() - RETENTION_MS;
+      const oldest = cutoff(historyConfig.usageDays);
 
       for (const saved of parsed.hours) {
         const stamp = Date.parse(`${saved.hour}:00:00Z`);
-        if (!/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(saved.hour) || stamp < cutoff) continue;
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(saved.hour) || stamp < oldest) continue;
         const current = bucket(saved.hour);
         current.apiRequests = Number(saved.apiRequests) || 0;
         current.sessions = new Set(Array.isArray(saved.sessions) ? saved.sessions : []);
@@ -300,38 +300,30 @@ export class UsageMeter {
         }
         this.#hours.set(current.hour, current);
       }
-      log?.(`Kasutusmõõdik kettalt: ${this.#hours.size} tunnikirjet`);
+      this.#changedHours.clear();
     } catch (err) {
-      log?.(`Kasutusmõõdiku fail on rikutud, alustan tühjalt: ${String(err)}`);
+      throw err;
     }
   }
 
   #prune(now = Date.now()): void {
-    const cutoff = now - RETENTION_MS;
+    const oldest = cutoff(historyConfig.usageDays,now);
     for (const [hour] of this.#hours) {
-      if (Date.parse(`${hour}:00:00Z`) < cutoff) this.#hours.delete(hour);
+      if (Date.parse(`${hour}:00:00Z`) < oldest) this.#hours.delete(hour);
     }
   }
 
-  flush(log?: (message: string) => void): void {
-    if (!this.#dirty) return;
+  export(): UsageFile {
     this.#prune();
-    const hours: PersistedHourBucket[] = [...this.#hours.values()].map((current) => ({
-      ...current,
-      sessions: [...current.sessions],
-    }));
-    const file: UsageFile = { version: 1, startedAt: this.#startedAt, hours };
+    return { version:1, startedAt:this.#startedAt, hours:[...this.#hours.values()].map(h=>({...h,sessions:[...h.sessions]})) };
+  }
 
-    try {
-      mkdirSync(dirname(this.file), { recursive: true });
-      const temporary = `${this.file}.tmp`;
-      writeFileSync(temporary, JSON.stringify(file), 'utf8');
-      renameSync(temporary, this.file);
-      this.#dirty = false;
-      log?.(`Kasutusmõõdik kettale: ${hours.length} tunnikirjet`);
-    } catch (err) {
-      log?.(`Kasutusmõõdiku kirjutamine ebaõnnestus: ${String(err)}`);
-    }
+  flush(_log?: (message: string) => void): void {
+    if(!this.#dirty || !this.persist) return;
+    const file=this.export();
+    writeQueue.enqueue({kind:'metadata',data:{key:'usageStartedAt',value:file.startedAt}});
+    for(const h of file.hours) if(this.#changedHours.has(h.hour)) writeQueue.enqueue({kind:'usage',data:h});
+    this.#changedHours.clear(); this.#dirty=false;
   }
 
   startPersisting(intervalSeconds = 60, log?: (message: string) => void): void {

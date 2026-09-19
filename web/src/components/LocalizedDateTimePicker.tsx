@@ -7,14 +7,18 @@ import 'react-datepicker/dist/react-datepicker.css';
 interface Props {
   value: string;
   onChange(value: string): void;
+  min?: string;
+  max?: string;
 }
 
-export function LocalizedDateTimePicker({ value, onChange }: Props) {
+export function LocalizedDateTimePicker({ value, onChange, min, max }: Props) {
   const { lang, t } = useI18n();
   const dateLocale = lang === 'et' ? et : lang === 'fi' ? fi : enGB;
 
   return <ReactDatePicker
     selected={new Date(value)}
+    minDate={min ? new Date(min) : undefined}
+    maxDate={max ? new Date(max) : undefined}
     onChange={(date: Date | null) => { if (date) onChange(date.toISOString()); }}
     locale={dateLocale}
     dateFormat={lang === 'en' ? 'dd/MM/yyyy HH:mm' : 'dd.MM.yyyy HH:mm'}

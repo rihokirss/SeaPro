@@ -1,3 +1,4 @@
+import { registerHistoryApi, historyHealth } from '../ais/historyApi.js';
 import type { FastifyInstance } from 'fastify';
 import type {
   BBox,
@@ -208,6 +209,7 @@ function toProviderError(providerId: string, err: unknown): ProviderError {
 }
 
 export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
+  await registerHistoryApi(app);
   app.get('/api/health', async () => ({
     ok: true,
     version: config.appVersion,
@@ -218,6 +220,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     },
     // Päringueelarve seis — ilma selleta on "miks tuulekiht kadus?" pime koht.
     budgets: rateLimiter.stats(),
+    history: historyHealth(),
     // Vahemälu maht: kirjed kasvavad kaardi kerimisega ja piiri lähedus on
     // ainus märk sellest, et väljatõstmine on tööle hakanud.
     cache: { entries: cache.size, megabytes: Math.round((cache.bytes / 1048576) * 10) / 10 },

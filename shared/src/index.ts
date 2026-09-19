@@ -898,3 +898,32 @@ export function degreesToCompass(deg: number): string {
 }
 
 export * from './route.js';
+
+/** Recorded AIS data; distinct from the user's own GPS tracks. */
+export interface VesselHistoryPoint {
+  mmsi: number;
+  day: string;
+  bucket: string;
+  timestamp: string;
+  receivedAt: string;
+  lat: number;
+  lon: number;
+  sog?: number;
+  cog?: number;
+  heading?: number;
+  navStat?: number;
+  shipType?: number;
+  moving: boolean;
+  source: Vessel['source'];
+  sources: Vessel['source'][];
+}
+export interface VesselTrack {
+  mmsi: number;
+  from: string;
+  to: string;
+  availableFrom: string | null;
+  availableTo: string | null;
+  segments: VesselHistoryPoint[][];
+  gaps: Array<{startedAt: string; endedAt: string | null; reason: string}>;
+}
+export interface TrackedVessel extends Vessel { stale: boolean }
