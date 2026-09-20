@@ -25,19 +25,24 @@ Rakendus ei käivita skeemimuudatusi automaatselt.
 
 | Keskkonnamuutuja | Vaikimisi |
 | --- | ---: |
-| AIS_HISTORY_RETENTION_DAYS | 365 |
+| AIS_HISTORY_RETENTION_DAYS | 30 |
 | AIS_HISTORY_HOT_DAYS | 7 |
 | AIS_HEATMAP_RETENTION_DAYS | 0 |
 | MODEL_VERIFICATION_RETENTION_DAYS | 365 |
 | USAGE_RETENTION_DAYS | 45 |
-| AIS_HISTORY_MOVING_INTERVAL_SECONDS | 30 |
+| AIS_HISTORY_MOVING_INTERVAL_SECONDS | 60 |
 | AIS_HISTORY_STATIONARY_INTERVAL_SECONDS | 300 |
+| AIS_HISTORY_ARCHIVE_INTERVAL_SECONDS | 300 |
 | DATABASE_QUEUE_MAX_MB | 512 |
 
 Säilituspäevade väärtus 0 tähendab tähtajatut säilitamist. HOT_DAYS ja sammud
 peavad olema positiivsed täisarvud; HOT_DAYS ei tohi ületada piiratud AIS-ajalugu.
-Muudatus rakendub pärast teenuse taaskäivitust. Lühem periood eemaldab järgmise
-hooldusega aegunud andmed, pikem periood ei taasta kustutatut. API filtreerib
+`AIS_HISTORY_HOT_DAYS` vanusest arhiivitakse iga laeva igast
+`AIS_HISTORY_ARCHIVE_INTERVAL_SECONDS` UTC-vahemikust viimane tegelikult
+saabunud asukoht. Heatmapi jooned arvutatakse enne hõrendamist täpsest
+värskest ajaloost. Muudatus rakendub pärast teenuse taaskäivitust. Lühem
+periood eemaldab järgmise hooldusega aegunud andmed, pikem periood ei taasta
+kustutatut. API filtreerib
 säilitusaja ületanud punktid välja juba enne hooldustööd.
 
 AIS-i kogumine ei sõltu vaatealast, lemmikutest ega avatud brauserist. Asukohad

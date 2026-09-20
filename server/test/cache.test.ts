@@ -4,10 +4,9 @@ import { Cache } from '../src/cache.js';
 /**
  * Vahemälu hoolduse testid.
  *
- * Miks need olemas on: `stale` kiht on sihilikult ajatu — see ongi varukoopia,
- * mis peab üle elama allika kadumise. Ajatu tähendas aga ka "ei kustu kunagi":
- * iga kaardinihe lõi uue paanivõtme ja ükski vana ei kadunud. Ainus koristus
- * oli PM2 mälupiirist tulenev taaskäivitus keset kasutamist.
+ * Miks need olemas on: dünaamiline `stale` kiht peab allika lühikese katkestuse
+ * üle elama, kuid ei tohi eilset ilma lõputult hoida. Aeglaselt muutuva
+ * Overpassi viimane edukas koopia peab seevastu püsima eduka asenduseni.
  *
  * Need testid kaitsevad kahte piiri, mis selle lõpetavad — maht ja vanus. Kumbki
  * ei asenda teist: seanss võib jääda mahupiirist allapoole ja hoida ometi
@@ -91,6 +90,33 @@ describe('Cache', () => {
 
       expect(cache.prune()).toBe(0);
       expect(cache.peek('nädalane-staatika')).toMatchObject({ stale: false, value: 'route' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('säilitab aegunud Overpassi vastuse kuni eduka asenduseni', async () => {
+    const cache = new Cache({ maxMemoryBytes: 1024 });
+    vi.useFakeTimers();
+    try {
+      const key = 'routing:openstreetmap-overpass:v3:59,24,60,25';
+      await cache.get(key, 3600, load('viimane edukas paan'));
+      vi.advanceTimersByTime(30 * 24 * 3600 * 1000);
+
+      expect(cache.prune()).toBe(0);
+      // Püsiv Overpassi koopia jääb alles ka tavalisest mälupiirist kõrgemal.
+      await cache.get('tavaline', 3600, load(big(1)));
+      expect(cache.peek(key)).toMatchObject({ stale: true, value: 'viimane edukas paan' });
+      const failingLoader = vi.fn(() => Promise.reject(new Error('Overpass maas')));
+      const failed = await cache.get(key, 3600, failingLoader);
+      expect(failed).toMatchObject({ stale: true, value: 'viimane edukas paan' });
+      expect(failingLoader).toHaveBeenCalledOnce();
+      await Promise.resolve();
+      await Promise.resolve();
+      const refreshed = await cache.get(key, 3600, load('uus paan'));
+      expect(refreshed).toMatchObject({ stale: true, value: 'viimane edukas paan' });
+      await Promise.resolve();
+      expect(cache.peek(key)).toMatchObject({ stale: false, value: 'uus paan' });
     } finally {
       vi.useRealTimers();
     }

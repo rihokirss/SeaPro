@@ -174,6 +174,7 @@ export class RoutingWarmup {
     let loaded = 0;
     let skipped = 0;
     let failed = 0;
+    const failureReasons = new Map<string, number>();
 
     while (!this.#stopped && this.#activeRoutes === 0 && this.#queue.size > 0) {
       const entry = this.#queue.entries().next().value as [string, BBox] | undefined;
@@ -207,10 +208,8 @@ export class RoutingWarmup {
       if (errors.length || !this.#tileIsFresh(tile)) {
         failed++;
         this.#lastError = errors[0] ?? 'Paan jäi pärast värskendamist aegunuks';
+        failureReasons.set(this.#lastError, (failureReasons.get(this.#lastError) ?? 0) + 1);
         this.#completedCore.delete(key);
-        this.#logger?.warn(
-          `Routingu taustsoojendus ${key} ebaõnnestus: ${this.#lastError}`,
-        );
       } else {
         loaded++;
         if (this.#coreKeys.has(key)) this.#completedCore.add(key);
@@ -218,6 +217,12 @@ export class RoutingWarmup {
     }
 
     if (this.#queue.size === 0) this.#lastCompletedAt = new Date().toISOString();
+    if (failed) {
+      const reasons = [...failureReasons]
+        .map(([reason, count]) => `${count}× ${reason}`)
+        .join('; ');
+      this.#logger?.warn(`Routingu taustsoojenduse ${failed} paani ebaõnnestus: ${reasons}`);
+    }
     this.#logger?.info(
       `Routingu taustsoojendus: laaditud ${loaded}, cache'is ${skipped}, `
       + `tõrkeid ${failed}, ${Math.round(performance.now() - startedAt)} ms`,

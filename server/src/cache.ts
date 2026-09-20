@@ -7,7 +7,8 @@ import { config } from './config.js';
  * Kahekihiline vahemälu, mis püsib ka üle taaskäivituse.
  *
  * Kiht 1 (`fresh`) — värske vastus, kehtib `ttl` sekundit.
- * Kiht 2 (`stale`) — viimane EDUKAS vastus, ei aegu kunagi.
+ * Kiht 2 (`stale`) — viimane EDUKAS vastus. Dünaamiline info aegub;
+ *                    staatiline Overpass säilib eduka asenduseni.
  * Kiht 3 (ketas)   — `stale` kirjutatakse perioodiliselt faili.
  *
  * Teine kiht on siin sihilikult: METOC jookseb PHP 5.3 peal ja LainePoiss on
@@ -24,6 +25,8 @@ interface Entry<T> {
   value: T;
   expiresAt: number;
   storedAt: number;
+  /** Staatiline viimane edukas vastus säilib kuni eduka asenduseni. */
+  keepStale: boolean;
   /**
    * Väärtuse ligikaudne suurus baitides (serialiseeritud kujul).
    *
@@ -81,11 +84,11 @@ const MAX_PERSISTED_AGE_MS = 24 * 3600 * 1000;
 const DEFAULT_MAX_MEMORY_BYTES = 96 * 1024 * 1024;
 
 /**
- * Vanuspiir `stale` kirjele.
+ * Vanuspiir dünaamilisele `stale` kirjele.
  *
  * Sama piir mis kettal: üle ööpäeva vana AEGUNUD prognoos ei ole enam "veidi
- * vana andmed", vaid eksitav. Pikema TTL-iga veel kehtivat staatilist kirjet
- * see piir ei eemalda.
+ * vana andmed", vaid eksitav. Pikema TTL-iga veel kehtivat või eraldi
+ * püsivaks märgitud staatilist kirjet see piir ei eemalda.
  */
 const MAX_STALE_AGE_MS = MAX_PERSISTED_AGE_MS;
 
@@ -118,6 +121,17 @@ interface PersistedEntry {
    * kas kirje on veel ajakohane, ja kõik tuleks uuesti tõmmata.
    */
   expiresAt?: number;
+  keepStale?: boolean;
+}
+
+/**
+ * Overpassi sadamad ja routingupaanid muutuvad aeglaselt ning avalik allikas
+ * võib olla päevi kättesaamatu. Neid ei tohi ilma eduka asenduseta kustutada.
+ * Ilma- ja vaatlusandmetele see erand ei laiene.
+ */
+function keepStaleIndefinitely(key: string): boolean {
+  return key.startsWith('routing:openstreetmap-overpass:')
+    || key.startsWith('overpass:harbours:');
 }
 
 export class Cache {
@@ -168,10 +182,11 @@ export class Cache {
     this.#evict();
   }
 
-  /** Kõige ammu kasutatud kirjed välja, kuni mälupiir on täidetud. */
+  /** Kõige ammu kasutatud dünaamilised kirjed välja; staatiline varukoopia jääb. */
   #evict(): void {
     if (this.#bytes <= this.#maxMemoryBytes) return;
     for (const [key, entry] of this.#stale) {
+      if (entry.keepStale) continue;
       this.#stale.delete(key);
       this.#fresh.delete(key);
       this.#bytes -= entry.bytes;
@@ -190,6 +205,27 @@ export class Cache {
     } catch {
       return 0;
     }
+  }
+
+  #startLoad<T>(key: string, ttlSeconds: number, loader: () => Promise<T>): Promise<T> {
+    const promise = loader()
+      .then((value) => {
+        const stamp = Date.now();
+        this.#store(key, {
+          value,
+          expiresAt: stamp + ttlSeconds * 1000,
+          storedAt: stamp,
+          keepStale: keepStaleIndefinitely(key),
+          bytes: this.#sizeOf(value),
+        });
+        this.#dirty = true;
+        return value;
+      })
+      .finally(() => {
+        this.#pending.delete(key);
+      });
+    this.#pending.set(key, { promise });
+    return promise;
   }
 
   /**
@@ -212,6 +248,22 @@ export class Cache {
         cacheOutcome: 'fresh',
         stale: false,
         ageSeconds: (now - fresh.storedAt) / 1000,
+      };
+    }
+
+    const persistentBackup = this.#stale.get(key) as Entry<T> | undefined;
+    if (persistentBackup?.keepStale) {
+      // Staatiline Overpassi info jääb kohe kasutatavaks. Värskendus ei hoia
+      // kasutaja päringut välise serveri timeout'i taga kinni ning ainult
+      // edukas vastus kirjutab vana koopia üle.
+      if (!this.#pending.has(key)) void this.#startLoad(key, ttlSeconds, loader).catch(() => {});
+      this.#stale.delete(key);
+      this.#stale.set(key, persistentBackup);
+      return {
+        value: persistentBackup.value,
+        cacheOutcome: 'stale',
+        stale: true,
+        ageSeconds: (now - persistentBackup.storedAt) / 1000,
       };
     }
 
@@ -248,23 +300,7 @@ export class Cache {
       }
     }
 
-    const promise = loader()
-      .then((value) => {
-        const stamp = Date.now();
-        this.#store(key, {
-          value,
-          expiresAt: stamp + ttlSeconds * 1000,
-          storedAt: stamp,
-          bytes: this.#sizeOf(value),
-        });
-        this.#dirty = true;
-        return value;
-      })
-      .finally(() => {
-        this.#pending.delete(key);
-      });
-
-    this.#pending.set(key, { promise });
+    const promise = this.#startLoad(key, ttlSeconds, loader);
 
     try {
       const value = await promise;
@@ -296,6 +332,7 @@ export class Cache {
       value,
       expiresAt: stamp + ttlSeconds * 1000,
       storedAt: stamp,
+      keepStale: keepStaleIndefinitely(key),
       bytes: this.#sizeOf(value),
     });
     this.#dirty = true;
@@ -339,11 +376,13 @@ export class Cache {
 
       for (const e of entries) {
         const expiresAt = e.expiresAt ?? 0;
-        if (e.storedAt < cutoff && expiresAt <= now) continue;
+        const keepStale = e.keepStale ?? keepStaleIndefinitely(e.key);
+        if (!keepStale && e.storedAt < cutoff && expiresAt <= now) continue;
         const entry = {
           value: e.value,
           storedAt: e.storedAt,
           expiresAt,
+          keepStale,
           bytes: this.#sizeOf(e.value),
         };
 
@@ -388,6 +427,7 @@ export class Cache {
     const cutoff = now - MAX_STALE_AGE_MS;
     let dropped = 0;
     for (const [key, entry] of this.#stale) {
+      if (entry.keepStale) continue;
       if (entry.storedAt >= cutoff || entry.expiresAt > now) continue;
       this.#stale.delete(key);
       this.#fresh.delete(key);
@@ -410,7 +450,7 @@ export class Cache {
     const out: PersistedEntry[] = [];
 
     for (const [key, entry] of this.#stale) {
-      if (entry.storedAt < cutoff && entry.expiresAt <= now) continue;
+      if (!entry.keepStale && entry.storedAt < cutoff && entry.expiresAt <= now) continue;
       let serialized: string;
       try {
         serialized = JSON.stringify(entry.value);
@@ -430,6 +470,7 @@ export class Cache {
         value: entry.value,
         storedAt: entry.storedAt,
         expiresAt: fresh?.expiresAt ?? 0,
+        keepStale: entry.keepStale || undefined,
       });
     }
 

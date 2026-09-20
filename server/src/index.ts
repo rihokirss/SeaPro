@@ -5,7 +5,7 @@ import { aisRecorder } from './ais/history.js';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { cache } from './cache.js';
 import { config, warnAboutConfig } from './config.js';
@@ -24,9 +24,21 @@ const app = Fastify({
         ? { target: 'pino-pretty', options: { translateTime: 'HH:MM:ss', ignore: 'pid,hostname' } }
         : undefined,
   },
+  // Tootmises tekitavad Fastify kaks automaatset rida iga AIS-i, ilma- ja
+  // radaripäringu kohta palju müra. Rakenduse enda info-, hoiatus- ja
+  // veateated jäävad alles; ebaõnnestunud päringud logime allpool URL-iga.
+  logController: new LogController({
+    disableRequestLogging: config.nodeEnv === 'production',
+  }),
   // Kaatris on ühendus aeglane; ära katkesta päringut liiga vara.
   requestTimeout: 60_000,
 });
+
+if (config.nodeEnv === 'production') {
+  app.addHook('onError', async (req, _reply, error) => {
+    req.log.error({ err: error }, `${req.method} ${req.url} ebaõnnestus`);
+  });
+}
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL on kohustuslik; käivita esmalt andmebaasi migratsioon');
 await checkDatabase();

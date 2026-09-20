@@ -581,6 +581,9 @@ export function RoutePanel(props: Props) {
               <div><dt>{t('route.auto.sources')}</dt><dd>{selectedPlanSegment.sourceIds.length ? selectedPlanSegment.sourceIds.map((id) => {
                 const source = shownPlan.sources.find((item) => item.id === id);
                 if (!source) return id;
+                if (source.id === 'openstreetmap-overpass') {
+                  return `${id}${sourceNeedsAttention(source, sourceClock) ? ` · ${t('route.auto.stale')}` : ''}`;
+                }
                 const ageSeconds = sourceAgeSeconds(source, sourceClock);
                 return `${id} · ${Math.max(0, Math.round(ageSeconds / 3600))} h${sourceNeedsAttention(source, sourceClock) ? ` · ${t('route.auto.stale')}` : ''}`;
               }).join('; ') : '—'}</dd></div>

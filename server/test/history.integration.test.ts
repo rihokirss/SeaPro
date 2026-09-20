@@ -42,8 +42,8 @@ describe.skipIf(!enabled)('PostgreSQL history integration', () => {
     await database.end();
     await admin.end();
   });
-  it('replays durable events idempotently, returns history, compacts and preserves M path geometry', async () => {
-    const points: VesselHistoryPoint[] = [0, 30, 60].map((s, i) => ({
+  it('replays durable events idempotently, thins the archive and preserves detailed M path geometry', async () => {
+    const points: VesselHistoryPoint[] = [0, 30, 60, 300, 330].map((s, i) => ({
       mmsi,
       day,
       bucket: `${day}T12:0${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}.000Z`,
@@ -74,7 +74,7 @@ describe.skipIf(!enabled)('PostgreSQL history integration', () => {
     }
     expect(
       (await vesselTrack(mmsi, Date.parse(day), Date.parse(day) + DAY, now)).segments.flat(),
-    ).toHaveLength(3);
+    ).toHaveLength(5);
     await maintain(process.env.DATABASE_MAINTENANCE_URL, now);
     const blocks = await database.query('SELECT * FROM ais_track_blocks WHERE mmsi=$1 AND day=$2', [
       mmsi,
@@ -82,7 +82,10 @@ describe.skipIf(!enabled)('PostgreSQL history integration', () => {
     ]);
     expect(blocks.rows).toHaveLength(1);
     const unpacked = decodeBlock(blocks.rows[0]);
-    expect(unpacked.map((p) => p.timestamp)).toEqual(points.map((p) => p.timestamp));
+    expect(unpacked.map((p) => p.timestamp)).toEqual([
+      points[2]!.timestamp,
+      points[4]!.timestamp,
+    ]);
     expect((await vesselTrack(mmsi, Date.parse(day), Date.parse(day) + DAY, now)).segments.flat()).toEqual(
       unpacked,
     );

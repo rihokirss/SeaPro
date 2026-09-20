@@ -47,6 +47,25 @@ export function simplifyTraffic(points: VesselHistoryPoint[], tolerance = 25): V
   }
   return [...keep].sort((a, b) => a - b).map((i) => points[i]!);
 }
+
+/** Keep the final real report from each UTC archive interval. */
+export function thinArchivePoints(
+  points: VesselHistoryPoint[],
+  intervalSeconds = historyConfig.archiveSeconds,
+): VesselHistoryPoint[] {
+  const interval = intervalSeconds * 1000;
+  const buckets = new Map<number, VesselHistoryPoint>();
+  for (const point of points) {
+    const time = Date.parse(point.timestamp);
+    if (!Number.isFinite(time)) continue;
+    const bucket = Math.floor(time / interval);
+    const previous = buckets.get(bucket);
+    if (!previous || Date.parse(previous.timestamp) <= time) buckets.set(bucket, point);
+  }
+  return [...buckets.values()].sort(
+    (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
+  );
+}
 export function trafficParts(points: VesselHistoryPoint[], day: string): TrafficPart[] {
   const start = Date.parse(day),
     end = start + DAY,
@@ -123,6 +142,7 @@ export async function maintain(
     );
     for (const { day } of days.rows) {
       const pack = Date.parse(day) + DAY <= now - historyConfig.hotDays * DAY;
+      let archivedPointCount = 0;
       await client.query('BEGIN');
       try {
         // The short intake window prevents new points arriving in an archived partition.
@@ -173,7 +193,8 @@ export async function maintain(
             );
           }
           if (pack) {
-            const own = points.filter((p) => p.day === day);
+            const own = thinArchivePoints(points.filter((p) => p.day === day));
+            archivedPointCount += own.length;
             if (own.length) {
               const block = encodeBlock(own);
               decodeBlock({
@@ -206,8 +227,12 @@ export async function maintain(
             'SELECT (SELECT count(*) FROM ais_points WHERE day=$1) AS hot, (SELECT COALESCE(sum(point_count),0) FROM ais_track_blocks WHERE day=$1) AS cold',
             [day],
           );
-          if (count.rows[0].hot !== count.rows[0].cold)
-            throw new Error(`Pakkimise punktide arv ei klapi: ${day}`);
+          const hot = Number(count.rows[0].hot),
+            cold = Number(count.rows[0].cold);
+          if (cold !== archivedPointCount || cold > hot)
+            throw new Error(
+              `Arhiivi punktide arv ei klapi: ${day}, algne ${hot}, oodatud ${archivedPointCount}, arhiiv ${cold}`,
+            );
           await client.query(`DROP TABLE ais_points_${day.replaceAll('-', '')}`);
           await client.query('DELETE FROM history_partitions WHERE day=$1', [day]);
         }

@@ -19,6 +19,8 @@ export async function refreshHistoryMetrics() {
         "SELECT pg_database_size(current_database())::text AS database_bytes,pg_total_relation_size('ais_track_blocks')::text AS blocks_bytes,pg_total_relation_size('ais_heatmap')::text AS heatmap_bytes",
       ),
       database.query(`SELECT (SELECT count(*) FROM ais_points WHERE day >= (now() AT TIME ZONE 'UTC')::date - 1 AND received_at >= now()-interval '24 hours')::text AS recent_points,
+        (SELECT count(*) FROM ais_points WHERE moving AND day >= (now() AT TIME ZONE 'UTC')::date - 1 AND received_at >= now()-interval '24 hours')::text AS recent_moving_points,
+        (SELECT count(*) FROM ais_points WHERE NOT moving AND day >= (now() AT TIME ZONE 'UTC')::date - 1 AND received_at >= now()-interval '24 hours')::text AS recent_stationary_points,
         (SELECT avg(octet_length(payload)::numeric/NULLIF(point_count,0)) FROM ais_track_blocks) AS packed_bytes_per_point,
         (SELECT sum(point_count) FROM ais_track_blocks)::text AS packed_points,
         (SELECT min(received_at) FROM ais_points WHERE day >= (now() AT TIME ZONE 'UTC')::date - 1) AS started_at`),
@@ -26,22 +28,26 @@ export async function refreshHistoryMetrics() {
     ]);
     const v = volume.rows[0],
       elapsed = v.started_at ? Math.min(1, Math.max(1 / 24, (Date.now() - v.started_at.getTime()) / DAY)) : 0;
-    const pointsPerDay = elapsed ? Math.round(Number(v.recent_points) / elapsed) : 0;
+    const pointsPerDay = elapsed ? Math.round(Number(v.recent_points) / elapsed) : 0,
+      movingPointsPerDay = elapsed ? Math.round(Number(v.recent_moving_points) / elapsed) : 0,
+      stationaryPointsPerDay = elapsed ? Math.round(Number(v.recent_stationary_points) / elapsed) : 0;
     // An estimate until real cold blocks exist, never used to silently alter retention.
     const packedBytes = v.packed_bytes_per_point ? Number(v.packed_bytes_per_point) : 40;
     const hotBytes = 230;
+    const hotDays = Math.min(historyConfig.hotDays, historyConfig.aisDays),
+      archiveDays = Math.max(0, historyConfig.aisDays - historyConfig.hotDays),
+      archivedPointsPerDay =
+        movingPointsPerDay * Math.min(1, historyConfig.movingSeconds / historyConfig.archiveSeconds)
+        + stationaryPointsPerDay * Math.min(1, historyConfig.stationarySeconds / historyConfig.archiveSeconds);
     const projected = historyConfig.aisDays
-      ? Math.round(
-          pointsPerDay *
-            (Math.min(historyConfig.hotDays, historyConfig.aisDays) * hotBytes +
-              Math.max(0, historyConfig.aisDays - historyConfig.hotDays) * packedBytes),
-        )
+      ? Math.round(pointsPerDay * hotDays * hotBytes + archivedPointsPerDay * archiveDays * packedBytes)
       : null;
     historyMetrics.maintenance = maintenance.rows[0]?.value ?? null;
     historyMetrics.storage = {
       ...size.rows[0],
       ...v,
       pointsPerDay,
+      archivedPointsPerDay: Math.round(archivedPointsPerDay),
       projectedHistoryBytes: projected,
       projectedHistoryWithBackupsBytes: projected === null ? null : projected*(1+Number(process.env.DATABASE_BACKUP_KEEP??2)),
       packedEstimate: v.packed_bytes_per_point === null,
