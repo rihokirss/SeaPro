@@ -25,7 +25,7 @@
   },
   "devDependencies": {
     "@types/d3-contour": "^3.0.6",
-    "@types/node": "^26.6.0",
+    "@types/node": "^26.6.1",
     "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.1",
     "pino-pretty": "^13.1.3",
