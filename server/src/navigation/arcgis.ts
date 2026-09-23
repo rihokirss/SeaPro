@@ -8,6 +8,7 @@ import type {
 } from '@seapro/shared';
 import { cache } from '../cache.js';
 import { fetchJson } from '../http.js';
+import { hisRequests } from '../hisRequests.js';
 import { categoryFromRegistry } from './categories.js';
 import { fetchNmaAidIndex, fetchNmaLeadingLines, fetchNmaNavigationAids, markColoursFromNma, type NmaAidIndex } from './nmaRegistry.js';
 import { navigationSnapshots, snapshotAids, isNavigationAidArray } from './snapshots.js';
@@ -21,6 +22,7 @@ const WRECKS =
   'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer/7';
 
 const STATIC_TTL = 24 * 3600;
+const WRECK_TTL = 14 * 24 * 3600;
 const WARNING_TTL = 2 * 60;
 
 interface ArcFeature {
@@ -96,7 +98,7 @@ export async function fetchNavigationWarningsWithMeta(
 export async function fetchWrecks(bbox: [number, number, number, number]): Promise<Wreck[]> {
   const snapped = snapBbox(bbox);
   const key = `nutimeri:wrecks:v1:${snapped.join(',')}`;
-  const { value } = await cache.get(key, STATIC_TTL, async () => {
+  const { value } = await cache.get(key, WRECK_TTL, async () => {
     const collection = await queryLayer(WRECKS, snapped, '1 = 1');
     return (collection.features ?? []).flatMap((feature) => {
       if (feature.geometry?.type !== 'Point') return [];
@@ -273,9 +275,10 @@ async function queryLayer(
     outSR: '4326',
     spatialRel: 'esriSpatialRelIntersects',
   });
-  const result = await fetchJson<ArcCollection>(`${layerUrl}/query?${params}`, {
+  const load = () => fetchJson<ArcCollection>(`${layerUrl}/query?${params}`, {
     timeoutMs: 30_000,
   });
+  const result = await (layerUrl === WRECKS ? hisRequests.run(load) : load());
   if (result.error) throw new Error(`ArcGIS: ${result.error.message ?? 'päring ebaõnnestus'}`);
   if (!Array.isArray(result.features)) throw new Error('ArcGIS: puuduv objektide loend');
   return result;

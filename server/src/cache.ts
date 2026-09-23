@@ -125,12 +125,13 @@ interface PersistedEntry {
 }
 
 /**
- * Overpassi sadamad ja routingupaanid muutuvad aeglaselt ning avalik allikas
+ * Overpassi ja HIS-i staatilised routingupaanid muutuvad aeglaselt ning allikas
  * võib olla päevi kättesaamatu. Neid ei tohi ilma eduka asenduseta kustutada.
  * Ilma- ja vaatlusandmetele see erand ei laiene.
  */
 function keepStaleIndefinitely(key: string): boolean {
   return key.startsWith('routing:openstreetmap-overpass:')
+    || key.startsWith('routing:transpordiamet-his:')
     || key.startsWith('overpass:harbours:');
 }
 

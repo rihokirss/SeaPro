@@ -78,6 +78,27 @@ describe('routingu staatiliste paanide taustsoojendus', () => {
     warmup.stop();
   });
 
+  it('näitab healthis ebaõnnestunud allika nime', async () => {
+    const tile = [59, 24, 60, 25] as const;
+    const warn = vi.fn();
+    const warmup = new RoutingWarmup({
+      coreTiles: () => [[...tile]],
+      tilesAround: () => [],
+      isOsmFresh: () => true,
+      isEstonianFresh: () => false,
+      isFinnishFresh: () => true,
+      warmOsm: vi.fn(),
+      warmEstonian: async () => { throw new Error('HTTP 403 Forbidden'); },
+      warmFinnish: vi.fn(),
+      sweepIntervalMs: 60_000,
+    });
+    warmup.start({ info: vi.fn(), warn });
+    await vi.waitFor(() => expect(warmup.status().state).toBe('idle'));
+    expect(warmup.status().lastError).toBe('Transpordiameti HIS: HTTP 403 Forbidden');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Transpordiameti HIS: HTTP 403 Forbidden'));
+    warmup.stop();
+  });
+
   it('annab ühises Overpassi väravas foregroundile järjekorraeelise', async () => {
     const gate = new PriorityGate(1);
     const order: string[] = [];

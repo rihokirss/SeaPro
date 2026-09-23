@@ -190,20 +190,20 @@ export class RoutingWarmup {
       }
 
       this.#controller = new AbortController();
-      const jobs: Promise<unknown>[] = [];
+      const jobs: Array<{ source: string; promise: Promise<unknown> }> = [];
       if (!this.#dependencies.isOsmFresh(tile)) {
-        jobs.push(this.#dependencies.warmOsm(tile, this.#controller.signal));
+        jobs.push({ source: 'Overpass', promise: this.#dependencies.warmOsm(tile, this.#controller.signal) });
       }
       if (!this.#dependencies.isEstonianFresh(tile)) {
-        jobs.push(this.#dependencies.warmEstonian(tile));
+        jobs.push({ source: 'Transpordiameti HIS', promise: this.#dependencies.warmEstonian(tile) });
       }
       if (!this.#dependencies.isFinnishFresh(tile)) {
-        jobs.push(this.#dependencies.warmFinnish(tile));
+        jobs.push({ source: 'Soome WFS', promise: this.#dependencies.warmFinnish(tile) });
       }
-      const results = await Promise.allSettled(jobs);
+      const results = await Promise.allSettled(jobs.map((job) => job.promise));
       this.#controller = null;
-      const errors = results.flatMap((result) => result.status === 'rejected'
-        ? [errorMessage(result.reason)]
+      const errors = results.flatMap((result, index) => result.status === 'rejected'
+        ? [`${jobs[index]!.source}: ${errorMessage(result.reason)}`]
         : []);
       if (errors.length || !this.#tileIsFresh(tile)) {
         failed++;

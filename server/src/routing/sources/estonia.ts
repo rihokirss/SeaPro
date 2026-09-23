@@ -1,6 +1,7 @@
 import type { BBox } from '@seapro/shared';
 import { cache } from '../../cache.js';
 import { fetchJson } from '../../http.js';
+import { hisRequests } from '../../hisRequests.js';
 import { routingGeometryIntersectsBbox } from '../sourceGeometry.js';
 import type {
   RoutingCorridor,
@@ -30,7 +31,7 @@ import {
 const HIS = 'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer';
 const ESTONIA: BBox = [57, 20, 60.5, 29];
 const SOURCE = 'transpordiamet-his' as const;
-const TTL_SECONDS = 7 * 24 * 3600;
+const TTL_SECONDS = 14 * 24 * 3600;
 const PAGE_SIZE = 2_000;
 
 const LAYERS = {
@@ -167,9 +168,10 @@ async function queryArcGisLayer(layer: number, bbox: BBox): Promise<GeoJsonColle
       resultOffset: String(offset),
       resultRecordCount: String(PAGE_SIZE),
     });
-    const page = await fetchJson<GeoJsonCollection>(`${HIS}/${layer}/query?${params}`, {
-      timeoutMs: 30_000,
-    });
+    const page = await hisRequests.run(() => fetchJson<GeoJsonCollection>(
+      `${HIS}/${layer}/query?${params}`,
+      { timeoutMs: 30_000 },
+    ));
     if (page.error) throw new Error(`ArcGIS HIS kiht ${layer}: ${page.error.message ?? 'päring ebaõnnestus'}`);
     const returned = page.features?.length ?? 0;
     features.push(...(page.features ?? []));

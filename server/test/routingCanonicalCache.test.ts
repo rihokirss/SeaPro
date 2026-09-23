@@ -109,7 +109,7 @@ describe('routingu kanooniliste paanide taaskasutus', () => {
     const keys = mocks.cacheGet.mock.calls.map(([key]) => String(key));
 
     expect(keys).toHaveLength(36);
-    expect(mocks.cacheGet.mock.calls.every(([, ttl]) => ttl === 7 * 24 * 3600)).toBe(true);
+    expect(mocks.cacheGet.mock.calls.every(([, ttl]) => ttl === 14 * 24 * 3600)).toBe(true);
     expect(keys).toContain('routing:transpordiamet-his:v2:57,20,58,21');
     expect(keys).toContain('routing:transpordiamet-his:v2:60,28,61,29');
     expect(result.source).toMatchObject({

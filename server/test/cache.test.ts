@@ -6,7 +6,7 @@ import { Cache } from '../src/cache.js';
  *
  * Miks need olemas on: dünaamiline `stale` kiht peab allika lühikese katkestuse
  * üle elama, kuid ei tohi eilset ilma lõputult hoida. Aeglaselt muutuva
- * Overpassi viimane edukas koopia peab seevastu püsima eduka asenduseni.
+ * Overpassi ja HIS-i viimane edukas koopia peab seevastu püsima eduka asenduseni.
  *
  * Need testid kaitsevad kahte piiri, mis selle lõpetavad — maht ja vanus. Kumbki
  * ei asenda teist: seanss võib jääda mahupiirist allapoole ja hoida ometi
@@ -95,19 +95,21 @@ describe('Cache', () => {
     }
   });
 
-  it('säilitab aegunud Overpassi vastuse kuni eduka asenduseni', async () => {
+  it.each([
+    'routing:openstreetmap-overpass:v3:59,24,60,25',
+    'routing:transpordiamet-his:v2:59,24,60,25',
+  ])('säilitab aegunud staatilise paani kuni eduka asenduseni: %s', async (key) => {
     const cache = new Cache({ maxMemoryBytes: 1024 });
     vi.useFakeTimers();
     try {
-      const key = 'routing:openstreetmap-overpass:v3:59,24,60,25';
       await cache.get(key, 3600, load('viimane edukas paan'));
       vi.advanceTimersByTime(30 * 24 * 3600 * 1000);
 
       expect(cache.prune()).toBe(0);
-      // Püsiv Overpassi koopia jääb alles ka tavalisest mälupiirist kõrgemal.
+      // Püsiv koopia jääb alles ka tavalisest mälupiirist kõrgemal.
       await cache.get('tavaline', 3600, load(big(1)));
       expect(cache.peek(key)).toMatchObject({ stale: true, value: 'viimane edukas paan' });
-      const failingLoader = vi.fn(() => Promise.reject(new Error('Overpass maas')));
+      const failingLoader = vi.fn(() => Promise.reject(new Error('Allikas maas')));
       const failed = await cache.get(key, 3600, failingLoader);
       expect(failed).toMatchObject({ stale: true, value: 'viimane edukas paan' });
       expect(failingLoader).toHaveBeenCalledOnce();
