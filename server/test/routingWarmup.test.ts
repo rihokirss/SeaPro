@@ -52,7 +52,6 @@ describe('routingu staatiliste paanide taustsoojendus', () => {
       coreTiles: () => [[...first], [...second]],
       tilesAround: () => [],
       isOsmFresh: (tile) => fresh.has(tile.join(',')),
-      isEstonianFresh: () => true,
       isFinnishFresh: () => true,
       warmOsm: async (tile) => {
         const key = tile.join(',');
@@ -85,17 +84,15 @@ describe('routingu staatiliste paanide taustsoojendus', () => {
       coreTiles: () => [[...tile]],
       tilesAround: () => [],
       isOsmFresh: () => true,
-      isEstonianFresh: () => false,
-      isFinnishFresh: () => true,
+      isFinnishFresh: () => false,
       warmOsm: vi.fn(),
-      warmEstonian: async () => { throw new Error('HTTP 403 Forbidden'); },
-      warmFinnish: vi.fn(),
+      warmFinnish: async () => { throw new Error('HTTP 403 Forbidden'); },
       sweepIntervalMs: 60_000,
     });
     warmup.start({ info: vi.fn(), warn });
     await vi.waitFor(() => expect(warmup.status().state).toBe('idle'));
-    expect(warmup.status().lastError).toBe('Transpordiameti HIS: HTTP 403 Forbidden');
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Transpordiameti HIS: HTTP 403 Forbidden'));
+    expect(warmup.status().lastError).toBe('Soome WFS: HTTP 403 Forbidden');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Soome WFS: HTTP 403 Forbidden'));
     warmup.stop();
   });
 

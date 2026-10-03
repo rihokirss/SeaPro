@@ -367,11 +367,11 @@ et server ei tõmba ega saada väljalülitatud kihte.
 
 | Kiht | Allikas | Uuendamine |
 |---|---|---|
-| Eesti navigatsioonihoiatused | `Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer`, kihid 7–9 | 2 min vahemälu; aegunud hoiatused filtreeritakse välja |
+| Eesti navigatsioonihoiatused | `Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer`, kihid 7–9 | 1 h vahemälu; tõrke järel kõigi alade ühine 1 h korduskatse paus; aegunud hoiatused filtreeritakse välja |
 | Soome navigatsioonihoiatused | Traficomi avalik WFS, `navigational_warnings_p`, `_l` ja `_a` | 2 min vahemälu; teenus väljastab ainult kehtivad hoiatused |
 | AIS navigatsioonimärgid | `AIS-aton-stream-out/StreamServer/subscribe` | püsiv WebSocket; klient küsib serveri registrit iga 30 s |
 | AIS baasjaamad | `AIS-base-station-stream-out/StreamServer/subscribe` | püsiv WebSocket; jaam kaob kaardilt, kui 30 min jooksul pole teadet tulnud |
-| Vrakid | `HIS/HIS_avalik/MapServer`, kiht 7 | 24 h vahemälu |
+| Vrakid | HIS WFS-i kohalik PostgreSQL-koopia | uuendus kõige varem 30 päeva järel; vana koopia säilib tõrke korral |
 | Ametlikud laevateed ja püsi-, ujuv- ning hooajalised märgid | `Nutimeri/pohiandmed/MapServer`, kihid 0–3 | uuendus 24 h järel; viimane edukas vastus säilib kettal |
 | Eesti märkide varuallikas | NMA avalik `https://nma.transpordiamet.ee/xml_file/` | kogu Eesti XML-koopia; uuendus 24 h järel, kettal tähtajatu |
 | Soome ametlikud navigatsioonimärgid | Väylävirasto WFS, `vesivaylatiedot:turvalaitteet_uusi` | nähtava ala GeoJSON; uuendus 24 h järel, viimane edukas vastus säilib kettal |
@@ -424,7 +424,7 @@ on üks SeaPro kiht ühe kujundusega. Algallikas on hüpikakna all eraldi näha.
 
 Automaatmarsruut kasutab samade organisatsioonide detailsemaid masinloetavaid
 routingukihte eraldi snapshot'ina: Transpordiameti HIS-i kivid, takistused,
-vrakid, füüsilised märgid, laevateed ja mõõtealad ning Väylävirasto väyläalad,
+vrakid, füüsilised märgid, laevateed, mõõtealad ja sadamad kohalikust PostGIS-ist ning Väylävirasto väyläalad,
 navigatsioonijooned, piirangud, `taitorakenteet:silta` veetee kõrgused,
 kanalirajatised ja AToN rikked. `_uusi` väyläkoondvaated sisaldavad ka teiste
 väylänpitäjate objekte; `mitoitussyvays` säilitatakse projekteeritud süvisena
@@ -434,6 +434,12 @@ OpenSeaMapi soovituslikud teed, TSS-id ja ohud Overpassist, EMODneti `mean`
 sügavus WCS GeoTIFF-ist ning OpenFreeMapi `water` geomeetria MVT-paanidest.
 Täpsed prioriteedid ja ebaõnnestumise semantika on kirjas
 [`routing.md`](routing.md).
+
+HIS-i täiskoopia tuuakse WFS-ist käsuga `npm run data:his`. Kivide mahukas
+import jagatakse piirkondadeks; katkestuse järel jätkatakse juba laaditud
+piirkondadest. Nädalane `seapro-his.timer` käivitab kontrolli, kuid uut koopiat
+võetakse kõige varem 30 päeva pärast eelmist edukat laadimist. Pooleliolev
+koopia ei muutu kaardil nähtavaks; senine koopia säilib ka WFS-i tõrke ajal.
 
 Sama Nutimeri teenuse sadamakiht 4 rikastab `/api/harbours` OSM-i kirjeid.
 Esmane ühendusvõti on normaliseeritud UN/LOCODE (`EE RST` = `EERST`), seejärel

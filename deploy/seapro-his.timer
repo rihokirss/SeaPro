@@ -1,0 +1,10 @@
+[Unit]
+Description=Check SeaPro HIS snapshot weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 04:15:00 UTC
+Persistent=true
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target

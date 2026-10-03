@@ -97,7 +97,7 @@ describe('Cache', () => {
 
   it.each([
     'routing:openstreetmap-overpass:v3:59,24,60,25',
-    'routing:transpordiamet-his:v2:59,24,60,25',
+    'overpass:harbours:59,24,60,25',
   ])('säilitab aegunud staatilise paani kuni eduka asenduseni: %s', async (key) => {
     const cache = new Cache({ maxMemoryBytes: 1024 });
     vi.useFakeTimers();

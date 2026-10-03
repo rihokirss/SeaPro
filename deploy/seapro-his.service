@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh local SeaPro HIS WFS snapshot when older than 30 days
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=rix
+WorkingDirectory=/home/rix/Projects/SeaPro
+ExecStart=/home/rix/.nvm/versions/node/v24.20.0/bin/node --env-file=.env node_modules/tsx/dist/cli.mjs server/src/scripts/refreshHisSnapshot.ts
+TimeoutStartSec=6h
+UMask=0077
+Nice=15

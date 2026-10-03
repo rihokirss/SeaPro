@@ -1,7 +1,5 @@
 import type { BBox } from '@seapro/shared';
-import { cache } from '../../cache.js';
-import { fetchJson } from '../../http.js';
-import { hisRequests } from '../../hisRequests.js';
+import { database } from '../../db/pool.js';
 import { routingGeometryIntersectsBbox } from '../sourceGeometry.js';
 import type {
   RoutingCorridor,
@@ -13,36 +11,25 @@ import type {
 } from '../sourceTypes.js';
 import {
   asRoutingGeometry,
-  adaptiveBboxTiles,
-  bboxTiles,
   dedupeById,
   finiteNumber,
   intersectBbox,
   isoDate,
   positiveNumber,
-  settleMapLimit,
   sourceMeta,
-  sourceStamp,
   text,
   type GeoJsonCollection,
   type LoadedTile,
 } from './common.js';
 
-const HIS = 'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer';
+const HIS = 'https://his.vta.ee:8443/HIS/WFS';
 const ESTONIA: BBox = [57, 20, 60.5, 29];
 const SOURCE = 'transpordiamet-his' as const;
-const TTL_SECONDS = 14 * 24 * 3600;
-const PAGE_SIZE = 2_000;
-
-const LAYERS = {
-  aids: 1,
-  obstructions: 3,
-  rocks: 5,
-  wrecks: 7,
-  fairways: 8,
-  surveys: 9,
-  harbours: 6,
-} as const;
+const REFRESH_DAYS = 30;
+const LAYER_NAMES: Record<string, keyof EstonianRoutingCollections> = {
+  aton: 'aids', takist: 'obstructions', kivi: 'rocks', vrakk: 'wrecks',
+  laevatee: 'fairways', mooteala: 'surveys', sadam: 'harbours',
+};
 
 export interface EstonianRoutingCollections {
   aids: GeoJsonCollection;
@@ -62,51 +49,51 @@ export interface EstonianRoutingData {
   source: RoutingSourceMeta;
 }
 
-/**
- * Eesti HIS-i masinloetav routingukiht. Ühe kraadi paanid annavad nihutamisel
- * püsivad cache-võtmed; ArcGIS-i 2000 kirje piir ületatakse lehekülgede kaupa.
- */
+/** Eesti ametlikud routingukihid loetakse ainult kohalikust PostGIS-i koopiast. */
 export async function loadEstonianRoutingData(bbox: BBox): Promise<EstonianRoutingData> {
   const clipped = intersectBbox(bbox, ESTONIA);
   if (!clipped) {
     return emptyResult(sourceMeta({
       source: SOURCE,
       attribution: 'Transpordiamet, Hüdrograafia infosüsteem',
-      attributionUrl: 'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer',
+      attributionUrl: HIS,
       requested: 0,
       loaded: [],
       errors: [],
       outside: true,
     }));
   }
-
-  const canonicalTiles = bboxTiles(clipped, 1);
-  // Suure bbox'i tavaline adaptiivne paan võib olla 2° või 4° ning ei tabaks
-  // taustal soojendatud 1° võtmeid. Kui kogu ala kanoonilised paanid on
-  // värsked, koosta vastus neist; osalise katte korral säilib senine fallback.
-  const tiles = canonicalTiles.every(isFreshTile)
-    ? canonicalTiles
-    : adaptiveBboxTiles(clipped, 1, 16);
-  const settled = await settleMapLimit(tiles, 2, loadTile);
-  const loaded = settled.flatMap((result): LoadedTile<EstonianRoutingCollections>[] =>
-    result.status === 'fulfilled' ? [result.value] : []);
-  const errors = settled.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
-
-  const parsed = loaded.map((tile) => parseEstonianRoutingData(tile.value, tile.stamp));
-  return {
-    hazards: withinBbox(dedupeById(parsed.flatMap((item) => item.hazards)), clipped),
-    corridors: withinBbox(dedupeById(parsed.flatMap((item) => item.corridors)), clipped),
-    surveyAreas: withinBbox(dedupeById(parsed.flatMap((item) => item.surveyAreas)), clipped),
-    harbours: withinBbox(dedupeById(parsed.flatMap((item) => item.harbours)), clipped),
-    source: sourceMeta({
+  try {
+    const { collections, completedAt } = await queryLocalHis(clipped);
+    if (!completedAt) throw new Error('HIS-i kohalikku koopiat ei ole veel loodud');
+    const ageSeconds = Math.max(0, (Date.now() - completedAt.getTime()) / 1000);
+    const stamp = { source: SOURCE, fetchedAt: completedAt.toISOString(), stale: ageSeconds > REFRESH_DAYS * 86400 };
+    const parsed = parseEstonianRoutingData(collections, stamp);
+    const loaded: LoadedTile<EstonianRoutingCollections>[] = [{ value: collections, stamp, ageSeconds }];
+    return {
+      hazards: withinBbox(dedupeById(parsed.hazards), clipped),
+      corridors: withinBbox(dedupeById(parsed.corridors), clipped),
+      surveyAreas: withinBbox(dedupeById(parsed.surveyAreas), clipped),
+      harbours: withinBbox(dedupeById(parsed.harbours), clipped),
+      source: sourceMeta({
+        source: SOURCE,
+        attribution: 'Transpordiamet, Hüdrograafia infosüsteem',
+        attributionUrl: HIS,
+        requested: 1,
+        loaded,
+        errors: [],
+      }),
+    };
+  } catch (error) {
+    return emptyResult(sourceMeta({
       source: SOURCE,
       attribution: 'Transpordiamet, Hüdrograafia infosüsteem',
-      attributionUrl: 'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer',
-      requested: tiles.length,
-      loaded,
-      errors,
-    }),
-  };
+      attributionUrl: HIS,
+      requested: 1,
+      loaded: [],
+      errors: [error],
+    }));
+  }
 }
 
 function withinBbox<T extends { geometry: Parameters<typeof routingGeometryIntersectsBbox>[0] }>(
@@ -116,69 +103,45 @@ function withinBbox<T extends { geometry: Parameters<typeof routingGeometryInter
   return features.filter((feature) => routingGeometryIntersectsBbox(feature.geometry, bbox));
 }
 
-async function loadTile(tile: BBox): Promise<LoadedTile<EstonianRoutingCollections>> {
-  const key = tileKey(tile);
-  const result = await cache.get(key, TTL_SECONDS, async () => {
-    const entries = await Promise.all(Object.entries(LAYERS).map(async ([name, layer]) =>
-      [name, await queryArcGisLayer(layer, tile)] as const));
-    return Object.fromEntries(entries) as unknown as EstonianRoutingCollections;
-  });
-  return {
-    value: result.value,
-    stamp: sourceStamp(SOURCE, result),
-    ageSeconds: result.ageSeconds,
+async function queryLocalHis(bbox: BBox): Promise<{
+  collections: EstonianRoutingCollections;
+  completedAt: Date | null;
+}> {
+  const collections: EstonianRoutingCollections = {
+    aids: { features: [] }, obstructions: { features: [] }, rocks: { features: [] },
+    wrecks: { features: [] }, fairways: { features: [] }, surveys: { features: [] },
+    harbours: { features: [] },
   };
-}
-
-function tileKey(tile: BBox): string {
-  return `routing:transpordiamet-his:v2:${tile.join(',')}`;
-}
-
-function isFreshTile(tile: BBox): boolean {
-  return cache.peek(tileKey(tile))?.stale === false;
-}
-
-/** Soojendab täpselt sama kanoonilise paani, mida foreground hiljem kasutab. */
-export async function warmEstonianRoutingTile(tile: BBox): Promise<boolean> {
-  if (!intersectBbox(tile, ESTONIA)) return false;
-  await loadTile(tile);
-  return true;
-}
-
-export function isEstonianRoutingTileFresh(tile: BBox): boolean {
-  return !intersectBbox(tile, ESTONIA) || isFreshTile(tile);
-}
-
-async function queryArcGisLayer(layer: number, bbox: BBox): Promise<GeoJsonCollection> {
-  const features: NonNullable<GeoJsonCollection['features']> = [];
-  let offset = 0;
-  for (let pageIndex = 0; pageIndex < 100; pageIndex++) {
+  const client = await database.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL statement_timeout = 60000');
+    const active = await client.query(`
+      SELECT a.snapshot_id, s.completed_at FROM his_active_snapshot a
+      JOIN his_snapshots s ON s.id=a.snapshot_id WHERE a.singleton=true
+    `);
+    if (!active.rows[0]) return { collections, completedAt: null };
     const [south, west, north, east] = bbox;
-    const params = new URLSearchParams({
-      f: 'geojson',
-      where: '1 = 1',
-      outFields: '*',
-      returnGeometry: 'true',
-      geometry: `${west},${south},${east},${north}`,
-      geometryType: 'esriGeometryEnvelope',
-      inSR: '4326',
-      outSR: '4326',
-      spatialRel: 'esriSpatialRelIntersects',
-      orderByFields: 'objectid ASC',
-      resultOffset: String(offset),
-      resultRecordCount: String(PAGE_SIZE),
-    });
-    const page = await hisRequests.run(() => fetchJson<GeoJsonCollection>(
-      `${HIS}/${layer}/query?${params}`,
-      { timeoutMs: 30_000 },
-    ));
-    if (page.error) throw new Error(`ArcGIS HIS kiht ${layer}: ${page.error.message ?? 'päring ebaõnnestus'}`);
-    const returned = page.features?.length ?? 0;
-    features.push(...(page.features ?? []));
-    offset += returned;
-    if (returned === 0 || (!page.exceededTransferLimit && returned < PAGE_SIZE)) break;
+    const result = await client.query(`
+      SELECT layer, feature_id, properties, ST_AsGeoJSON(geom) AS geometry
+      FROM his_features
+      WHERE snapshot_id=$1
+        AND geom && ST_MakeEnvelope($2,$3,$4,$5,4326)
+        AND ST_Intersects(geom, ST_MakeEnvelope($2,$3,$4,$5,4326))
+    `, [active.rows[0].snapshot_id, west, south, east, north]);
+    for (const row of result.rows) {
+      const name = LAYER_NAMES[row.layer];
+      if (name) collections[name].features!.push({
+        id: row.feature_id,
+        properties: row.properties,
+        geometry: JSON.parse(row.geometry),
+      });
+    }
+    return { collections, completedAt: active.rows[0].completed_at };
+  } finally {
+    await client.query('ROLLBACK').catch(() => {});
+    client.release();
   }
-  return { features };
 }
 
 export function parseEstonianRoutingData(

@@ -23,6 +23,7 @@ sudo chmod 600 .env               # .env sisaldab API võtit
 
 # 4. Andmebaas (seadista DATABASE_URL ja DATABASE_MAINTENANCE_URL)
 sudo -u seapro npm run db:migrate
+sudo -u seapro npm run data:his # esmane HIS WFS-i koopia (sh kõik kivid)
 
 # 5. Ehitus
 sudo -u seapro npm ci
@@ -33,6 +34,12 @@ sudo cp deploy/seapro.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now seapro
 sudo systemctl status seapro
+
+# HIS-i kohalikku koopiat kontrollitakse kord nädalas; uuendatakse kõige
+# varem 30 päeva pärast viimast edukat importi.
+sudo cp deploy/seapro-his.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now seapro-his.timer
 ```
 
 ## Uuendamine

@@ -2,10 +2,6 @@ import type { BBox } from '@seapro/shared';
 import { config } from '../config.js';
 import { bboxTiles } from './sources/common.js';
 import {
-  isEstonianRoutingTileFresh,
-  warmEstonianRoutingTile,
-} from './sources/estonia.js';
-import {
   isFinnishStaticRoutingTileFresh,
   warmFinnishStaticRoutingTile,
 } from './sources/finland.js';
@@ -31,10 +27,8 @@ interface RoutingWarmupDependencies {
   coreTiles(): BBox[];
   tilesAround(bbox: BBox): BBox[];
   isOsmFresh(tile: BBox): boolean;
-  isEstonianFresh(tile: BBox): boolean;
   isFinnishFresh(tile: BBox): boolean;
   warmOsm(tile: BBox, signal?: AbortSignal): Promise<unknown>;
-  warmEstonian(tile: BBox): Promise<unknown>;
   warmFinnish(tile: BBox): Promise<unknown>;
   sweepIntervalMs: number;
 }
@@ -84,10 +78,8 @@ export class RoutingWarmup {
       coreTiles: () => routingPrewarmTiles(),
       tilesAround: (bbox) => routingTilesAround(bbox),
       isOsmFresh: isOsmRoutingTileFresh,
-      isEstonianFresh: isEstonianRoutingTileFresh,
       isFinnishFresh: isFinnishStaticRoutingTileFresh,
       warmOsm: warmOsmRoutingTile,
-      warmEstonian: warmEstonianRoutingTile,
       warmFinnish: warmFinnishStaticRoutingTile,
       sweepIntervalMs: SWEEP_INTERVAL_MS,
       ...dependencies,
@@ -194,9 +186,6 @@ export class RoutingWarmup {
       if (!this.#dependencies.isOsmFresh(tile)) {
         jobs.push({ source: 'Overpass', promise: this.#dependencies.warmOsm(tile, this.#controller.signal) });
       }
-      if (!this.#dependencies.isEstonianFresh(tile)) {
-        jobs.push({ source: 'Transpordiameti HIS', promise: this.#dependencies.warmEstonian(tile) });
-      }
       if (!this.#dependencies.isFinnishFresh(tile)) {
         jobs.push({ source: 'Soome WFS', promise: this.#dependencies.warmFinnish(tile) });
       }
@@ -231,7 +220,6 @@ export class RoutingWarmup {
 
   #tileIsFresh(tile: BBox): boolean {
     return this.#dependencies.isOsmFresh(tile)
-      && this.#dependencies.isEstonianFresh(tile)
       && this.#dependencies.isFinnishFresh(tile);
   }
 }

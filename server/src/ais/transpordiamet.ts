@@ -7,6 +7,8 @@ const URL =
   'AIS-vessels-addit-fields-stream-out/StreamServer/subscribe';
 
 const MAX_BACKOFF_MS = 5 * 60 * 1000;
+const MAX_SILENCE_MS = 5 * 60 * 1000;
+const WATCHDOG_INTERVAL_MS = 60 * 1000;
 
 interface StreamMessage {
   geometry?: {
@@ -54,15 +56,28 @@ export class TranspordiametAis {
   #stopped = false;
   #log: ((msg: string) => void) | undefined;
   #reconnectTimer: NodeJS.Timeout | null = null;
+  #watchdogTimer: NodeJS.Timeout | null = null;
+  #lastPositionAt = 0;
 
   start(log?: (msg: string) => void): void {
+    if (this.#watchdogTimer) return;
     this.#log = log;
     this.#stopped = false;
+    this.#watchdogTimer = setInterval(() => {
+      if (this.#ws?.readyState !== WebSocket.OPEN || !this.#lastPositionAt) return;
+      if (Date.now() - this.#lastPositionAt <= MAX_SILENCE_MS) return;
+      this.#log?.('Transpordiamet AIS: voog vaikis üle 5 minuti, avan uue ühenduse');
+      this.#lastPositionAt = 0;
+      this.#ws.terminate();
+    }, WATCHDOG_INTERVAL_MS);
+    this.#watchdogTimer.unref();
     this.#connect();
   }
 
   stop(): void {
     this.#stopped = true;
+    if (this.#watchdogTimer) clearInterval(this.#watchdogTimer);
+    this.#watchdogTimer = null;
     if (this.#reconnectTimer) {
       clearTimeout(this.#reconnectTimer);
       this.#reconnectTimer = null;
@@ -78,6 +93,7 @@ export class TranspordiametAis {
     this.#ws = ws;
 
     ws.on('open', () => {
+      this.#lastPositionAt = Date.now();
       const [south, west, north, east] = config.aisBbox;
       ws.send(
         JSON.stringify({
@@ -141,6 +157,7 @@ export class TranspordiametAis {
     const [south, west, north, east] = config.aisBbox;
     if (lat! < south || lat! > north || lon! < west || lon! > east) return;
 
+    this.#lastPositionAt = Date.now();
     const timestamp = parseTimestamp(attrs.timestamp);
     vessels.upsertPosition({
       mmsi,

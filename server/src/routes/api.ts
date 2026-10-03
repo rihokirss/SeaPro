@@ -15,6 +15,7 @@ import type {
 } from '@seapro/shared';
 import { VARIABLES, distanceMetres } from '@seapro/shared';
 import { cache } from '../cache.js';
+import { database } from '../db/pool.js';
 import { config } from '../config.js';
 import { HttpError } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
@@ -225,6 +226,16 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     // ainus märk sellest, et väljatõstmine on tööle hakanud.
     cache: { entries: cache.size, megabytes: Math.round((cache.bytes / 1048576) * 10) / 10 },
     routingWarmup: routingWarmup.status(),
+    hisSnapshot: await database.query(`
+      SELECT s.completed_at, s.actual_counts
+      FROM his_active_snapshot a JOIN his_snapshots s ON s.id=a.snapshot_id
+      WHERE a.singleton=true
+    `).then(({ rows }) => rows[0]
+      ? { available: true, completedAt: rows[0].completed_at, counts: rows[0].actual_counts,
+          stale: Date.now() - new Date(rows[0].completed_at).getTime() > 30 * 86_400_000,
+          refreshDays: 30 }
+      : { available: false, refreshDays: 30 })
+      .catch(() => ({ available: false, error: 'Andmebaas ei ole kättesaadav', refreshDays: 30 })),
   }));
 
   app.get('/api/config', async () => ({

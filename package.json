@@ -18,6 +18,7 @@
     "build": "npm run build --workspace=web && npm run build --workspace=server",
     "data:depth": "bash scripts/build-official-depth.sh",
     "data:routing-graph": "tsx --env-file-if-exists=.env server/src/scripts/buildRoutingGraph.ts",
+    "data:his": "tsx --env-file-if-exists=.env server/src/scripts/refreshHisSnapshot.ts",
     "start": "NODE_ENV=production node --env-file-if-exists=.env server/dist/index.js",
     "test": "npm run test --workspaces --if-present",
     "test:live": "npm run test:live --workspace=server",

@@ -6,9 +6,9 @@ import type {
   NavigationWarning,
   Wreck,
 } from '@seapro/shared';
-import { cache } from '../cache.js';
+import { cache, type CachedResult } from '../cache.js';
 import { fetchJson } from '../http.js';
-import { hisRequests } from '../hisRequests.js';
+import { database } from '../db/pool.js';
 import { categoryFromRegistry } from './categories.js';
 import { fetchNmaAidIndex, fetchNmaLeadingLines, fetchNmaNavigationAids, markColoursFromNma, type NmaAidIndex } from './nmaRegistry.js';
 import { navigationSnapshots, snapshotAids, isNavigationAidArray } from './snapshots.js';
@@ -18,12 +18,10 @@ const WARNINGS =
   'Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer';
 const MARITIME =
   'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/pohiandmed/MapServer';
-const WRECKS =
-  'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer/7';
 
 const STATIC_TTL = 24 * 3600;
-const WRECK_TTL = 14 * 24 * 3600;
-const WARNING_TTL = 2 * 60;
+const WARNING_TTL = 60 * 60;
+const WARNING_RETRY_KEY = 'nutimeri:warnings:retry:v1';
 
 interface ArcFeature {
   id?: string | number;
@@ -55,33 +53,49 @@ export async function fetchNavigationWarningsWithMeta(
 ): Promise<NavigationWarningResult> {
   const snapped = snapBbox(bbox);
   const key = `nutimeri:warnings:v1:${snapped.join(',')}`;
-  const result = await cache.get(key, WARNING_TTL, async () => {
-    const collections = await Promise.all(
-      [7, 8, 9].map((layer) => queryLayer(`${WARNINGS}/${layer}`, snapped, 'status = 2')),
-    );
-    return collections.flatMap((collection, index) =>
-      (collection.features ?? []).flatMap((feature) => {
-        if (!feature.geometry) return [];
-        const p = feature.properties ?? {};
-        return [{
-          id: `warning:${index + 7}:${stringValue(p.objectid) ?? feature.id ?? 'unknown'}`,
-          geometry: feature.geometry,
-          number: numberValue(p.warning_number),
-          source: 'transpordiamet',
-          titleEt: clean(p.ntfct_title_est),
-          titleEn: clean(p.ntfct_title_eng),
-          textEt: plainText(p.ntfct_text_est),
-          textEn: plainText(p.ntfct_text_eng),
-          areaEt: clean(p.area_est),
-          areaEn: clean(p.area_eng),
-          charts: clean(p.charts),
-          validFrom: dateValue(p.date_from),
-          validTo: dateValue(p.date_to),
-          documentUrl: safeHttpUrl(p.document_url),
-        } satisfies NavigationWarning];
-      }),
-    );
-  });
+  const cooldown = cache.peek<{ error: string }>(WARNING_RETRY_KEY);
+  let result: CachedResult<NavigationWarning[]>;
+  if (cooldown && !cooldown.stale) {
+    const saved = cache.peek<NavigationWarning[]>(key);
+    if (!saved) throw new Error(cooldown.value.error);
+    result = { ...saved, stale: true, fallbackError: new Error(cooldown.value.error) };
+  } else {
+    try {
+      result = await cache.get(key, WARNING_TTL, async () => {
+        const collections = await Promise.all(
+          [7, 8, 9].map((layer) => queryLayer(`${WARNINGS}/${layer}`, snapped, 'status = 2')),
+        );
+        return collections.flatMap((collection, index) =>
+          (collection.features ?? []).flatMap((feature) => {
+            if (!feature.geometry) return [];
+            const p = feature.properties ?? {};
+            return [{
+              id: `warning:${index + 7}:${stringValue(p.objectid) ?? feature.id ?? 'unknown'}`,
+              geometry: feature.geometry,
+              number: numberValue(p.warning_number),
+              source: 'transpordiamet',
+              titleEt: clean(p.ntfct_title_est),
+              titleEn: clean(p.ntfct_title_eng),
+              textEt: plainText(p.ntfct_text_est),
+              textEn: plainText(p.ntfct_text_eng),
+              areaEt: clean(p.area_est),
+              areaEn: clean(p.area_eng),
+              charts: clean(p.charts),
+              validFrom: dateValue(p.date_from),
+              validTo: dateValue(p.date_to),
+              documentUrl: safeHttpUrl(p.document_url),
+            } satisfies NavigationWarning];
+          }),
+        );
+      });
+      if (result.fallbackError) {
+        cache.set(WARNING_RETRY_KEY, WARNING_TTL, { error: errorMessage(result.fallbackError) });
+      }
+    } catch (error) {
+      cache.set(WARNING_RETRY_KEY, WARNING_TTL, { error: errorMessage(error) });
+      throw error;
+    }
+  }
 
   const now = Date.now();
   return {
@@ -95,35 +109,39 @@ export async function fetchNavigationWarningsWithMeta(
   };
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export async function fetchWrecks(bbox: [number, number, number, number]): Promise<Wreck[]> {
-  const snapped = snapBbox(bbox);
-  const key = `nutimeri:wrecks:v1:${snapped.join(',')}`;
-  const { value } = await cache.get(key, WRECK_TTL, async () => {
-    const collection = await queryLayer(WRECKS, snapped, '1 = 1');
-    return (collection.features ?? []).flatMap((feature) => {
-      if (feature.geometry?.type !== 'Point') return [];
-      const p = feature.properties ?? {};
-      return [{
-        id: `wreck:${stringValue(p.id) ?? p.objectid ?? feature.id ?? 'unknown'}`,
-        lat: feature.geometry.coordinates[1],
-        lon: feature.geometry.coordinates[0],
-        name: clean(p.laevanimi) ?? 'Nimetu vrakk',
-        wreckDepthM: positiveNumber(p.vraki_sygavus),
-        surroundingDepthM: positiveNumber(p.ymbr_ala_sygavus),
-        heightM: positiveNumber(p.vraki_korgus),
-        lengthM: positiveNumber(p.vraki_pikkus) ?? positiveNumber(p.laeva_pikkus),
-        widthM: positiveNumber(p.vraki_laius) ?? positiveNumber(p.laeva_laius),
-        vesselType: clean(p.laevatyyp),
-        sunkAt: clean(p.hukk_aeg),
-        sunkReason: clean(p.hukk_pohjus),
-        condition: clean(p.vraki_seisund),
-        history: clean(p.ajalugu),
-        notes: clean(p.markused),
-        model3dUrl: safeHttpUrl(p.link3d),
-      } satisfies Wreck];
-    });
+  const [south, west, north, east] = bbox;
+  const result = await database.query(`
+    SELECT f.feature_id, f.properties, ST_Y(f.geom) AS lat, ST_X(f.geom) AS lon
+    FROM his_features f JOIN his_active_snapshot a ON a.snapshot_id=f.snapshot_id
+    WHERE a.singleton=true AND f.layer='vrakk'
+      AND f.geom && ST_MakeEnvelope($1,$2,$3,$4,4326)
+  `, [west, south, east, north]);
+  return result.rows.map((row) => {
+    const p = row.properties as Record<string, unknown>;
+    return {
+      id: `wreck:${stringValue(p.id) ?? row.feature_id}`,
+      lat: Number(row.lat),
+      lon: Number(row.lon),
+      name: clean(p.laevanimi) ?? 'Nimetu vrakk',
+      wreckDepthM: positiveNumber(p.vraki_sygavus),
+      surroundingDepthM: positiveNumber(p.ymbr_ala_sygavus),
+      heightM: positiveNumber(p.vraki_korgus),
+      lengthM: positiveNumber(p.vraki_pikkus) ?? positiveNumber(p.laeva_pikkus),
+      widthM: positiveNumber(p.vraki_laius) ?? positiveNumber(p.laeva_laius),
+      vesselType: clean(p.laevatyyp),
+      sunkAt: clean(p.hukk_aeg),
+      sunkReason: clean(p.hukk_pohjus),
+      condition: clean(p.vraki_seisund),
+      history: clean(p.ajalugu),
+      notes: clean(p.markused),
+      model3dUrl: safeHttpUrl(p.link3d),
+    } satisfies Wreck;
   });
-  return value;
 }
 
 export async function fetchOfficialNavigation(
@@ -278,7 +296,7 @@ async function queryLayer(
   const load = () => fetchJson<ArcCollection>(`${layerUrl}/query?${params}`, {
     timeoutMs: 30_000,
   });
-  const result = await (layerUrl === WRECKS ? hisRequests.run(load) : load());
+  const result = await load();
   if (result.error) throw new Error(`ArcGIS: ${result.error.message ?? 'päring ebaõnnestus'}`);
   if (!Array.isArray(result.features)) throw new Error('ArcGIS: puuduv objektide loend');
   return result;

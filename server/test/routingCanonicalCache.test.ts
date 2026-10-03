@@ -16,14 +16,8 @@ vi.mock('../src/http.js', () => ({
 
 import { loadOsmRoutingData } from '../src/routing/sources/osm.js';
 import { fetchTrafficSchemesSnapshot } from '../src/navigation/osmTraffic.js';
-import { loadEstonianRoutingData } from '../src/routing/sources/estonia.js';
 import { loadFinnishRoutingData } from '../src/routing/sources/finland.js';
 
-const EMPTY_ESTONIA = {
-  aids: { features: [] }, obstructions: { features: [] }, rocks: { features: [] },
-  wrecks: { features: [] }, fairways: { features: [] }, surveys: { features: [] },
-  harbours: { features: [] },
-};
 const EMPTY_FINNISH_STATIC = {
   fairwayAreas: { features: [] }, navigationLines: { features: [] },
   restrictions: { features: [] }, structures: { features: [] },
@@ -40,9 +34,7 @@ describe('routingu kanooniliste paanide taaskasutus', () => {
     mocks.fetchJson.mockReset();
     mocks.cachePeek.mockReturnValue({ stale: false });
     mocks.cacheGet.mockImplementation(async (keyValue: string) => ({
-      value: keyValue.startsWith('routing:transpordiamet-his:')
-        ? EMPTY_ESTONIA
-        : keyValue.startsWith('routing:vaylavirasto-wfs:static:')
+      value: keyValue.startsWith('routing:vaylavirasto-wfs:static:')
           ? EMPTY_FINNISH_STATIC
           : keyValue.startsWith('routing:vaylavirasto-wfs:faults:')
             ? EMPTY_FINNISH_FAULTS
@@ -102,19 +94,6 @@ describe('routingu kanooniliste paanide taaskasutus', () => {
       return coordinates[2]! - coordinates[0]! > 1;
     })).toBe(true);
     expect(result.source).toMatchObject({ status: 'ok', coverage: 'complete' });
-  });
-
-  it('koostab Transpordiameti suure ala eellaaditud 1° paanidest', async () => {
-    const result = await loadEstonianRoutingData([57.1, 20.1, 60.1, 28.1]);
-    const keys = mocks.cacheGet.mock.calls.map(([key]) => String(key));
-
-    expect(keys).toHaveLength(36);
-    expect(mocks.cacheGet.mock.calls.every(([, ttl]) => ttl === 14 * 24 * 3600)).toBe(true);
-    expect(keys).toContain('routing:transpordiamet-his:v2:57,20,58,21');
-    expect(keys).toContain('routing:transpordiamet-his:v2:60,28,61,29');
-    expect(result.source).toMatchObject({
-      status: 'ok', coverage: 'complete', tilesRequested: 36, tilesLoaded: 36,
-    });
   });
 
   it('kasutab Soome staatikaks 1° cache’i, kuid jätab rikked adaptiivseks', async () => {

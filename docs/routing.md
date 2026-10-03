@@ -77,7 +77,7 @@ tagastab API 503 `data_unavailable`; tühi vastus ei lähe kunagi arvesse kui
 | Prioriteet | Andmed | Kasutus |
 |---|---|---|
 | 1 | Transpordiameti HIS: kivid, takistused, vrakid, füüsilised märgid, laevateed ja mõõtealad | Ametlik oht blokeerib; ruumiliselt piiritletud ja laevale sobiv ametlik sügavus võib üldistatud DTM-i täpsustada. |
-| 1 | Transpordiameti ja Traficomi kehtivad navigatsioonihoiatused | Eesti ja Soome punkt-, joon- ning alahoiatused lisavad marsruudile ettevaatusjälje; sulgemise, keelu või ohuna sõnastatud teade märgitakse kriitiliseks. Mõlemat allikat värskendatakse kahe minuti kaupa. |
+| 1 | Transpordiameti ja Traficomi kehtivad navigatsioonihoiatused | Eesti ja Soome punkt-, joon- ning alahoiatused lisavad marsruudile ettevaatusjälje; sulgemise, keelu või ohuna sõnastatud teade märgitakse kriitiliseks. Eesti allikat värskendatakse tunnise, Soome allikat kaheminutilise vahemälu järgi. |
 | 1 | Väylävirasto WFS: väyläalad ja navigatsioonijooned, piirangud, `taitorakenteet:silta` veetee kõrgus, kanalirajatised, märgid ja AToN rikked | Laeva süvise, laiuse ja kõrguse kontroll; aktiivsed keelud ning ajutised rikked. Rikked värskendatakse staatilistest kihtidest eraldi kahe minuti kaupa. `mitoitussyvays` on projekteeritud süvis, mitte mõõdetud sügavus; füüsiliseks haraussügavuseks loetakse ainult `haraussyvyys`. |
 | 2 | EMODnet Bathymetry WCS `emodnet:mean` | Põhiline sügavusvõre. NoData säilib eraldi seisundina. |
 | 2 | OpenFreeMap/OpenMapTiles `water` vektor | Maa/vee mask koos rannajoone ja saarte aukudega. |
@@ -264,11 +264,16 @@ routingupaanid. OSM/OpenSeaMapi raw-paanidest loetakse ka kaardi
 liikluseraldusskeemid, seega ei vaja kaardikiht eraldi bbox-päringuid.
 Eelisjärjekorras on Soome laht ja Edela-Soome; pärast päris marsruuti lisatakse
 järjekorda ka selle bbox'i naaberpaanid. Taustatöö ei lae
-EMODneti sügavusrasterit ega kaheminutilisi navigatsioonihoiatusi/AToN-rikkeid
+EMODneti sügavusrasterit ega eraldi värskendatavaid navigatsioonihoiatusi/AToN-rikkeid
 ning ei alusta uut paani aktiivse autoroute'i ajal.
-Staatiliste Transpordiameti, Väylävirasto ja OSM/OpenSeaMapi routingupaanide
-TTL on seitse päeva; tunnine kontroll laadib uuesti ainult aegunud või puuduva
-paani. Dünaamiliste hoiatuste ja AToN-rikete TTL jääb kaheks minutiks.
+Väylävirasto ja OSM/OpenSeaMapi routingupaanid kasutavad eraldi vahemälu.
+Transpordiameti HIS-i seitse kihti on kohalikus PostGIS-i koopias; nädalane
+taustatöö kontrollib, kas viimasest edukast täisuuendusest on möödas vähemalt
+30 päeva. Uus koopia aktiveeritakse alles pärast täielikku importi ning vana
+koopia jääb teenuse tõrke korral kasutusse. Dünaamiliste hoiatuste ja
+AToN-rikete TTL jääb kaheks minutiks. Eesti navigatsioonihoiatuste TTL on üks
+tund; allika tõrke järel ei proovita kogu Eesti hoiatuseteenust uuesti enne
+tunni möödumist.
 
 Kiirust mõõdetakse korratavalt `server/scripts/bench-routing.ts` abil:
 `capture` külmutab elusa snapshot'i `data/bench/` alla, `run` kordab

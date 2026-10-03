@@ -81,7 +81,7 @@ export async function loadRoutingVectorData(
       hazards: [], corridors: [], surveyAreas: [], harbours: [],
       source: budgetExceededMeta('transpordiamet-his',
         'Transpordiamet, Hüdrograafia infosüsteem',
-        'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/HIS/MapServer'),
+        'https://his.vta.ee:8443/HIS/WFS'),
     })), onPhase),
     timedSource('transpordiamet_warnings', () => withSourceBudget(
       loadEstonianRoutingWarnings(bbox, departureTime), () => ({
