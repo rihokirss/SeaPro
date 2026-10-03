@@ -4,6 +4,7 @@ import { categoryFromRegistry } from './categories.js';
 import { navigationSnapshots, snapshotAids } from './snapshots.js';
 
 const NMA_XML = 'https://nma.transpordiamet.ee/xml_file/';
+const NMA_ATONS = 'https://nma.vta.ee/atons/';
 const REGISTRY_TTL = 24 * 3600;
 
 export interface NmaAidDetails {
@@ -36,10 +37,32 @@ function fetchNmaXml() {
 
 /** Kogu Eesti koondfail on üks püsikoopia, seega töötab ka varem vaatamata ala. */
 export async function fetchNmaNavigationAids(bbox: BBox): Promise<NavigationAid[]> {
-  const snapshot = await fetchNmaXml();
+  const [snapshot, links] = await Promise.all([
+    fetchNmaXml(),
+    fetchNmaRegistryLinks().catch(() => ({} as Record<string, string>)),
+  ]);
   const [south, west, north, east] = bbox;
   return snapshotAids(parseNmaNavigationAids(snapshot.value).filter((aid) =>
-    aid.lat >= south && aid.lat <= north && aid.lon >= west && aid.lon <= east), snapshot);
+    aid.lat >= south && aid.lat <= north && aid.lon >= west && aid.lon <= east)
+    .map((aid) => ({ ...aid, registryUrl: links[aid.atonCode ?? ''] })), snapshot);
+}
+
+async function fetchNmaRegistryLinks(): Promise<Record<string, string>> {
+  const snapshot = await navigationSnapshots.get('nma:links:v1', REGISTRY_TTL, async () =>
+    parseNmaRegistryLinks(await fetchText(NMA_ATONS, { timeoutMs: 30_000, retries: 1 })),
+  (value): value is Record<string, string> => !!value && typeof value === 'object'
+    && Object.keys(value).length > 100);
+  return snapshot.value;
+}
+
+/** Avalik nimekiri seob XML-i EstNo numbri detaillehe sisemise ID-ga. */
+export function parseNmaRegistryLinks(html: string): Record<string, string> {
+  const links: Record<string, string> = {};
+  for (const match of html.matchAll(/<td[^>]*class="col_0"[^>]*>\s*<a[^>]*href="\/aton\/(\d+)\/?"[^>]*>([^<]+)<\/a>/g)) {
+    const code = match[2]?.trim();
+    if (code) links[code] = `https://nma.vta.ee/aton/${match[1]}/`;
+  }
+  return links;
 }
 
 export async function fetchNmaLeadingLines(bbox: BBox): Promise<Fairway[]> {

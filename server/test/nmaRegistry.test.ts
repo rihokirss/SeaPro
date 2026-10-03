@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { markColoursFromNma, parseNmaAidIndex, parseNmaLeadingLines, parseNmaNavigationAids } from '../src/navigation/nmaRegistry.js';
+import { markColoursFromNma, parseNmaAidIndex, parseNmaLeadingLines, parseNmaNavigationAids, parseNmaRegistryLinks } from '../src/navigation/nmaRegistry.js';
 
 describe('NMA navigatsioonimärkide avaandmed', () => {
+  it('seob XML-i märginumbri registri detaillehe sisemise ID-ga', () => {
+    const links = parseNmaRegistryLinks(`<table>
+      <tr><td class="col_0"><a href="/aton/2325">1021</a></td><td>Naissaare madala lõunatooder</td></tr>
+      <tr><td class="col_0"><a href="/aton/2823/">001</a></td><td>Narva-Jõesuu tuletorn</td></tr>
+      <tr><td class="col_0"><a href="https://example.com/aton/3">X</a></td></tr>
+    </table>`);
+    expect(links).toEqual({
+      '1021': 'https://nma.vta.ee/aton/2325/',
+      '001': 'https://nma.vta.ee/aton/2823/',
+    });
+  });
+
   it('teisendab NMA kaareminutid kraadideks ja säilitab märgi liigi', () => {
     const aids = parseNmaNavigationAids(`<Navimarks>
       <Navimark><Name>Narva-Jõesuu tuletorn</Name><EstNo>001</EstNo>
