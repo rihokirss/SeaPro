@@ -6,7 +6,7 @@ import { asRoutingGeometry, intersectBbox } from './common.js';
 const SOURCE = 'transpordiamet-warnings' as const;
 const COVERAGE: BBox = [57, 20, 60.5, 29];
 const ATTRIBUTION = 'Transpordiamet, navigatsioonihoiatused';
-const ATTRIBUTION_URL = 'https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer';
+const ATTRIBUTION_URL = 'https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/MapServer';
 
 export interface EstonianRoutingWarnings {
   warnings: RoutingWarning[];

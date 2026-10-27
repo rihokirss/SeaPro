@@ -88,7 +88,7 @@ export async function loadRoutingVectorData(
         warnings: [],
         source: budgetExceededMeta('transpordiamet-warnings',
           'Transpordiamet, navigatsioonihoiatused',
-          'https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer'),
+          'https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/MapServer'),
       })), onPhase),
     timedSource('vaylavirasto_wfs', () => withSourceBudget(
       loadFinnishRoutingData(bbox, departureTime), () => ({

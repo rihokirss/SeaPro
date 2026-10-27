@@ -15,13 +15,13 @@ import { navigationSnapshots, snapshotAids, isNavigationAidArray } from './snaps
 
 const WARNINGS =
   'https://gis.transpordiamet.ee/arcgis/rest/services/' +
-  'Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer';
+  'Navigatsioonihoiatused/Nav_hoiatused_avalik/MapServer';
 const MARITIME =
   'https://gis.transpordiamet.ee/arcgis/rest/services/Nutimeri/pohiandmed/MapServer';
 
 const STATIC_TTL = 24 * 3600;
 const WARNING_TTL = 60 * 60;
-const WARNING_RETRY_KEY = 'nutimeri:warnings:retry:v1';
+const WARNING_RETRY_KEY = 'nutimeri:warnings:retry:v2';
 
 interface ArcFeature {
   id?: string | number;
