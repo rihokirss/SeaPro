@@ -11,6 +11,7 @@ import {
   WRECK_ICON,
 } from '../icons';
 import { fairwayVisibleGeometries } from '../lineOverlap';
+import { EXTRA_CLICK_LAYERS, ensureNavigationExtras, navigationExtraFeatures, setNavigationExtrasVisibility } from './navigationExtras';
 
 const SOURCE_ID = 'navigation-src';
 
@@ -42,6 +43,7 @@ export const NAVIGATION_CLICK_LAYERS = [
   NAVIGATION_AID_HIT_LAYER,
   AIS_BASE_STATION_HIT_LAYER,
   FAIRWAY_HIT_LAYER,
+  ...EXTRA_CLICK_LAYERS,
 ];
 
 const NAVIGATION_LINE_COLOUR = '#a93ab4';
@@ -54,10 +56,20 @@ export interface NavigationVisibility {
   traffic: boolean;
   falseColors: boolean;
   official: boolean;
+  lightSectors: boolean;
+  lightSectorMode: 'day' | 'night';
+  exerciseAreas: boolean;
 }
 
-export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
-  const features: Feature[] = [];
+export function updateNavigation(map: MapLibreMap, data: NavigationData, sectorMode: 'day' | 'night' = 'night'): void {
+  const features: Feature[] = navigationExtraFeatures(data);
+  const sectorsByAid = new Map<string, Set<string>>();
+  for (const sector of data.lightSectors ?? []) {
+    if (sector.mode !== sectorMode) continue;
+    const details = sectorsByAid.get(sector.atonCode) ?? new Set<string>();
+    details.add(`${sector.colour} · ${sector.fromDegrees}°–${sector.toDegrees}° · ${sector.rangeNm} NM`);
+    sectorsByAid.set(sector.atonCode, details);
+  }
 
   for (const warning of data.warnings) {
     features.push({
@@ -110,6 +122,8 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
       properties: {
         featureKind: 'aid',
         ...aid,
+        lightSectors: sectorsByAid.has(aid.atonCode ?? '')
+          ? [...sectorsByAid.get(aid.atonCode!)!].join('\n') : aid.lightSectors,
         category,
         icon: `navigation-${fixedAidIconCategory(category, aid.markColours)}`,
         sources: aid.sources.join(','),
@@ -192,10 +206,11 @@ export function updateNavigation(map: MapLibreMap, data: NavigationData): void {
   else map.addSource(SOURCE_ID, {
     type: 'geojson',
     data: collection,
-    attribution: '<a href="https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer">Transpordiamet</a> · <a href="https://www.traficom.fi/en/maritime-transport-regulation-and-digitalisation/digitalisation-maritime-sector/e-navigation-and-s-100">Traficom</a> · <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+    attribution: '<a href="https://gis.transpordiamet.ee/arcgis/rest/services">Transpordiamet</a> · <a href="https://www.traficom.fi/en/maritime-transport-regulation-and-digitalisation/digitalisation-maritime-sector/e-navigation-and-s-100">Traficom</a> · <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
   });
 
   ensureLayers(map);
+  ensureNavigationExtras(map, SOURCE_ID);
 }
 
 function ensureLayers(map: MapLibreMap): void {
@@ -585,6 +600,7 @@ function ensureLayers(map: MapLibreMap): void {
 }
 
 export function setNavigationVisibility(map: MapLibreMap, visibility: NavigationVisibility): void {
+  setNavigationExtrasVisibility(map, visibility.lightSectors, visibility.exerciseAreas, visibility.lightSectorMode);
   setVisible(
     map,
     [WARNING_AREAS_LAYER, WARNING_LINE_HIT_LAYER, WARNING_LINES_LAYER, WARNING_POINTS_LAYER],

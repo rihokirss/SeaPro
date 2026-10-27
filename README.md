@@ -143,6 +143,9 @@ SeaPro provides both light and dark styles adapted for marine use.
 - official Estonian and Finnish electronic nautical charts from the Estonian
   Transport Administration and Traficom WMS services;
 - official aids to navigation and fairways;
+- additional local Estonian aids merged into the existing clickable aid layer;
+- optional Estonian light sectors with day/night selection and selected-aid highlighting;
+- optional permanent Estonian firing areas, with route notices distinct from active navigational warnings;
 - official depth contours and soundings from the Estonian Land and Spatial
   Development Board in Estonia and Traficom in Finland, combined in one static
   vector archive; EMODnet vector contours and model depths outside their

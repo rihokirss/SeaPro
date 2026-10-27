@@ -3,6 +3,7 @@ import type { BBox } from '@seapro/shared';
 export type RoutingSourceId =
   | 'transpordiamet-his'
   | 'transpordiamet-warnings'
+  | 'transpordiamet-exercise-areas'
   | 'traficom-warnings'
   | 'vaylavirasto-wfs'
   | 'openstreetmap-overpass';
@@ -164,7 +165,7 @@ export type RoutingRestriction =
   | RoutingSeparationZone;
 
 export interface RoutingWarning extends RoutingFeatureBase {
-  kind: 'aton_fault' | 'navigation_warning';
+  kind: 'aton_fault' | 'navigation_warning' | 'exercise_area';
   severity: 'caution' | 'critical';
   reportedAt?: string;
   aidNumber?: string;

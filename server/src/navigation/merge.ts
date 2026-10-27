@@ -1,5 +1,28 @@
 import type { Harbour, NavigationAid } from '@seapro/shared';
 
+/** Kohalikud numbrid pole NMA registrikoodid. Ühendame ainult tugeva vaste. */
+export function mergeLocalNavigationAids(official: NavigationAid[], local: NavigationAid[]): NavigationAid[] {
+  const out = official.map((aid) => ({ ...aid, sources: [...aid.sources] }));
+  const matched = new Set<number>();
+  for (const incoming of local) {
+    const candidates = official.flatMap((aid, index) => {
+      if (matched.has(index) || aid.virtual) return [];
+      const distance = distanceMetres(aid, incoming);
+      const sameType = aid.category && aid.category !== 'unknown' && aid.category === incoming.category;
+      const sameName = normalizeName(aid.name) === normalizeName(incoming.name);
+      return distance <= 40 && sameType && (sameName || distance <= 10) ? [{ index, distance }] : [];
+    }).sort((a, b) => a.distance - b.distance);
+    const match = candidates[0];
+    if (!match) { out.push(incoming); continue; }
+    matched.add(match.index);
+    const base = out[match.index]!;
+    out[match.index] = { ...base, description: base.description ?? incoming.description,
+      location: base.location ?? incoming.location,
+      sources: [...new Set([...base.sources, ...incoming.sources])] };
+  }
+  return out;
+}
+
 /**
  * Ühendab AIS AToN-i ametliku märgiga.
  *
@@ -21,7 +44,8 @@ export function mergeNavigationAids(
       ? -1
       : out.findIndex((aid) =>
         matchesAtonCode(aid.atonCode, incoming.name)
-        || distanceMetres(aid, incoming) <= 40);
+        || (distanceMetres(aid, incoming) <= 40
+          && (!aid.unregulated || (incoming.category !== undefined && incoming.category === aid.category))));
     if (matchIndex < 0) {
       out.push(incoming);
       continue;

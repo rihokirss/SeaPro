@@ -367,14 +367,46 @@ et server ei tõmba ega saada väljalülitatud kihte.
 
 | Kiht | Allikas | Uuendamine |
 |---|---|---|
-| Eesti navigatsioonihoiatused | `Navigatsioonihoiatused/Nav_hoiatused_avalik/FeatureServer`, kihid 7–9 | 1 h vahemälu; tõrke järel kõigi alade ühine 1 h korduskatse paus; aegunud hoiatused filtreeritakse välja |
+| Eesti navigatsioonihoiatused | `Navigatsioonihoiatused/Nav_hoiatused_avalik/MapServer`, kihid 7–9 | 1 h vahemälu; tõrke järel kõigi alade ühine 1 h korduskatse paus; aegunud hoiatused filtreeritakse välja |
 | Soome navigatsioonihoiatused | Traficomi avalik WFS, `navigational_warnings_p`, `_l` ja `_a` | 2 min vahemälu; teenus väljastab ainult kehtivad hoiatused |
 | AIS navigatsioonimärgid | `AIS-aton-stream-out/StreamServer/subscribe` | püsiv WebSocket; klient küsib serveri registrit iga 30 s |
 | AIS baasjaamad | `AIS-base-station-stream-out/StreamServer/subscribe` | püsiv WebSocket; jaam kaob kaardilt, kui 30 min jooksul pole teadet tulnud |
 | Vrakid | HIS WFS-i kohalik PostgreSQL-koopia | uuendus kõige varem 30 päeva järel; vana koopia säilib tõrke korral |
 | Ametlikud laevateed ja püsi-, ujuv- ning hooajalised märgid | `Nutimeri/pohiandmed/MapServer`, kihid 0–3 | uuendus 24 h järel; viimane edukas vastus säilib kettal |
 | Eesti märkide varuallikas | NMA avalik `https://nma.transpordiamet.ee/xml_file/` | kogu Eesti XML-koopia; uuendus 24 h järel, kettal tähtajatu |
+| Eesti tulesektorid | `Nutimeri/Tulesektorid_teenus/MapServer`, pindkihid 2, 5, 8, 11, 15, 18, 21, 24 | kogu riigi koopia; uuendus 30 päeva järel |
+| Eesti püsivad laskealad | `Navigatsioonihoiatused/Laskealad/MapServer/0` | kogu riigi koopia; uuendus 30 päeva järel |
+| Täiendavad kohalikud märgid | `Nutimeri/Reglementeerimata_margid/MapServer/0` | kogu riigi koopia; uuendus 30 päeva järel |
 | Soome ametlikud navigatsioonimärgid | Väylävirasto WFS, `vesivaylatiedot:turvalaitteet_uusi` | nähtava ala GeoJSON; uuendus 24 h järel, viimane edukas vastus säilib kettal |
+
+Tulesektorid ja laskealad on eraldi, vaikimisi väljalülitatud kihid.
+`/api/navigation` tagastab neid ainult `include=lightSectors,exerciseAreas`
+valimisel. Sektorid on seotud registrinumbriga: uut meremärgipunkti ei looda.
+Kasutaja valib päeva- või öötuled; mõlemat geomeetriat korraga ei joonistata.
+Sektorid kuvatakse alates suumist 11, valitud märgi esiletõst alates suumist 6.
+Täisringtule ulatus kuvatakse ainult valitud märgil, et sadamas ei kattuks
+kümned ringid. Märgi hüpikaken näitab valitud režiimi suundi ja nähtavuskaugusi.
+Suundi ei pöörata ümber: kasutatakse teenuse algset geomeetriat ja väärtusi.
+
+Reglementeerimata märgid lisanduvad `official` valikusse, allikatunnusega
+`transpordiamet-local`. Kohalikke järjekorranumbreid ei kasutata NMA koodina.
+Registrivaste ühendatakse sama märgitüübi puhul kuni 10 m kauguselt või sama
+nime korral kuni 40 m kauguselt; üks registrikirje saab kõige rohkem ühe
+kohaliku vaste. Registri identiteet ja liigitus säilivad ning kirjeldus võib
+täieneda. Vastaskülgede märke ei ühendata.
+
+Püsiva laskeala piir ei tõenda aktiivset õppust ega liikumiskeeldu. Kaardi
+hüpikaken ja marsruudi `exercise_area` märkus suunavad kontrollima kehtivaid
+hoiatusi. Märkus ei lisa sõidukeeldu ega muuda marsruudi kulusid. Ametlik ala
+asendab sama OSM-i harjutusala ainult tugeva geomeetria-/nimevaste korral;
+OSM-i selgesõnaline liikumiskeeld säilib. Sama kontroll rakendub ka ettevalmistatud
+graafi kasutavale väikelaevade kiirele arvutusele.
+
+Kõigi kolme uue staatilise allika koopia hõlmab tervet riiki. Kaardivahetus
+filtreerib seda kohalikult. Päringud lehitsetakse ning vigane geomeetria,
+allika viga või korduvate objektidega poolik vastus ei kirjuta head koopiat üle.
+Uuendus käivitub andmete küsimisel pärast 30 päeva; tõrke järel uus katse kõige
+varem tunni pärast ning vana koopia jääb kasutusse.
 
 Registriandmete püsikoopiad asuvad `data/navigation-snapshots/` kataloogis.
 Need ei allu ilmaandmete ööpäevasele koristusele ega kao protsessi taaskäivitusel

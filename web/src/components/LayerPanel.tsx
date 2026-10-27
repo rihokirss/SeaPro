@@ -27,6 +27,9 @@ export interface LayerState {
   anchorages: boolean;
   placeLabels: boolean;
   navigationWarnings: boolean;
+  lightSectors: boolean;
+  lightSectorMode: 'day' | 'night';
+  exerciseAreas: boolean;
   navigationAids: boolean;
   aisBaseStations: boolean;
   trafficSchemes: boolean;
@@ -184,6 +187,25 @@ export function LayerPanel({
               onChange={(v) => set({ navigationWarnings: v })}
               label={t('layer.navigationWarnings')}
               hint={t('layer.navigationWarnings.hint')}
+            />
+            <Toggle
+              checked={layers.lightSectors}
+              onChange={(v) => set({ lightSectors: v })}
+              label={t('layer.lightSectors')}
+              hint={t('layer.lightSectors.hint')}
+            />
+            {layers.lightSectors && <div className="chips" role="group" aria-label={t('navigation.lightMode')}>
+              {(['night', 'day'] as const).map((mode) => <button
+                key={mode} type="button" aria-pressed={layers.lightSectorMode === mode}
+                className={`chip${layers.lightSectorMode === mode ? ' is-active' : ''}`}
+                onClick={() => set({ lightSectorMode: mode })}
+              >{t(`navigation.lightMode.${mode}`)}</button>)}
+            </div>}
+            <Toggle
+              checked={layers.exerciseAreas}
+              onChange={(v) => set({ exerciseAreas: v })}
+              label={t('layer.exerciseAreas')}
+              hint={t('layer.exerciseAreas.hint')}
             />
             <Toggle
               checked={layers.navigationAids}

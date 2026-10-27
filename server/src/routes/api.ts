@@ -45,7 +45,8 @@ import {
 } from '../navigation/arcgis.js';
 import { aisAtons } from '../navigation/aisAton.js';
 import { aisBaseStations } from '../navigation/aisBaseStation.js';
-import { mergeHarbours, mergeNavigationAids } from '../navigation/merge.js';
+import { mergeHarbours, mergeNavigationAids, mergeLocalNavigationAids } from '../navigation/merge.js';
+import { fetchExerciseAreasWithMeta, fetchLightSectors, fetchLocalNavigationAids } from '../navigation/estoniaSupplemental.js';
 import { fetchFinnishNavigationAids } from '../navigation/vaylavirasto.js';
 import { fetchFinnishNavigationWarnings } from '../navigation/traficomWarnings.js';
 import { fetchTrafficSchemes } from '../navigation/osmTraffic.js';
@@ -641,12 +642,17 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const wantOfficial = requested.has('official');
     const wantAisAids = requested.has('aids');
     const wantBaseStations = requested.has('baseStations');
+    const wantLightSectors = requested.has('lightSectors');
+    const wantExerciseAreas = requested.has('exerciseAreas');
     const [
       estonianWarningResult,
       finnishWarningResult,
       wreckResult,
       officialResult,
       finnishAidResult,
+      localAidResult,
+      lightSectorResult,
+      exerciseAreaResult,
     ] = await Promise.allSettled([
       wantWarnings ? fetchNavigationWarnings(bbox) : Promise.resolve([]),
       wantWarnings ? fetchFinnishNavigationWarnings(bbox) : Promise.resolve([]),
@@ -659,6 +665,9 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       wantOfficial || wantAisAids
         ? fetchFinnishNavigationAids(bbox)
         : Promise.resolve([]),
+      wantOfficial ? fetchLocalNavigationAids(bbox) : Promise.resolve([]),
+      wantLightSectors ? fetchLightSectors(bbox) : Promise.resolve([]),
+      wantExerciseAreas ? fetchExerciseAreasWithMeta(bbox).then((result) => result.value) : Promise.resolve([]),
     ]);
     const official = officialResult.status === 'fulfilled'
       ? officialResult.value
@@ -667,7 +676,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     reply.header('Cache-Control', 'no-store');
     const mergedAids = mergeNavigationAids(
       [
-        ...official.aids,
+        ...mergeLocalNavigationAids(official.aids, localAidResult.status === 'fulfilled' ? localAidResult.value : []),
         ...(finnishAidResult.status === 'fulfilled' ? finnishAidResult.value : []),
       ],
       wantAisAids ? aisAtons.query(bbox) : [],
@@ -685,16 +694,21 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         ? mergedAids
         : mergedAids.filter((aid) => aid.sources.includes('ais')),
       baseStations: wantBaseStations ? aisBaseStations.query(bbox) : [],
+      lightSectors: lightSectorResult.status === 'fulfilled' ? lightSectorResult.value : [],
+      exerciseAreas: exerciseAreaResult.status === 'fulfilled' ? exerciseAreaResult.value : [],
       errors: [
         estonianWarningResult,
         finnishWarningResult,
         wreckResult,
         officialResult,
         finnishAidResult,
+        localAidResult,
+        lightSectorResult,
+        exerciseAreaResult,
       ]
         .map((result, index) => result.status === 'rejected'
           || (index === 3 && 'partial' in official && official.partial)
-          ? ['estonian-warnings', 'finnish-warnings', 'wrecks', 'official', 'finnish-aids'][index]
+          ? ['estonian-warnings', 'finnish-warnings', 'wrecks', 'official', 'finnish-aids', 'local-aids', 'light-sectors', 'exercise-areas'][index]
           : null)
         .filter(Boolean),
     };

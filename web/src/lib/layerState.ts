@@ -3,7 +3,7 @@ import type { LayerState, WindDisplay } from '../components/LayerPanel';
 import { SCALAR_FIELDS } from '../map/colorScales';
 
 const STORAGE_KEY = 'seapro.layers';
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const OVERLAYS = new Set(['chart', 'depth-details', 'bathymetry', 'radar']);
 const WIND_DISPLAYS = new Set<WindDisplay>(['off', 'arrows', 'animated']);
 const BOOLEAN_KEYS = [
@@ -13,6 +13,8 @@ const BOOLEAN_KEYS = [
   'anchorages',
   'placeLabels',
   'navigationWarnings',
+  'lightSectors',
+  'exerciseAreas',
   'navigationAids',
   'aisBaseStations',
   'trafficSchemes',
@@ -38,9 +40,10 @@ export function loadLayerState(defaults: LayerState): LayerState {
     // v1 sisaldas OpenSeaMapi rasterkihti. Migreerime ülejäänud valikud,
     // kuid uued liiklusskeemid ja klikitavad ametlikud märgid saavad uue
     // vaikeväärtuse `true`, mitte vana salvestuse `false`.
-    if (![1, 2, 3, 4, SCHEMA_VERSION].includes(saved.version)) return defaults;
+    if (![1, 2, 3, 4, 5, SCHEMA_VERSION].includes(saved.version)) return defaults;
 
     const next: LayerState = { ...defaults };
+    if (saved.version >= 6 && (saved.lightSectorMode === 'day' || saved.lightSectorMode === 'night')) next.lightSectorMode = saved.lightSectorMode;
     if (Array.isArray(saved.overlays)) {
       next.overlays = [...new Set(saved.overlays.filter(
         (overlay): overlay is string => typeof overlay === 'string' && OVERLAYS.has(overlay),
@@ -59,6 +62,7 @@ export function loadLayerState(defaults: LayerState): LayerState {
       if (saved.version === 1 && (key === 'trafficSchemes' || key === 'officialNavigation')) continue;
       if (saved.version < 3 && key === 'routingGraph') continue;
       if (saved.version < 5 && key === 'aisBaseStations') continue;
+      if (saved.version < 6 && (key === 'lightSectors' || key === 'exerciseAreas')) continue;
       if (typeof saved[key] === 'boolean') next[key] = saved[key];
     }
     return next;

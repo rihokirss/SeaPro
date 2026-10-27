@@ -46,7 +46,7 @@ describe('Eesti navigatsioonimärkide varuallikas', () => {
       const response = await app.inject('/api/navigation?bbox=58.9,23.9,59.1,24.1&include=official');
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(body.errors).toEqual(['official']);
+      expect(body.errors).toEqual(['official', 'local-aids']);
       expect(body.aids).toHaveLength(2);
       expect(body.aids[0]).toMatchObject({ id: 'aton:nma:002', lat: 59, lon: 24, registryStale: false });
       expect(body.fairways).toHaveLength(1);

@@ -24,11 +24,12 @@ export class NavigationSnapshots {
     ttlSeconds: number,
     loader: () => Promise<T>,
     valid: (value: unknown) => value is T,
+    retrySeconds = 300,
   ): Promise<NavigationSnapshot<T>> {
-    // Üks võrgupäring võtme kohta; tõrke järel uus katse kõige varem 5 min pärast.
+    // Jagatud laadimine võtme kohta; tõrke korduskatse paus on allika kaupa valitav.
     const { value: result } = await this.memory.get<
       { snapshot: Snapshot<T> } | { error: unknown }
-    >(key, 300, async () => {
+    >(key, retrySeconds, async () => {
       const file = join(this.directory, `${createHash('sha256').update(key).digest('hex')}.json`);
       let backup: Snapshot<T> | undefined;
       try {

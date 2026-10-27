@@ -386,6 +386,18 @@ describe('routing cost surface precedence', () => {
     expect(cell.reasons).toContain('navigation_warning');
   });
 
+  it('marks a permanent firing area without treating it as an active warning or navigation ban', () => {
+    const warning: RoutingWarning = {
+      id: 'exercise:1A', kind: 'exercise_area', geometry: areaAround(24.012, 59.006),
+      severity: 'caution', source: 'transpordiamet-exercise-areas', fetchedAt: SOURCE.fetchedAt, stale: false,
+    };
+    const cell = detailsNear(surfaceFor({ depthM: 8, warnings: [warning] }), 24.012, 59.006);
+    expect(cell.blocked).toBe(false);
+    expect(cell.costMultiplier).toBe(1);
+    expect(cell.reasons).toContain('exercise_area');
+    expect(cell.reasons).not.toContain('navigation_warning');
+  });
+
   it('classifies correct, crossing and wrong-way movement on a one-way TSS lane', () => {
     const lane: RoutingCorridor = {
       id: 'one-way-lane',

@@ -562,5 +562,21 @@
   "history.gaps": "Valitud ajal esines salvestamiskatkestusi.",
   "history.unavailable": "Laevaajalugu ei ole ajutiselt kättesaadav.",
   "history.storageError": "Brauser ei võimalda lemmikuid püsivalt salvestada.",
-  "history.hideTrack": "Peida teekond"
+  "history.hideTrack": "Peida teekond",
+  "layer.lightSectors": "Tulesektorid",
+  "layer.lightSectors.hint": "Lähedalt sektorite piirid ja värvid; märgile vajutades kogu sektor",
+  "layer.exerciseAreas": "Laskealad",
+  "layer.exerciseAreas.hint": "Püsivad harjutusalad; aktiivsust näitavad navigatsioonihoiatused",
+  "navigation.lightMode": "Tuled",
+  "navigation.lightMode.night": "Öösel",
+  "navigation.lightMode.day": "Päeval",
+  "navigation.exercise-area": "Laskeala",
+  "navigation.exerciseAreaNotice": "Püsiv laskeala. Ala piir ei tähenda kehtivat liikumiskeeldu. Õppuste ajad ja võimalikud piirangud kontrolli kehtivatest navigatsioonihoiatustest.",
+  "navigation.light-sector": "Tulesektor",
+  "navigation.unregulated": "Reglementeerimata märk",
+  "navigation.description": "Kirjeldus",
+  "navigation.lightColour": "Tule värv",
+  "navigation.lightRange": "Nähtavuskaugus",
+  "navigation.lightSectorBearings": "Sektori suunad",
+  "route.auto.reason.exercise_area": "laskeala; kontrolli õppuste aegu navigatsioonihoiatustest"
 }

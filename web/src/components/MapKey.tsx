@@ -24,6 +24,8 @@ interface Props {
   showNavigationAids: boolean;
   showBaseStations: boolean;
   showNavigationWarnings: boolean;
+  showLightSectors: boolean;
+  showExerciseAreas: boolean;
   showWrecks: boolean;
   showWind: boolean;
 }
@@ -37,6 +39,8 @@ export function MapKey({
   showNavigationAids,
   showBaseStations,
   showNavigationWarnings,
+  showLightSectors,
+  showExerciseAreas,
   showWrecks,
   showWind,
 }: Props) {
@@ -46,7 +50,7 @@ export function MapKey({
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const tabs: KeyTab[] = [
-    ...(showNavigationAids || showBaseStations || showNavigationWarnings || showWrecks ? ['navigation' as const] : []),
+    ...(showNavigationAids || showBaseStations || showNavigationWarnings || showLightSectors || showExerciseAreas || showWrecks ? ['navigation' as const] : []),
     ...(showVessels ? ['vessels' as const] : []),
     ...(showStations || showWind ? ['weather' as const] : []),
     ...(showHarbours ? ['places' as const] : []),
@@ -129,6 +133,19 @@ export function MapKey({
               {showNavigationWarnings ? (
                 <p className="mapkey__legend-row"><WarningMark />{t('layer.navigationWarnings')}</p>
               ) : null}
+              {showLightSectors && <p className="mapkey__legend-row">
+                <svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true">
+                  <path d="M3 25 L3 3 A22 22 0 0 1 25 25 Z" fill="#39b979" fillOpacity="0.2" stroke="#39b979" />
+                </svg>{t('layer.lightSectors')}
+              </p>}
+              {showExerciseAreas && <>
+                <p className="mapkey__legend-row">
+                  <svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true">
+                    <path d="M3 6 L24 3 L22 24 L5 22 Z" fill="#9b88a5" fillOpacity="0.08" stroke="#9b88a5" strokeDasharray="4 3" />
+                  </svg>{t('layer.exerciseAreas')}
+                </p>
+                <p className="mapkey__note">{t('layer.exerciseAreas.hint')}</p>
+              </>}
               {showBaseStations ? (
                 <p className="mapkey__legend-row"><BaseStationMark />{t('layer.aisBaseStations')}</p>
               ) : null}

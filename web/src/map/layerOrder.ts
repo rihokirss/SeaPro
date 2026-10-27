@@ -21,6 +21,12 @@ export const LAYER_ORDER = [
   'traffic-scheme-lines',
   'traffic-scheme-recommended',
   'traffic-scheme-arrows',
+  'exercise-areas-fill',
+  'exercise-areas-line',
+  'light-sectors-fill',
+  'light-sectors-line',
+  'light-sectors-selected-fill',
+  'light-sectors-selected',
   // Nähtavad ametlikud laevateed jäävad koos teiste navigatsioonijoontega
   // valevärvivälja alla; lai läbipaistev klikikiht asub objektide juures.
   'official-fairways',

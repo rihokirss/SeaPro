@@ -562,5 +562,21 @@
   "history.gaps": "Recording interruptions occurred during this period.",
   "history.unavailable": "Vessel history is temporarily unavailable.",
   "history.storageError": "This browser cannot persist favorites.",
-  "history.hideTrack": "Hide track"
+  "history.hideTrack": "Hide track",
+  "layer.lightSectors": "Light sectors",
+  "layer.lightSectors.hint": "Boundaries and colours at close zoom; select an aid to highlight its full sector",
+  "layer.exerciseAreas": "Firing areas",
+  "layer.exerciseAreas.hint": "Permanent exercise areas; check navigational warnings for activity",
+  "navigation.lightMode": "Lights",
+  "navigation.lightMode.night": "At night",
+  "navigation.lightMode.day": "By day",
+  "navigation.exercise-area": "Firing area",
+  "navigation.exerciseAreaNotice": "Permanent firing area. The boundary does not imply an active navigation ban. Check current navigational warnings for exercise times and restrictions.",
+  "navigation.light-sector": "Light sector",
+  "navigation.unregulated": "Unregulated aid",
+  "navigation.description": "Description",
+  "navigation.lightColour": "Light colour",
+  "navigation.lightRange": "Nominal range",
+  "navigation.lightSectorBearings": "Sector bearings",
+  "route.auto.reason.exercise_area": "firing area; check navigational warnings for exercise times"
 }

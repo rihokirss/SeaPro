@@ -207,7 +207,7 @@ const WEEKLY_STATIC_ROUTE_SOURCES = new Set([
 function sourceNeedsAttention(source: RoutePlan['sources'][number], nowMs: number): boolean {
   const maxAgeSeconds = source.id === 'transpordiamet-warnings' || source.id === 'traficom-warnings'
     ? 5 * 60
-    : source.id === 'emodnet-depth'
+    : source.id === 'emodnet-depth' || source.id === 'transpordiamet-exercise-areas'
       ? 30 * 24 * 3600
       : WEEKLY_STATIC_ROUTE_SOURCES.has(source.id) ? 7 * 24 * 3600 : 24 * 3600;
   return source.stale || source.coverage !== 'complete'

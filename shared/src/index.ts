@@ -547,10 +547,33 @@ export interface NavigationAid {
   /** Registri tule ja sektorite detailid. */
   lightDetails?: string;
   lightSectors?: string;
+  /** Täiendav kohalik märk, mis ei kuulu reglementeeritud märkide hulka. */
+  unregulated?: boolean;
+  description?: string;
   activeFrom?: string;
   activeTill?: string;
   updatedAt?: string;
-  sources: Array<'registry' | 'vaylavirasto' | 'ais'>;
+  sources: Array<'registry' | 'vaylavirasto' | 'ais' | 'transpordiamet-local'>;
+}
+
+export interface LightSector {
+  id: string;
+  atonCode: string;
+  name: string;
+  geometry: Extract<NavigationGeometry, { type: 'Polygon' | 'MultiPolygon' }>;
+  mode: 'day' | 'night';
+  colour: string;
+  fromDegrees: number;
+  toDegrees: number;
+  rangeNm: number;
+}
+
+/** Püsiv harjutusala; aktiivsuse ja keelud määravad eraldi navigatsioonihoiatused. */
+export interface ExerciseArea {
+  id: string;
+  name: string;
+  geometry: Extract<NavigationGeometry, { type: 'Polygon' | 'MultiPolygon' }>;
+  description?: string;
 }
 
 export interface AisBaseStation {
@@ -621,6 +644,8 @@ export interface NavigationData {
   baseStations: AisBaseStation[];
   fairways: Fairway[];
   trafficSchemes: TrafficScheme[];
+  lightSectors: LightSector[];
+  exerciseAreas: ExerciseArea[];
 }
 
 // ---------------------------------------------------------------------------

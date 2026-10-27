@@ -81,6 +81,9 @@ const DEFAULT_LAYERS: LayerState = {
   anchorages: false,
   placeLabels: true,
   navigationWarnings: true,
+  lightSectors: false,
+  lightSectorMode: 'night',
+  exerciseAreas: false,
   navigationAids: true,
   aisBaseStations: false,
   trafficSchemes: true,
@@ -96,6 +99,8 @@ const EMPTY_NAVIGATION: NavigationData = {
   baseStations: [],
   fairways: [],
   trafficSchemes: [],
+  lightSectors: [],
+  exerciseAreas: [],
 };
 
 /**
@@ -841,6 +846,7 @@ export function App() {
   // --- Navigatsiooniohutus -------------------------------------------------
   const [navigationData, setNavigationData] = useState<NavigationData>(EMPTY_NAVIGATION);
   const wantNavigationData =
+    layers.lightSectors || layers.exerciseAreas ||
     layers.navigationWarnings ||
     layers.navigationAids ||
     layers.aisBaseStations ||
@@ -852,7 +858,9 @@ export function App() {
     if (!wantNavigationData || !view) return;
     let cancelled = false;
 
-    const include: Array<'warnings' | 'aids' | 'baseStations' | 'wrecks' | 'official'> = [];
+    const include: Array<'warnings' | 'aids' | 'baseStations' | 'wrecks' | 'official' | 'lightSectors' | 'exerciseAreas'> = [];
+    if (layers.lightSectors) include.push('lightSectors');
+    if (layers.exerciseAreas) include.push('exerciseAreas');
     if (layers.navigationWarnings) include.push('warnings');
     if (layers.navigationAids) include.push('aids');
     if (layers.aisBaseStations) include.push('baseStations');
@@ -881,6 +889,8 @@ export function App() {
     };
   }, [
     wantNavigationData,
+    layers.lightSectors,
+    layers.exerciseAreas,
     layers.navigationWarnings,
     layers.navigationAids,
     layers.aisBaseStations,
@@ -913,9 +923,12 @@ export function App() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    if (wantNavigation) updateNavigation(map, navigationData);
+    if (wantNavigation) updateNavigation(map, navigationData, layers.lightSectorMode);
     setNavigationVisibility(map, {
       warnings: layers.navigationWarnings,
+      lightSectors: layers.lightSectors,
+      lightSectorMode: layers.lightSectorMode,
+      exerciseAreas: layers.exerciseAreas,
       aids: layers.navigationAids,
       baseStations: layers.aisBaseStations,
       traffic: layers.trafficSchemes,
@@ -923,7 +936,7 @@ export function App() {
       wrecks: layers.wrecks,
       official: layers.officialNavigation,
     });
-  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.aisBaseStations, layers.trafficSchemes, layers.scalarField, layers.wrecks, layers.officialNavigation, mapReady]);
+  }, [navigationData, wantNavigation, layers.navigationWarnings, layers.navigationAids, layers.aisBaseStations, layers.trafficSchemes, layers.scalarField, layers.wrecks, layers.officialNavigation, layers.lightSectors, layers.lightSectorMode, layers.exerciseAreas, mapReady]);
 
   // --- Ettevalmistatud routingugraafi diagnostikakiht ---------------------
   useEffect(() => {
@@ -1434,6 +1447,8 @@ export function App() {
             showNavigationAids={layers.navigationAids || layers.officialNavigation}
             showBaseStations={layers.aisBaseStations}
             showNavigationWarnings={layers.navigationWarnings}
+            showLightSectors={layers.lightSectors}
+            showExerciseAreas={layers.exerciseAreas}
             showWrecks={layers.wrecks}
             showWind={layers.windDisplay !== 'off'}
           />

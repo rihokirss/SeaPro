@@ -70,6 +70,7 @@ export const ROUTING_REASON_CODES = [
   'navigation_warning',
   'official_source_incomplete',
   'official_coverage_unknown',
+  'exercise_area',
 ] as const;
 
 export type RoutingReasonCode = (typeof ROUTING_REASON_CODES)[number];
@@ -95,7 +96,8 @@ const CAUTION_REASON_MASK = REASON_BITS.low_clearance
   | REASON_BITS.structure_unverified
   | REASON_BITS.submerged_hazard
   | REASON_BITS.aton_fault
-  | REASON_BITS.navigation_warning;
+  | REASON_BITS.navigation_warning
+  | REASON_BITS.exercise_area;
 
 export interface RoutingVesselProfile {
   draughtM: number;
@@ -811,7 +813,7 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
   }
 
   function applyWarning(warning: RoutingWarning): void {
-    const radiusM = Math.max(500, projection.cellSizeM * 2);
+    const radiusM = warning.kind === 'exercise_area' ? 0 : Math.max(500, projection.cellSizeM * 2);
     rasterizeGeometry(projection, warning.geometry, radiusM, (index) => {
       // Informatiivne/tavapärane navigatsioonihoiatus peab marsruudil nähtav
       // olema, kuid ei tohi moodustada pika joone ümber kunstlikku seina.
@@ -823,7 +825,7 @@ export function buildRoutingCostSurface(input: BuildRoutingCostSurfaceInput): Ro
       }
       addReason(
         index,
-        warning.kind === 'aton_fault' ? 'aton_fault' : 'navigation_warning',
+        warning.kind === 'aton_fault' ? 'aton_fault' : warning.kind === 'exercise_area' ? 'exercise_area' : 'navigation_warning',
         warning.source,
       );
     }, checkpoint);

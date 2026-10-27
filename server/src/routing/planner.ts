@@ -58,6 +58,7 @@ import {
   loadRoutingVectorData,
 } from './sources/index.js';
 import type { Position, RoutingSourceMeta, RoutingVectorData } from './sourceTypes.js';
+import { loadEstonianExerciseAreas, preferOfficialExerciseAreas } from './sources/estoniaExerciseAreas.js';
 import { loadRoutingWaterMask, routingWaterAt, type RoutingWaterMask } from './waterMask.js';
 
 const MAX_ENDPOINT_SNAP_M = 1_852;
@@ -613,7 +614,9 @@ export async function loadRoutingSnapshot(
   // jätkuvalt rannajoone ja sügavusrastri vastu.
   const preparedFastPath = vessel !== undefined && isSmallCraftRoutingProfile(vessel);
   const vectorLoader = preparedFastPath
-    ? Promise.resolve(emptyRoutingVectorData(bbox))
+    ? loadEstonianExerciseAreas(bbox).then((areas) => ({
+      ...emptyRoutingVectorData(bbox), warnings: areas.warnings, sources: [areas.source],
+    }))
     : loadRoutingVectorData(
       bbox,
       departureTime,
@@ -691,7 +694,10 @@ function withPreparedRoutingSupport(
     ...vectors,
     hazards: mergeFeatures(support.hazards, vectors.hazards),
     corridors: mergeFeatures(support.corridors, vectors.corridors),
-    restrictions: mergeFeatures(support.restrictions, vectors.restrictions),
+    restrictions: preferOfficialExerciseAreas(mergeFeatures(support.restrictions, vectors.restrictions),
+      vectors.warnings.flatMap((warning) => warning.kind === 'exercise_area'
+        && (warning.geometry.type === 'Polygon' || warning.geometry.type === 'MultiPolygon')
+        ? [{ id: warning.id, name: warning.name ?? '', geometry: warning.geometry }] : [])),
     sources: mergeFeatures(support.sources, vectors.sources),
   };
 }

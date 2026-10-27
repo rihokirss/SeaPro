@@ -66,6 +66,7 @@ export function categoryFromRegistry(
   if (value.includes('teljepoi') || value.includes('teljetooder')) return 'safe-water';
   if (
     value.includes('ohupoi')
+    || value.includes('ohumark')
     || value.includes('uksikohu')
     || value.includes('eraldiasuva ohu')
     || value.includes('eraldiseisva ohu')

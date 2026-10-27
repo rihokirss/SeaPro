@@ -248,7 +248,7 @@ export const api = {
 
   navigation(
     bbox: [number, number, number, number],
-    include: Array<'warnings' | 'aids' | 'baseStations' | 'wrecks' | 'official'>,
+    include: Array<'warnings' | 'aids' | 'baseStations' | 'wrecks' | 'official' | 'lightSectors' | 'exerciseAreas'>,
     signal?: AbortSignal,
   ) {
     const p = new URLSearchParams({ bbox: bbox.map((n) => n.toFixed(3)).join(',') });

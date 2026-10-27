@@ -2,6 +2,7 @@ import type { BBox } from '@seapro/shared';
 import type { RoutingSourceId, RoutingSourceMeta, RoutingVectorData } from '../sourceTypes.js';
 import { loadEstonianRoutingData } from './estonia.js';
 import { loadEstonianRoutingWarnings } from './estoniaWarnings.js';
+import { loadEstonianExerciseAreas, preferOfficialExerciseAreas } from './estoniaExerciseAreas.js';
 import { loadFinnishRoutingWarnings } from './finlandWarnings.js';
 import { loadFinnishRoutingData } from './finland.js';
 import { loadOsmRoutingData } from './osm.js';
@@ -76,7 +77,7 @@ export async function loadRoutingVectorData(
   // katte režiimi — otsing muudab vastava ala tundmatuks, mitte ei sure —
   // ja mahajäänud päring jookseb taustal lõpuni ning soojendab cache'i
   // järgmiseks katseks.
-  const [estonia, estonianWarnings, finland, finnishWarnings, osm] = await Promise.all([
+  const [estonia, estonianWarnings, finland, finnishWarnings, osm, exerciseAreas] = await Promise.all([
     timedSource('transpordiamet_his', () => withSourceBudget(loadEstonianRoutingData(bbox), () => ({
       hazards: [], corridors: [], surveyAreas: [], harbours: [],
       source: budgetExceededMeta('transpordiamet-his',
@@ -109,17 +110,23 @@ export async function loadRoutingVectorData(
         '© OpenStreetMap contributors / OpenSeaMap seamarks',
         'https://www.openstreetmap.org/copyright'),
     })), onPhase),
+    timedSource('transpordiamet_exercise_areas', () => withSourceBudget(loadEstonianExerciseAreas(bbox), () => ({
+      areas: [], warnings: [], source: budgetExceededMeta('transpordiamet-exercise-areas',
+        'Transpordiamet, laskealad',
+        'https://gis.transpordiamet.ee/arcgis/rest/services/Navigatsioonihoiatused/Laskealad/MapServer'),
+    })), onPhase),
   ]);
 
   return {
     bbox: [...bbox],
     hazards: sortById([...estonia.hazards, ...finland.hazards, ...osm.hazards]),
     corridors: sortById([...estonia.corridors, ...finland.corridors, ...osm.corridors]),
-    restrictions: sortById([...finland.restrictions, ...osm.restrictions]),
+    restrictions: sortById([...finland.restrictions, ...preferOfficialExerciseAreas(osm.restrictions, exerciseAreas.areas)]),
     warnings: sortById([
       ...estonianWarnings.warnings,
       ...finland.warnings,
       ...finnishWarnings.warnings,
+      ...exerciseAreas.warnings,
     ]),
     surveyAreas: sortById(estonia.surveyAreas),
     harbours: sortById([...estonia.harbours, ...osm.harbours]),
@@ -129,6 +136,7 @@ export async function loadRoutingVectorData(
       finland.source,
       finnishWarnings.source,
       osm.source,
+      exerciseAreas.source,
     ],
   };
 }

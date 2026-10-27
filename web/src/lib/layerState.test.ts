@@ -12,6 +12,9 @@ const defaults: LayerState = {
   anchorages: false,
   placeLabels: true,
   navigationWarnings: false,
+  lightSectors: false,
+  lightSectorMode: 'night',
+  exerciseAreas: false,
   navigationAids: false,
   aisBaseStations: false,
   trafficSchemes: false,
@@ -53,13 +56,20 @@ describe('layer state routing graph migration', () => {
     expect(loadLayerState(defaults).aisBaseStations).toBe(false);
   });
 
-  it('persists the toggles in version 5', () => {
+  it('persists the toggles in version 6', () => {
     saveLayerState({ ...defaults, routingGraph: true, aisBaseStations: true });
 
     expect(JSON.parse(values.get('seapro.layers')!)).toMatchObject({
-      version: 5,
+      version: 6,
       routingGraph: true,
       aisBaseStations: true,
     });
+  });
+
+  it('keeps new navigation overlays off when upgrading and persists the selected light mode', () => {
+    values.set('seapro.layers', JSON.stringify({ version: 5, lightSectors: true, exerciseAreas: true, lightSectorMode: 'day' }));
+    expect(loadLayerState(defaults)).toMatchObject({ lightSectors: false, exerciseAreas: false, lightSectorMode: 'night' });
+    saveLayerState({ ...defaults, lightSectors: true, exerciseAreas: true, lightSectorMode: 'day' });
+    expect(loadLayerState(defaults)).toMatchObject({ lightSectors: true, exerciseAreas: true, lightSectorMode: 'day' });
   });
 });

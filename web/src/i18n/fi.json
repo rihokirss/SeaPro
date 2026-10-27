@@ -562,5 +562,21 @@
   "history.gaps": "Tällä aikavälillä oli tallennuskatkoksia.",
   "history.unavailable": "Alushistoria ei ole juuri nyt saatavilla.",
   "history.storageError": "Selain ei voi tallentaa suosikkeja pysyvästi.",
-  "history.hideTrack": "Piilota reitti"
+  "history.hideTrack": "Piilota reitti",
+  "layer.lightSectors": "Valosektorit",
+  "layer.lightSectors.hint": "Rajat ja värit lähinäkymässä; valitse turvalaite korostaaksesi koko sektorin",
+  "layer.exerciseAreas": "Ampuma-alueet",
+  "layer.exerciseAreas.hint": "Pysyvät harjoitusalueet; tarkista toiminta merenkulkuvaroituksista",
+  "navigation.lightMode": "Valot",
+  "navigation.lightMode.night": "Yöllä",
+  "navigation.lightMode.day": "Päivällä",
+  "navigation.exercise-area": "Ampuma-alue",
+  "navigation.exerciseAreaNotice": "Pysyvä ampuma-alue. Alueraja ei tarkoita voimassa olevaa liikkumiskieltoa. Tarkista harjoitusajat ja rajoitukset voimassa olevista merenkulkuvaroituksista.",
+  "navigation.light-sector": "Valosektori",
+  "navigation.unregulated": "Sääntelemätön turvalaite",
+  "navigation.description": "Kuvaus",
+  "navigation.lightColour": "Valon väri",
+  "navigation.lightRange": "Näkyvyys",
+  "navigation.lightSectorBearings": "Sektorin suunnat",
+  "route.auto.reason.exercise_area": "ampuma-alue; tarkista harjoitusajat merenkulkuvaroituksista"
 }

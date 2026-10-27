@@ -9,6 +9,7 @@ import { VESSEL_LAYERS } from './layers/vessels';
 import { navilyUrl } from '../lib/navily';
 import { ANCHORAGES_LAYER, HARBOURS_LAYER } from './layers/harbours';
 import { NAVIGATION_CLICK_LAYERS } from './layers/navigation';
+import { setSelectedLightSector } from './layers/navigationExtras';
 
 /**
  * Kaardimarkerite popupid.
@@ -109,10 +110,11 @@ interface ClickTarget {
   kind: string;
   lngLat: maplibregl.LngLatLike;
   html: string;
+  atonCode?: string;
 }
 
 export function registerPopups(map: MapLibreMap, getContext: () => PopupContext): void {
-  const show = (featureId: string, lngLat: maplibregl.LngLatLike, html: string): boolean => {
+  const show = (featureId: string, lngLat: maplibregl.LngLatLike, html: string, atonCode?: string): boolean => {
     // Sama objekt teist korda = sulge.
     if (popup?.isOpen() && openFeatureId === featureId) {
       closePopup();
@@ -147,6 +149,7 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
       .setLngLat(lngLat)
       .setHTML(html)
       .addTo(map);
+    setSelectedLightSector(map, atonCode ?? null);
 
     popup.getElement().querySelectorAll<HTMLButtonElement>('[data-vessel-action]').forEach(button => {
       button.addEventListener('click', event => {
@@ -163,6 +166,7 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
     // vajutust.
     popup.on('close', () => {
       openFeatureId = null;
+      setSelectedLightSector(map, null);
     });
 
     return true;
@@ -203,7 +207,7 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
 
     if (targets.length === 1) {
       const target = targets[0]!;
-      show(target.id, target.lngLat, target.html);
+      show(target.id, target.lngLat, target.html, target.atonCode);
       return;
     }
 
@@ -228,7 +232,7 @@ export function registerPopups(map: MapLibreMap, getContext: () => PopupContext)
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         const target = targets[Number(button.dataset.choiceIndex)];
-        if (target) show(target.id, target.lngLat, target.html);
+        if (target) show(target.id, target.lngLat, target.html, target.atonCode);
       });
     });
   });
@@ -453,6 +457,7 @@ function clickTarget(
       kind,
       lngLat,
       html: navigationHtml(f, ctx),
+      atonCode: typeof p.atonCode === 'string' ? p.atonCode : undefined,
     };
   }
 
@@ -771,7 +776,18 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
   let notice = '';
   let message = '';
 
-  if (kind === 'warning') {
+  if (kind === 'exercise-area') {
+    title = `${t('navigation.exercise-area')} ${title}`;
+    message = multiline(t('navigation.exerciseAreaNotice'));
+    addMultilineText(rows, t('navigation.description'), p.description);
+  } else if (kind === 'light-sector') {
+    addText(rows, t('navigation.aidNumber'), p.atonCode);
+    addText(rows, t('navigation.lightMode'), t(`navigation.lightMode.${p.mode}`));
+    addText(rows, t('navigation.lightColour'), p.colour);
+    const from = nullableNumber(p.fromDegrees), to = nullableNumber(p.toDegrees);
+    if (from !== null && to !== null) rows.push(row(t('navigation.lightSectorBearings'), `${from}°–${to}°`, ''));
+    addMetric(rows, t('navigation.lightRange'), p.rangeNm, 'NM');
+  } else if (kind === 'warning') {
     title = localizedWarning(p.titleEt, p.titleEn, p.titleFi, ctx) || t('navigation.warning');
     kindLabel = t('navigation.warning');
     const number = nullableNumber(p.number);
@@ -798,6 +814,8 @@ function navigationHtml(f: MapGeoJSONFeature, ctx: PopupContext): string {
     addText(rows, t('navigation.condition'), p.condition);
   } else if (kind === 'aid') {
     title ||= t('navigation.aid');
+    if (p.unregulated === true) kindLabel = t('navigation.unregulated');
+    addMultilineText(rows, t('navigation.description'), p.description);
     if (Boolean(p.virtual)) notice = t('navigation.virtual');
     if (Boolean(p.offPosition)) notice = t('navigation.offPosition');
     if (p.registryStale === true) {
@@ -930,6 +948,7 @@ function navigationAidSource(sources: string): string {
   if (sources.includes('registry')) labels.push('Transpordiamet · NMA');
   if (sources.includes('vaylavirasto')) labels.push('Väylävirasto');
   if (sources.includes('ais')) labels.push('AIS');
+  if (sources.includes('transpordiamet-local')) labels.push('Transpordiamet · Nutimeri');
   return labels.join(' + ') || 'AIS';
 }
 
