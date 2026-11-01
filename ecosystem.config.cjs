@@ -12,6 +12,9 @@ module.exports = {
       name: 'seapro',
       script: 'server/dist/index.js',
       cwd: __dirname,
+      // Kasuta sama Node'i, millega seadistus laeti; PM2 deemoni vana PATH
+      // võib muidu käivitada rakenduse aegunud Node'i versiooniga.
+      interpreter: process.execPath,
 
       // .env otsitakse cwd suhtes. Vahemälu ja web/dist leiab server ise
       // import.meta.url kaudu, seega cwd neid ei mõjuta.
