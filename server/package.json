@@ -12,11 +12,11 @@
     "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
-    "@fastify/static": "^10.1.8",
+    "@fastify/static": "^10.1.10",
     "@mapbox/vector-tile": "^3.0.0",
     "@seapro/shared": "*",
-    "d3-contour": "^4.0.2",
-    "fastify": "^5.12.7",
+    "d3-contour": "^4.0.3",
+    "fastify": "^5.12.8",
     "geotiff": "^3.0.5",
     "mqtt": "^5.16.1",
     "pbf": "^5.1.2",
