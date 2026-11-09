@@ -14,7 +14,7 @@
     "@seapro/shared": "*",
     "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",
-    "lucide-react": "^1.66.0",
+    "lucide-react": "^1.69.0",
     "maplibre-gl": "^6.16.0",
     "pmtiles": "^4.5.0",
     "react": "^19.3.1",
