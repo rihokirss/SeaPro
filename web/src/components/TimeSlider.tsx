@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { localeTag, useI18n } from '../i18n';
-import { addHours, floorToHour, formatDay, formatTime, hoursBetween, isSameLocalDay } from '../lib/time';
+import { nightPeriods, type NightPeriod } from '../lib/daylight';
+import { addHours, floorToHour, formatDay, formatTime, hoursBetween } from '../lib/time';
 
 interface Props {
   value: Date;
   onChange(next: Date): void;
+  lat: number;
+  lon: number;
   pastHours?: number;
   futureHours?: number;
   /** Mudeli nimi ja viimane uuendus — usaldusinfo, nagu Windfinderil. */
@@ -23,6 +26,21 @@ const FALLBACK_HOUR_W = 13;
 const SETTLE_MS = 220;
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
+
+/** Each tick sits at the cell's centre: its edges represent ±30 minutes. */
+function nightShade(time: number, periods: NightPeriod[]): string | undefined {
+  const start = time - 1_800_000;
+  const end = time + 1_800_000;
+  const stops = periods.flatMap(([from, to]) => {
+    const lo = Math.max(start, from);
+    const hi = Math.min(end, to);
+    if (hi <= lo) return [];
+    const a = (lo - start) / 36_000;
+    const b = (hi - start) / 36_000;
+    return [`transparent ${a}%`, `var(--timebar-night) ${a}% ${b}%`, `transparent ${b}%`];
+  });
+  return stops.length ? `linear-gradient(to right, ${stops.join(', ')})` : undefined;
+}
 
 /**
  * Ajalint.
@@ -46,6 +64,8 @@ const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.m
 export function TimeSlider({
   value,
   onChange,
+  lat,
+  lon,
   pastHours = 6,
   futureHours = 120,
   modelLabel,
@@ -102,12 +122,15 @@ export function TimeSlider({
    * lahter), hõredamalt kaob orientiir.
    */
   const cells = useMemo(() => {
+    const nights = nightPeriods(
+      addHours(origin, -0.5).getTime(), addHours(origin, total + 0.5).getTime(), lat, lon,
+    );
     const out: {
       i: number;
       hour: number;
       time: string | null;
       day: string | null;
-      night: boolean;
+      backgroundImage: string | undefined;
     }[] = [];
     for (let i = 0; i <= total; i++) {
       const d = addHours(origin, i);
@@ -125,11 +148,11 @@ export function TimeSlider({
                 day: 'numeric',
               })
             : null,
-        night: hour >= 21 || hour < 5,
+        backgroundImage: nightShade(d.getTime(), nights),
       });
     }
     return out;
-  }, [origin, total, lang]);
+  }, [origin, total, lang, lat, lon]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const hourW = useRef(FALLBACK_HOUR_W);
@@ -310,9 +333,9 @@ export function TimeSlider({
               className={
                 'timebar__hour' +
                 (c.day ? ' is-daystart' : '') +
-                (c.night ? ' is-night' : '') +
                 (c.i === nowIndex ? ' is-now' : '')
               }
+              style={{ backgroundImage: c.backgroundImage }}
             >
               {c.day ? <span className="timebar__daylabel">{c.day}</span> : null}
               {c.time ? <span className="timebar__hourlabel">{c.time}</span> : null}

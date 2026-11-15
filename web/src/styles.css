@@ -2469,6 +2469,8 @@ button.sheet__grip::before {
 }
 
 .timebar__hour {
+  /* Päikeseloojangust päikesetõusuni; piir võib jääda ka tunni sisse. */
+  --timebar-night: rgba(2, 12, 20, 0.28);
   position: relative;
   flex: 0 0 var(--hour-w);
   scroll-snap-align: center;
@@ -2490,12 +2492,6 @@ button.sheet__grip::before {
 .timebar__hour:has(.timebar__hourlabel)::after {
   height: 9px;
   background: var(--text-faint);
-}
-
-/* Öö on tumedam. Ööpäeva rütm on merel plaani osa ("enne pimedat tagasi") ja
-   ühe pilguga loetav vöönd ütleb seda kiiremini kui kellanumbrid. */
-.timebar__hour.is-night {
-  background: rgba(2, 12, 20, 0.28);
 }
 
 /* Päevapiir: joon lahtri VASAKUS servas, sest seal vahetub päev. */

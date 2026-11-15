@@ -12,16 +12,16 @@
     "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
-    "@fastify/static": "^10.1.8",
+    "@fastify/static": "^10.1.10",
     "@mapbox/vector-tile": "^3.0.0",
     "@seapro/shared": "*",
-    "d3-contour": "^4.0.2",
-    "fastify": "^5.12.7",
+    "d3-contour": "^4.0.3",
+    "fastify": "^5.12.8",
     "geotiff": "^3.0.5",
     "mqtt": "^5.16.1",
     "pbf": "^5.1.2",
     "pg": "^8.23.1",
-    "ws": "^8.22.1"
+    "ws": "^8.22.2"
   },
   "devDependencies": {
     "@types/d3-contour": "^3.0.6",
@@ -32,6 +32,6 @@
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   }
 }

@@ -449,7 +449,9 @@ export function App() {
   const [pointLoading, setPointLoading] = useState(false);
   const [pointError, setPointError] = useState<string | null>(null);
 
-  const [view, setView] = useState<{ bbox: [number, number, number, number]; zoom: number } | null>(
+  const [view, setView] = useState<{
+    bbox: [number, number, number, number]; zoom: number; center: [number, number];
+  } | null>(
     null,
   );
 
@@ -1287,12 +1289,14 @@ export function App() {
   const handleMoveEnd = useCallback((bbox: [number, number, number, number], zoom: number) => {
     if (moveTimer.current !== null) window.clearTimeout(moveTimer.current);
     moveTimer.current = window.setTimeout(() => {
-      setView({ bbox, zoom });
       // Keskpunkt tuleb kaardilt endalt — onMoveEnd annab ainult ala ja zoomi.
       // Salvestus käib sama viivituse sees, et lohistamine ei kirjutaks
       // localStorage'i iga kaadri kohta.
       const c = mapRef.current?.getCenter();
-      if (c) saveMapView({ lat: c.lat, lon: c.lng, zoom });
+      if (c) {
+        setView({ bbox, zoom, center: [c.lat, c.lng] });
+        saveMapView({ lat: c.lat, lon: c.lng, zoom });
+      }
     }, 350);
   }, []);
   useEffect(() => {
@@ -1458,6 +1462,8 @@ export function App() {
         <TimeSlider
           value={selectedTime}
           onChange={setSelectedTime}
+          lat={view?.center[0] ?? center[0]}
+          lon={view?.center[1] ?? center[1]}
           futureHours={SLIDER_HOURS}
           modelLabel={modelLabel}
           updatedAt={gridFrame ? gridFrame.time : null}
