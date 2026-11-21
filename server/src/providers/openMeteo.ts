@@ -10,6 +10,7 @@ import type {
 import { cache, type CachedResult } from '../cache.js';
 import { config } from '../config.js';
 import { HttpError, fetchJson } from '../http.js';
+import { PriorityGate } from '../requestGate.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { usageMeter, type OpenMeteoApi, type OpenMeteoUse } from '../usage.js';
 import { round, type GridQuery, type PointQuery, type WeatherProvider } from './types.js';
@@ -230,54 +231,32 @@ export function queryWeight(opts: {
   const variablesFraction = (opts.variables * (opts.models ?? 1)) / 10;
   const timeFraction = opts.days / 14;
   const perLocation = Math.max(1, variablesFraction * Math.max(1, timeFraction));
-  return Math.ceil(opts.locations * perLocation);
+  return opts.locations * perLocation;
 }
 
-function secondsToNextHour(): number {
-  return Math.ceil((3600_000 - (Date.now() % 3600_000)) / 1000);
+/** Open-Meteo annab 429 vastuses ooteaja, vanemad vastused ainult põhjuse. */
+export function openMeteoLimit(error: HttpError, source: string): RateLimitError {
+  const reason = error.body ?? '';
+  const window = /daily/i.test(reason) ? 'day' : /hourly/i.test(reason) ? 'hour' : 'minute';
+  const period = { day: 86_400, hour: 3600, minute: 60 }[window];
+  const fallback = window === 'minute' ? 60 : period - Math.floor(Date.now() / 1000) % period;
+  return new RateLimitError(source, error.retryAfterSeconds ?? fallback, window);
 }
 
-function secondsToUtcMidnight(): number {
-  const now = new Date();
-  const midnight = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate() + 1,
-    0,
-    0,
-    0,
-  );
-  return Math.ceil((midnight - now.getTime()) / 1000);
-}
-
-/**
- * Kutsub Open-Meteot, hoides päringueelarvet ausana.
- *
- * Neli asja, mis siin koos peavad olema:
- *
- *  1. Eelarve broneeritakse ENNE päringut — muidu võiks kümme samaaegset
- *     päringut limiidist üle joosta.
- *  2. Ebaõnnestumise korral tagastatakse see. Varem jäi kulu külge ka siis,
- *     kui vastust ei tulnud: eelarve tühjenes ilma ühegi andmereata.
- *  3. Allika enda 429 paneb jahtumise peale. Ilma selleta pommitas iga
- *     kliendipäring allikat edasi ja meie eelarve sulas — täpselt see
- *     juhtuski, kui Open-Meteo tunnilimiit täis sai.
- *  4. Õnnestumine LÕPETAB jahtumise. Muidu istuks rakendus ooteajas ka siis,
- *     kui allikas on juba taastunud (nt IP vahetus).
- */
-/**
- * Kumb eelarve. Prognoosi- ja mere-API on eri hostid ja neil on ERALDI kvoot —
- * mõõdetult: forecast vastas 429-ga ("Daily API request limit exceeded") samal
- * ajal, kui marine andis 200. Ühine eelarve tähendaks, et tuulekihi limiit
- * lülitaks välja ka lainekihi, ilma et selleks põhjust oleks.
- */
 function apiFor(url: string): OpenMeteoApi {
   return url.includes('marine-api.open-meteo.com') ? 'marine' : 'forecast';
 }
 
+const freeRequestGate = new PriorityGate(4);
+
 async function fetchBudgeted<T>(url: string, cost: number, use: OpenMeteoUse): Promise<T> {
   const api = apiFor(url);
   const free = url.startsWith(ENDPOINTS[api].free);
+  const load = () => fetchCounted<T>(url, cost, use, api, free);
+  return free ? freeRequestGate.run(use === 'point' ? 'foreground' : 'background', load) : load();
+}
+
+async function fetchCounted<T>(url: string, cost: number, use: OpenMeteoUse, api: OpenMeteoApi, free: boolean): Promise<T> {
   const source = free
     ? api === 'marine'
       ? 'open-meteo-marine'
@@ -285,38 +264,22 @@ async function fetchBudgeted<T>(url: string, cost: number, use: OpenMeteoUse): P
     : api === 'marine'
       ? 'open-meteo-marine-commercial'
       : 'open-meteo-commercial';
-  rateLimiter.spend(source, cost);
+  const reservedAt = Date.now();
+  rateLimiter.spend(source, cost, reservedAt);
   // Mõõdame alles PÄRAST tasuta režiimi kaitsepiirajat: piiraja poolt peatatud
   // päring ei läinud Open-Meteole ega tohi tasulise kasutusena kirja minna.
   usageMeter.recordUpstreamRequest(api, use, cost);
   try {
-    const result = await fetchJson<T>(url);
+    const result = await fetchJson<T>(url, free ? { retries: 0 } : undefined);
     usageMeter.recordUpstreamResult(api, use, true);
-    // Õnnestunud vastus tähendab, et allikas on taas saadaval — kui me olime
-    // jahtumises, pole selle hoidmine enam põhjendatud.
-    rateLimiter.recovered(source);
     return result;
   } catch (err) {
     usageMeter.recordUpstreamResult(api, use, false);
-    rateLimiter.refund(source, cost);
+    rateLimiter.refund(source, cost, reservedAt);
     if (err instanceof HttpError && err.status === 429) {
-      // Open-Meteol on KAKS limiiti ja need lähtestuvad eri ajal. Vastuse keha
-      // ütleb, kumma vastu jooksti:
-      //   "Hourly API request limit exceeded"  -> järgmine täistund
-      //   "Daily API request limit exceeded"   -> järgmine UTC-kesköö
-      //
-      // Enne eeldas kood alati tunnilimiiti. Päevalimiidi puhul tähendas see,
-      // et proovipäring läks iga minut uuesti välja ja sai iga kord 429 —
-      // terve päeva jooksul sadu asjatuid päringuid allikale, mis oli meid
-      // just üle koormamise eest hoiatanud.
-      const daily = /daily/i.test(err.body ?? '');
-      const retryAfterSeconds = daily ? secondsToUtcMidnight() : secondsToNextHour();
-      rateLimiter.cooldown(source, retryAfterSeconds);
-      // Esimene 429 peab kliendile andma sama täpse akna nagu kõik cooldown'i
-      // ajal järgnevad päringud. Toore HttpErrori puhul eeldas marsruut alati
-      // tunnilimiiti ja näitas päevase limiidi korral eksitavalt liiga lühikest
-      // ooteaega.
-      throw new RateLimitError(source, retryAfterSeconds, daily ? 'day' : 'hour');
+      const limit = openMeteoLimit(err, source);
+      rateLimiter.cooldown(source, limit.retryAfterSeconds, limit.window);
+      throw limit;
     }
     throw err;
   }
@@ -423,19 +386,8 @@ export const TILE_N = 4;
  */
 const MAX_TILES = 32;
 
-/**
- * Mitu ööpäeva korraga ühte paani tõmmatakse.
- *
- * Kaal ei sõltu ajavahemikust kuni 14 päevani (vt `queryWeight`), seega maksab
- * nädal TÄPSELT sama palju kui üks päev. Varem tõmbasime ühe ööpäeva korraga
- * ja klient laadis eelhaardega kolm päeva — see oli kolmekordne hind sama
- * kutsekaalu eest, mille oleks saanud ühe päringuga.
- *
- * Miks mitte 14: kaal on sama, aga vastuse maht kasvab lineaarselt. Seitse
- * päeva mahub kettavahemälu kirjepiiri (512 kB) sisse ja katab prognoosi
- * kasuliku osa; üle selle on väärtus niikuinii nõrk.
- */
-const BLOCK_DAYS = 7;
+/** Eilne, tänane ja kuus järgmist UTC-päeva jagavad ühte paanipäringut. */
+const BLOCK_DAYS = 8;
 
 /**
  * Punktiprognoosi aken päevades (+ 1 päev minevikku).
@@ -645,9 +597,6 @@ export class OpenMeteoProvider implements WeatherProvider {
         ? Object.keys(WAVE_VARS)
         : wantedApiVars;
 
-    // Mitmepäevane plokk, mis sisaldab küsitud tundi. Joondus on UTC-päeva
-    // piiril ja ploki algus on TÄNANE kesköö — nii langevad "täna", "homme" ja
-    // "ülehomme" ühe ja sama vahemäluvõtme sisse.
     const { blockStart, blockEnd } = timeBlock(q.time);
 
     // Vali võresamm nii, et vaatesse jääks kliendi ekraanisuurusele sobiv
@@ -698,10 +647,18 @@ export class OpenMeteoProvider implements WeatherProvider {
       lons.push(...part.lons);
       responses.push(...(Array.isArray(part.value) ? part.value : [part.value]));
     }
+    let limit: RateLimitError | undefined;
+    for (const error of failures) {
+      const candidate = error instanceof HttpError && error.status === 429
+        ? openMeteoLimit(error, isMarine ? 'open-meteo-marine' : 'open-meteo') : error;
+      if (candidate instanceof RateLimitError && (!limit || candidate.retryAfterSeconds > limit.retryAfterSeconds)) {
+        limit = candidate;
+      }
+    }
     // Kui mitte ühtegi paani pole alles, peab viga jõudma marsruudini: UI näitab
     // siis limiiditeadet ega tõlgenda tühja 200-vastust edukaks laadimiseks.
     if (responses.length === 0) {
-      if (failures.length > 0) throw failures[0];
+      if (failures.length > 0) throw limit ?? failures[0];
       return { frames: [] };
     }
 
@@ -762,22 +719,10 @@ export class OpenMeteoProvider implements WeatherProvider {
     });
 
     let warning: GridDayResult['warning'];
-    if (failures.length > 0) {
-      const limited = failures.find(
-        (err) => err instanceof RateLimitError || (err instanceof HttpError && err.status === 429),
-      );
-      if (limited instanceof RateLimitError) {
-        warning = { kind: 'rate_limited', retryAfterSeconds: limited.retryAfterSeconds };
-      } else if (limited instanceof HttpError) {
-        warning = {
-          kind: 'rate_limited',
-          retryAfterSeconds: /daily/i.test(limited.body ?? '')
-            ? secondsToUtcMidnight()
-            : secondsToNextHour(),
-        };
-      } else {
-        warning = { kind: 'error' };
-      }
+    if (limit) {
+      warning = { kind: 'rate_limited', retryAfterSeconds: limit.retryAfterSeconds, localBudget: limit.localBudget };
+    } else if (failures.length) {
+      warning = { kind: 'error' };
     }
 
     const parts = fetched.filter((part) => part !== null);
@@ -834,9 +779,6 @@ export class OpenMeteoProvider implements WeatherProvider {
       wind_speed_unit: 'ms',
       timeformat: 'iso8601',
       timezone: 'GMT',
-      // Terve NÄDAL korraga. Kaal ei sõltu ajavahemikust kuni 14 päevani, seega
-      // maksab 168 tundi sama palju kui üks — ja nii ajaliuguri kerimine kui ka
-      // järgmiste päevade eelhaare on pärast esimest tõmmet tasuta.
       start_hour: blockStart,
       end_hour: blockEnd,
       // Merevälju küsime merelahtritest; tuult ja õhku aga lähimast lahtrist —
@@ -1008,20 +950,10 @@ function normalizeTime(t: string): string {
   return t.endsWith('Z') ? t : `${t}:00Z`.replace(/:00:00Z$/, ':00Z');
 }
 
-/**
- * `BLOCK_DAYS` päeva pikkune plokk, mis sisaldab antud hetke.
- *
- * Ankur on TÄNANE UTC-kesköö, mitte küsitud päeva oma. Vahe on kogu säästu
- * mõte: kui iga küsitud päev alustaks oma plokki, oleks kolme päeva eelhaardel
- * kolm eri vahemäluvõtit ja kolm eri päringut. Ühine ankur tähendab, et kõik
- * ploki sisse jäävad päevad tulevad ÜHEST päringust.
- *
- * Ploki taha või ette jäävad ajad (minevik, kaugem tulevik) saavad varuvariandina
- * oma päevaga algava ploki — haruldane, aga ei tohi tühja anda.
- */
+/** Väljaspool ühist kaardiakent algab plokk küsitud päevast. */
 function timeBlock(iso: string): { blockStart: string; blockEnd: string } {
   const now = new Date();
-  const anchor = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const anchor = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1);
   const blockMs = BLOCK_DAYS * 24 * 3600_000;
 
   const wanted = new Date(iso);

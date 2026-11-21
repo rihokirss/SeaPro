@@ -205,7 +205,7 @@ export interface GridDayResult {
   /** Vanima kasutatud paani laadimis- ja värskuse lõppaeg (UTC). */
   freshness?: { fetchedAt: string; expiresAt: string; stale: boolean; partial: boolean };
   warning?:
-    | { kind: 'rate_limited'; retryAfterSeconds: number }
+    | { kind: 'rate_limited'; retryAfterSeconds: number; localBudget?: boolean }
     | { kind: 'error' };
 }
 

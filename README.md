@@ -56,10 +56,11 @@ weight = sum over locations:
          max(1, (number of variables × number of models / 10) × max(1, number of days / 14))
 ```
 
-SeaPro accounts for the external service's hourly limit of 5,000 request units
-and daily limit of 10,000 units. To leave a safety margin, the application's own
-rate limiter stops new Open-Meteo requests at 3,000 units per hour and 8,000
-units per day. Atmospheric and marine API budgets are tracked separately.
+Open-Meteo lists 600 request units per minute, 5,000 per hour, 10,000 per day
+and 300,000 per month for free non-commercial use. SeaPro reserves a shared
+budget of 560 units per minute, 3,000 per hour and 8,000 per day for forecast
+and marine calls. Each host observes its own HTTP 429 wait time.
+[Open-Meteo pricing](https://open-meteo.com/en/pricing)
 
 To use a paid Open-Meteo plan, add `OPEN_METEO_API_KEY` to the server's `.env`
 file. When the key is present, SeaPro automatically uses the reserved
@@ -77,10 +78,10 @@ response. The metrics are persisted in `data/openmeteo-usage.json`.
 
 To keep request volume under control:
 
-- the map grid contains at most 8 × 8 points, or 64 locations per request;
+- a map view uses up to 32 tiles, each with 4 × 4 locations;
 - nearby map views and selected points are snapped to the same grid so they can
   share cached data;
-- one request fetches the full set of variables and up to seven days of data,
+- one tile request covers yesterday, today and the following six days,
   because requesting up to ten variables and 14 days does not increase the
   minimum weight of a location;
 - the client creates a dense map view by interpolating the sparse grid;

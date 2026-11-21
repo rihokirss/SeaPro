@@ -2,7 +2,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { GridDayResult, Variable } from '@seapro/shared';
-import { api } from './api';
+import { api, RateLimitedError } from './api';
 import { useGridDays } from './useGridDays';
 
 vi.mock('./api', async (original) => ({ ...await original<typeof import('./api')>(), api: { gridDay: vi.fn() } }));
@@ -52,6 +52,7 @@ it('keeps the rate-limit reason when only part of the area is available', async 
   }));
   const { result } = renderHook(() => useGridDays(params));
   await waitFor(() => expect(result.current.notice).toBe('limited'));
+  expect(result.current.detail).toBe('missing');
 });
 
 it('refreshes expired entries on navigation, without background polling', async () => {
@@ -95,4 +96,23 @@ it('hides a disabled layer warning immediately', async () => {
   rerender({ ...params, vars: [] });
   expect(result.current.notice).toBeNull();
   expect(result.current.frames).toEqual([]);
+});
+
+it.each([[true, 'budget'], [false, 'limited']] as const)('identifies a cold-start limit (local budget: %s)', async (local, notice) => {
+  fetchDay.mockRejectedValue(new RateLimitedError('open-meteo', 17, local));
+  const { result } = renderHook(() => useGridDays(params));
+  expect(result.current.notice).toBeNull();
+  await waitFor(() => expect(result.current.notice).toBe(notice));
+  expect(result.current.detail).toBe('unavailable');
+  expect(result.current.frame).toBeNull();
+});
+
+it('keeps old data but does not carry its limit into a new area while loading', async () => {
+  fetchDay.mockImplementation(async (q) => response(q.time, { kind: 'rate_limited', retryAfterSeconds: 17 }));
+  const { result, rerender } = renderHook((p) => useGridDays(p), { initialProps: params });
+  await waitFor(() => expect(result.current.detail).toBe('stale'));
+  fetchDay.mockImplementation(() => new Promise(() => {}));
+  rerender({ ...params, bbox: [58, 24, 59, 25] });
+  expect(result.current.notice).toBe('stale');
+  expect(result.current.frame?.points.length).toBe(1);
 });

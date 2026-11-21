@@ -1,3 +1,5 @@
+import { PriorityGate, type RequestPriority } from '../../requestGate.js';
+export { PriorityGate } from '../../requestGate.js';
 import type { BBox } from '@seapro/shared';
 import { cache } from '../../cache.js';
 import { fetchJson } from '../../http.js';
@@ -133,7 +135,7 @@ export interface OsmRoutingTileSnapshot {
 export async function loadOsmRoutingTileSnapshot(
   bbox: BBox,
   signal?: AbortSignal,
-  priority: OverpassPriority = 'foreground',
+  priority: RequestPriority = 'foreground',
 ): Promise<OsmRoutingTileSnapshot> {
   const requested = bboxTiles(bbox, 1);
   const settled = await settleMapLimit(
@@ -197,7 +199,7 @@ function withinBbox<T extends { geometry: Parameters<typeof routingGeometryInter
 async function loadTile(
   tile: BBox,
   signal?: AbortSignal,
-  priority: OverpassPriority = 'foreground',
+  priority: RequestPriority = 'foreground',
 ): Promise<LoadedTile<OverpassRoutingResponse>> {
   const key = tileKey(tile);
   const result = await cache.get(key, TTL_SECONDS, () =>
@@ -234,7 +236,7 @@ export function isOsmRoutingTileFresh(tile: BBox): boolean {
 async function queryOverpass(
   [south, west, north, east]: BBox,
   signal?: AbortSignal,
-  priority: OverpassPriority = 'foreground',
+  priority: RequestPriority = 'foreground',
 ): Promise<OverpassRoutingResponse> {
   const types = QUERY_TYPES.join('|');
   const query = `[out:json][timeout:60];
@@ -273,45 +275,6 @@ out geom tags;`;
   throw new Error(`Overpassi routingukihid ei vastanud: ${
     lastError instanceof Error ? lastError.message : String(lastError)
   }`);
-}
-
-type OverpassPriority = 'foreground' | 'background';
-
-/** Kõigi route- ja warmup-kutsete ühine viisakuspiir foreground-eelistusega. */
-export class PriorityGate {
-  #active = 0;
-  readonly #foreground: Array<() => void> = [];
-  readonly #background: Array<() => void> = [];
-
-  constructor(readonly concurrency: number) {}
-
-  async run<T>(priority: OverpassPriority, task: () => Promise<T>): Promise<T> {
-    await this.#acquire(priority);
-    try {
-      return await task();
-    } finally {
-      this.#release();
-    }
-  }
-
-  #acquire(priority: OverpassPriority): Promise<void> {
-    if (this.#active < this.concurrency) {
-      this.#active++;
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-      (priority === 'foreground' ? this.#foreground : this.#background).push(resolve);
-    });
-  }
-
-  #release(): void {
-    const next = this.#foreground.shift() ?? this.#background.shift();
-    if (next) {
-      next();
-      return;
-    }
-    this.#active--;
-  }
 }
 
 const overpassGate = new PriorityGate(2);

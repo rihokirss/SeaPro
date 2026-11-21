@@ -1,229 +1,118 @@
-/**
- * Väljaminevate päringute eelarve allika kohta.
- *
- * Miks see olemas on: Open-Meteo tasuta kasutus lubab 5000 kutset tunnis ja
- * loeb mitmepunktilise päringu IGA PUNKTI eraldi kutseks. 64-punktiline
- * võrgustik on seega 64 kutset. Arenduses jooksis limiit täis paari tunniga
- * ja kogu tuulekiht kadus — kasutaja jaoks näeks see välja nagu katkine
- * rakendus, ilma igasuguse vihjeta põhjusest.
- *
- * Eelarve hoiab meid limiidist allpool ISE, enne kui allikas meid blokeerib.
- * Kui eelarve saab otsa, viskame vea kohe (ilma võrgupäringuta) ja vahemälu
- * annab kutsujale viimase eduka vastuse. Nii degradeerub rakendus sujuvalt
- * "veidi vanad andmed" suunas, mitte "andmed puuduvad" suunas.
- */
+type LimitWindow = 'day' | 'hour' | 'minute';
 
-interface Budget {
-  /** Kutseid tunnis, mille me endale lubame. */
+const PERIOD_MS = { day: 86_400_000, hour: 3600_000, minute: 60_000 };
+const WINDOWS: LimitWindow[] = ['day', 'hour', 'minute'];
+
+interface Counter {
   limit: number;
-  /**
-   * Kutseid ööpäevas, mille me endale lubame.
-   *
-   * Miks eraldi: Open-Meteo tasuta limiit on 5000 kutset TUNNIS, aga ainult
-   * 10 000 kutset PÄEVAS. Ainult tunnieelarve jälgimine tähendas, et päevane
-   * kvoot sai täis paari-kolme aktiivse tunniga ja ülejäänud päev oli 429 —
-   * täpselt see, mis rakendust pidevalt limiiti ajas.
-   */
-  dailyLimit: number;
   spent: number;
-  dailySpent: number;
-  windowStart: number;
-  dayStart: number;
-  /**
-   * Millal allikas ise meid uuesti lubab.
-   *
-   * Kui allikas vastab 429-ga, on tema arvestus meie omast ees ja edasine
-   * pärimine on mõttetu — see ainult koormab teda ja meie eelarvet. Seni
-   * lõpetame päringud kohe, ilma võrku puutumata.
-   */
-  cooldownUntil: number;
-  /**
-   * Millal tohib jahtumise ajal ÜKS proovipäring läbi lasta.
-   *
-   * Jäik jahtumine kuni täistunnini eeldab, et allikas taastub täpselt siis.
-   * Tegelikkuses võib ta taastuda varem — näiteks kui IP vahetub või limiit
-   * käib mõne muu arvestuse järgi. Ilma proovita jääks rakendus istuma ja
-   * ütlema "oota", kuigi andmed oleksid juba saadaval.
-   */
-  probeAfter: number;
+  start: number;
 }
 
-const HOUR_MS = 3600_000;
-const DAY_MS = 24 * HOUR_MS;
-
-/** Kui tihti tohib jahtumise ajal proovipäringut teha. */
-const PROBE_INTERVAL_MS = 60_000;
+interface Budget {
+  counters: Record<LimitWindow, Counter>;
+  cooldownUntil: number;
+  cooldownWindow: LimitWindow;
+}
 
 export class RateLimitError extends Error {
   constructor(
     readonly source: string,
     readonly retryAfterSeconds: number,
-    readonly window: 'hour' | 'day' = 'hour',
+    readonly window: LimitWindow = 'hour',
+    readonly localBudget = false,
   ) {
-    super(
-      `Päringueelarve "${source}" on ${window === 'day' ? 'ööpäevaks' : 'tunniks'} täis, ` +
-        `järgmine aken ${retryAfterSeconds} s pärast`,
-    );
+    super(`Päringulimiit "${source}" on täis, proovi ${retryAfterSeconds} s pärast`);
     this.name = 'RateLimitError';
   }
+}
+
+function currentSpent(counter: Counter, window: LimitWindow, now: number): number {
+  return now < counter.start + PERIOD_MS[window] ? counter.spent : 0;
 }
 
 class RateLimiter {
   #budgets = new Map<string, Budget>();
 
-  /**
-   * Registreerib allika eelarve.
-   *
-   * `limit` peaks jääma ALLA allika tegeliku piiri — jätame varu, sest
-   * vahemälu ei ole täiuslik ja mitu serveri protsessi võivad jagada sama
-   * välist IP-d.
-   */
-  register(source: string, limit: number, dailyLimit = Infinity): void {
-    const now = Date.now();
+  register(source: string, hourlyLimit: number, dailyLimit = Infinity, minuteLimit = Infinity): void {
+    const counter = (limit: number): Counter => ({ limit, spent: 0, start: 0 });
     this.#budgets.set(source, {
-      limit,
-      dailyLimit,
-      spent: 0,
-      dailySpent: 0,
-      windowStart: now,
-      dayStart: Math.floor(now / DAY_MS) * DAY_MS,
+      counters: { day: counter(dailyLimit), hour: counter(hourlyLimit), minute: counter(minuteLimit) },
       cooldownUntil: 0,
-      probeAfter: 0,
+      cooldownWindow: 'minute',
     });
   }
 
-  /**
-   * Võtab eelarvest `cost` kutset. Viskab, kui eelarve on täis.
-   * Kutsu ENNE päringut, mitte pärast — mõte on päring ära jätta.
-   */
-  spend(source: string, cost = 1): void {
+  /** Sama rakenduse ühine tasuta kvoot, HTTP 429 ooteaeg kummalgi hostil eraldi. */
+  shareBudget(source: string, owner: string): void {
+    const budget = this.#budgets.get(owner);
+    if (!budget) throw new Error(`Päringueelarve "${owner}" puudub`);
+    this.#budgets.set(source, { counters: budget.counters, cooldownUntil: 0, cooldownWindow: 'minute' });
+  }
+
+  /** Broneerib kõik aknad korraga enne võrku minekut. */
+  spend(source: string, cost = 1, now = Date.now()): void {
     const budget = this.#budgets.get(source);
-    if (!budget) return; // Registreerimata allikal pole piirangut.
-
-    const now = Date.now();
-
-    // Allikas ütles ise, et aitab — ära puuduta võrku enne, kui aeg möödub.
-    // Erand: aeg-ajalt laseme ÜHE proovipäringu läbi, et märgata varasemat
-    // taastumist. Õnnestumisel kutsub kutsuja `recovered()` ja jahtumine kaob.
-    if (budget.cooldownUntil > now) {
-      if (now < budget.probeAfter) {
-        throw new RateLimitError(source, Math.ceil((budget.cooldownUntil - now) / 1000));
+    if (!budget) return;
+    if (now < budget.cooldownUntil) {
+      throw new RateLimitError(source, Math.ceil((budget.cooldownUntil - now) / 1000), budget.cooldownWindow);
+    }
+    for (const window of WINDOWS) {
+      const counter = budget.counters[window];
+      if (currentSpent(counter, window, now) + cost > counter.limit) {
+        const seconds = Math.ceil((PERIOD_MS[window] - now % PERIOD_MS[window]) / 1000);
+        throw new RateLimitError(source, seconds, window, true);
       }
-      budget.probeAfter = now + PROBE_INTERVAL_MS;
     }
-
-    // Aken järgib tegelikku täistundi, sest Open-Meteo lähtestab samamoodi.
-    const currentWindow = Math.floor(now / HOUR_MS) * HOUR_MS;
-    if (budget.windowStart < currentWindow) {
-      budget.windowStart = currentWindow;
-      budget.spent = 0;
+    for (const window of WINDOWS) {
+      const counter = budget.counters[window];
+      counter.spent = currentSpent(counter, window, now) + cost;
+      counter.start = now - now % PERIOD_MS[window];
     }
-
-    // Päevane aken järgib UTC-kesköö, samamoodi nagu allika oma.
-    const currentDay = Math.floor(now / DAY_MS) * DAY_MS;
-    if (budget.dayStart < currentDay) {
-      budget.dayStart = currentDay;
-      budget.dailySpent = 0;
-    }
-
-    if (budget.dailySpent + cost > budget.dailyLimit) {
-      const retryAfter = Math.ceil((currentDay + DAY_MS - now) / 1000);
-      throw new RateLimitError(source, retryAfter, 'day');
-    }
-
-    if (budget.spent + cost > budget.limit) {
-      const retryAfter = Math.ceil((currentWindow + HOUR_MS - now) / 1000);
-      throw new RateLimitError(source, retryAfter);
-    }
-
-    budget.spent += cost;
-    budget.dailySpent += cost;
   }
 
-  /**
-   * Tagastab kulutatud eelarve, kui päring EBAÕNNESTUS.
-   *
-   * Eelarve mõte on hoida meid allika limiidist eemal. Ebaõnnestunud päringu
-   * eest tasumine tähendaks, et me piirame end kiiremini ega saa vastu midagi
-   * — halvim mõlemast maailmast.
-   */
-  refund(source: string, cost = 1): void {
+  /** Tagastada saab ainult sama akna broneeringu. */
+  refund(source: string, cost = 1, reservedAt = Date.now()): void {
     const budget = this.#budgets.get(source);
     if (!budget) return;
-    budget.spent = Math.max(0, budget.spent - cost);
-    budget.dailySpent = Math.max(0, budget.dailySpent - cost);
+    for (const window of WINDOWS) {
+      const counter = budget.counters[window];
+      if (reservedAt >= counter.start) counter.spent = Math.max(0, counter.spent - cost);
+    }
   }
 
-  /**
-   * Märgib, et allikas ise keeldus (HTTP 429). Peatab päringud kuni aja
-   * möödumiseni.
-   */
-  cooldown(source: string, seconds: number): void {
+  cooldown(source: string, seconds: number, window: LimitWindow = 'hour'): void {
     const budget = this.#budgets.get(source);
-    if (!budget) return;
-    const now = Date.now();
-    budget.cooldownUntil = Math.max(budget.cooldownUntil, now + seconds * 1000);
-    budget.probeAfter = now + PROBE_INTERVAL_MS;
+    const until = Date.now() + seconds * 1000;
+    if (budget && until >= budget.cooldownUntil) {
+      budget.cooldownUntil = until;
+      budget.cooldownWindow = window;
+    }
   }
 
-  /** Allikas vastas edukalt — jahtumine pole enam põhjendatud. */
-  recovered(source: string): void {
-    const budget = this.#budgets.get(source);
-    if (!budget || budget.cooldownUntil === 0) return;
-    budget.cooldownUntil = 0;
-    budget.probeAfter = 0;
-  }
-
-  /** Kas eelarves on veel ruumi? Kasulik enne kalli päringu koostamist. */
   canSpend(source: string, cost = 1): boolean {
     const budget = this.#budgets.get(source);
     if (!budget) return true;
     const now = Date.now();
-
-    const currentDay = Math.floor(now / DAY_MS) * DAY_MS;
-    const dailySpent = budget.dayStart < currentDay ? 0 : budget.dailySpent;
-    if (dailySpent + cost > budget.dailyLimit) return false;
-
-    const currentWindow = Math.floor(now / HOUR_MS) * HOUR_MS;
-    if (budget.windowStart < currentWindow) return true;
-    return budget.spent + cost <= budget.limit;
+    return now >= budget.cooldownUntil && WINDOWS.every((window) => {
+      const counter = budget.counters[window];
+      return currentSpent(counter, window, now) + cost <= counter.limit;
+    });
   }
 
-  stats(): Record<
-    string,
-    { spent: number; limit: number; dailySpent: number; dailyLimit: number; cooldownSeconds: number }
-  > {
-    const out: Record<
-      string,
-      {
-        spent: number;
-        limit: number;
-        dailySpent: number;
-        dailyLimit: number;
-        cooldownSeconds: number;
-      }
-    > = {};
+  stats() {
     const now = Date.now();
-    for (const [source, b] of this.#budgets) {
-      out[source] = {
-        spent: b.spent,
-        limit: b.limit,
-        dailySpent: b.dailySpent,
-        dailyLimit: b.dailyLimit,
-        cooldownSeconds: b.cooldownUntil > now ? Math.ceil((b.cooldownUntil - now) / 1000) : 0,
-      };
-    }
-    return out;
+    return Object.fromEntries(Array.from(this.#budgets, ([source, { counters, cooldownUntil }]) => [source, {
+      spent: currentSpent(counters.hour, 'hour', now), limit: counters.hour.limit,
+      dailySpent: currentSpent(counters.day, 'day', now), dailyLimit: counters.day.limit,
+      minuteSpent: currentSpent(counters.minute, 'minute', now), minuteLimit: counters.minute.limit,
+      cooldownSeconds: Math.max(0, Math.ceil((cooldownUntil - now) / 1000)),
+    }]));
   }
 }
 
 export const rateLimiter = new RateLimiter();
 
-// Open-Meteo tasuta limiidid: 5000 kutset tunnis JA 10 000 kutset ööpäevas.
-// Võtame 3000 ja 8000 — varu jätab ruumi vahemälu möödalaskudele ja hoiab
-// meid allika blokeeringust eemal. Need eelarved on alati olemas, sest kehtetu
-// kliendivõtme korral võib provider töö ajal tasuta API-le ümber lülituda.
-// Kommertsendpoint kasutab eraldi registreerimata allikanime ja pole piiratud.
-// Prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved.
-rateLimiter.register('open-meteo', 3000, 8000);
-rateLimiter.register('open-meteo-marine', 3000, 8000);
+// Suurim kaardivaade kasutab 512 ühikut. Jätame varu ka Open-Meteo 600/min piirini.
+rateLimiter.register('open-meteo', 3000, 8000, 560);
+rateLimiter.shareBudget('open-meteo-marine', 'open-meteo');

@@ -3,7 +3,6 @@ import { VesselHistoryPanel } from './components/VesselHistoryPanel';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type {
-  GridFrame,
   PointResult,
   ProviderCapabilities,
   RadarTimeline,
@@ -126,22 +125,6 @@ const FORECAST_HOURS = 240;
  * keritav ja lisapäringut ei tule.
  */
 const SLIDER_HOURS = 120;
-
-/** Ajaliugurile lähim kaader juba mälus olevast ööpäevast. */
-function frameAt(frames: GridFrame[], time: Date): GridFrame | null {
-  if (frames.length === 0) return null;
-  const target = new Date(time).setMinutes(0, 0, 0);
-  let best: GridFrame | null = null;
-  let bestDiff = Infinity;
-  for (const f of frames) {
-    const diff = Math.abs(new Date(f.time).getTime() - target);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = f;
-    }
-  }
-  return best;
-}
 
 const WIND_VARS: Variable[] = ['wind_speed', 'wind_dir', 'wind_gust'];
 const EMPTY_VARS: Variable[] = [];
@@ -683,12 +666,8 @@ export function App() {
     waveModel: fieldIsWave ? activeWaveModel : undefined,
   });
 
-  /** Valitud tunni kaader mälust. Kerimine ei puuduta võrku. */
-  const gridFrame = useMemo(() => frameAt(windData.frames, selectedTime), [windData.frames, selectedTime]);
-  const fieldFrame = useMemo(
-    () => frameAt(fieldData.frames, selectedTime),
-    [fieldData.frames, selectedTime],
-  );
+  const gridFrame = windData.frame;
+  const fieldFrame = fieldData.frame;
 
   // Interpoleeritud tuuleväli — sellest toituvad nii nooled kui osakesed.
   const windField: Field | null = useMemo(() => buildWindField(gridFrame), [gridFrame]);
@@ -1414,9 +1393,9 @@ export function App() {
 
         {windData.notice || fieldData.notice ? (
           <div className="layer-notice" role="status">
-            {windData.notice ? <div>{t('weather.wind')}: {t(`weather.${windData.notice}`)}</div> : null}
-            {fieldData.notice ? <div>{t('weather.field')}: {t(`weather.${fieldData.notice}`)}</div> : null}
-            {config?.sponsorSearchEnabled && (windData.notice === 'limited' || fieldData.notice === 'limited') ? (
+            {windData.notice ? <div>{t('weather.wind')}: {[windData.notice, windData.detail].filter(Boolean).map((key) => t(`weather.${key}`)).join(' ')}</div> : null}
+            {fieldData.notice ? <div>{t('weather.field')}: {[fieldData.notice, fieldData.detail].filter(Boolean).map((key) => t(`weather.${key}`)).join(' ')}</div> : null}
+            {config?.sponsorSearchEnabled && (windData.limited || fieldData.limited) ? (
               <div className="layer-notice__sponsor">
                 {t('sponsor.pitch')}{' '}
                 <a href="mailto:riho@kirss.ee?subject=SeaPro%20Open-Meteo%20sponsorlus">{t('sponsor.contact')}</a>

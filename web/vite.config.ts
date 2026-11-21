@@ -73,6 +73,19 @@ export default defineConfig({
             options: {
               cacheName: 'seapro-weather-grid',
               networkTimeoutSeconds: 3,
+              plugins: [{
+                // Offline-koopia kirjeldab prognoosi. Vana päringu viga ei kirjelda praegust limiiti.
+                cachedResponseWillBeUsed: async ({ cachedResponse }) => {
+                  if (!cachedResponse) return null;
+                  const grid = await cachedResponse.clone().json();
+                  if (!grid.warning) return cachedResponse;
+                  delete grid.warning;
+                  const headers = new Headers(cachedResponse.headers);
+                  headers.delete('content-length');
+                  headers.delete('content-encoding');
+                  return Response.json(grid, { headers });
+                },
+              }],
               expiration: { maxEntries: 300, maxAgeSeconds: 24 * 3600 },
               cacheableResponse: { statuses: [0, 200] },
             },

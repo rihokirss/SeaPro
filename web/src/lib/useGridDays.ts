@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useMemo, useReducer, useRef } from 'react';
 import type { GridDayResult, GridFrame, Variable } from '@seapro/shared';
 import { api, RateLimitedError } from './api';
 
@@ -15,25 +15,31 @@ type Params = {
 interface GridEntry {
   result: GridDayResult;
   retryAt?: number;
+  previousForecast?: boolean;
 }
 
 function gridEntryDeadline(entry: GridEntry): number {
   return entry.retryAt ?? (Date.parse(entry.result.freshness?.expiresAt ?? '') || 0);
 }
 
-function gridEntryNotice(entry: GridEntry | undefined): 'missing' | 'stale' | 'error' | 'limited' | null {
-  if (!entry) return null;
-  if (entry.result.warning?.kind === 'rate_limited') return 'limited';
-  if (entry.result.warning) return 'error';
-  if (!entry.result.frames.some((frame) => frame.points.length)) return 'missing';
-  if (entry.result.freshness?.partial) return 'missing';
-  const freshness = entry.result.freshness;
-  if (freshness && (freshness.stale || Date.parse(freshness.expiresAt) <= Date.now())) return 'stale';
-  return null;
+/** Ajaliugurile lähim kaader juba mälus olevast ööpäevast. */
+function frameAt(frames: GridFrame[], time: Date): GridFrame | null {
+  if (frames.length === 0) return null;
+  const target = new Date(time).setMinutes(0, 0, 0);
+  let best: GridFrame | null = null;
+  let bestDiff = Infinity;
+  for (const f of frames) {
+    const diff = Math.abs(new Date(f.time).getTime() - target);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = f;
+    }
+  }
+  return best;
 }
 
 /** Cache sisaldab ka vastuse olekut. Laadimist käivitab ainult vaate muutus. */
-export function useGridDays(params: Params): { frames: GridFrame[]; notice: ReturnType<typeof gridEntryNotice> } {
+export function useGridDays(params: Params) {
   const cache = useRef(new Map<string, GridEntry>());
   const lastGood = useRef<{ context: string; entry: GridEntry } | null>(null);
   const [revision, render] = useReducer((n: number) => n + 1, 0);
@@ -79,7 +85,7 @@ export function useGridDays(params: Params): { frames: GridFrame[]; notice: Retu
         store(key, {
           result,
           retryAt: unhealthy ? Date.now() + (result.warning?.kind === 'rate_limited'
-            ? Math.max(60, result.warning.retryAfterSeconds) * 1000 : RETRY_MS) : undefined,
+            ? Math.max(1, result.warning.retryAfterSeconds) * 1000 : RETRY_MS) : undefined,
         });
       }).catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -89,11 +95,12 @@ export function useGridDays(params: Params): { frames: GridFrame[]; notice: Retu
           result: {
             ...(fallback?.result ?? { frames: [] }),
             warning: error instanceof RateLimitedError
-              ? { kind: 'rate_limited', retryAfterSeconds: error.retryAfterSeconds }
+              ? { kind: 'rate_limited', retryAfterSeconds: error.retryAfterSeconds, localBudget: error.localBudget }
               : { kind: 'error' },
           },
+          previousForecast: Boolean(fallback),
           retryAt: Date.now() + (error instanceof RateLimitedError
-            ? Math.max(60, error.retryAfterSeconds) * 1000 : RETRY_MS),
+            ? Math.max(1, error.retryAfterSeconds) * 1000 : RETRY_MS),
         });
       });
     }
@@ -105,20 +112,33 @@ export function useGridDays(params: Params): { frames: GridFrame[]; notice: Retu
   // serveri- ega Open-Meteo päringut.
   useEffect(() => {
     if (!active) return;
-    const expiresAt = Date.parse(
-      cache.current.get(selectedKey)?.result.freshness?.expiresAt ?? '',
-    );
-    const wait = expiresAt - Date.now();
+    const entry = cache.current.get(selectedKey);
+    if (!entry) return;
+    const wait = gridEntryDeadline(entry) - Date.now();
     if (!Number.isFinite(wait) || wait <= 0) return;
     const timer = window.setTimeout(render, wait);
     return () => window.clearTimeout(timer);
   }, [active, selectedKey, revision]);
 
-  if (!active) return { frames: [], notice: null };
-  const current = cache.current.get(selectedKey);
+  const current = active ? cache.current.get(selectedKey) : undefined;
   if (current?.result.frames.some((frame) => frame.points.length)) {
     lastGood.current = { context, entry: current };
   }
-  const entry = current ?? (lastGood.current?.context === context ? lastGood.current.entry : undefined);
-  return { frames: entry?.result.frames ?? [], notice: gridEntryNotice(entry) };
+  const entry = current ?? (active && lastGood.current?.context === context ? lastGood.current.entry : undefined);
+  const frames = entry?.result.frames;
+  const frame = useMemo(() => frames ? frameAt(frames, params.time) : null, [frames, params.time]);
+  const warning = current?.result.warning;
+  const limited = warning?.kind === 'rate_limited' && (current?.retryAt ?? 0) > Date.now();
+  let reason: 'budget' | 'limited' | 'error' | null = null;
+  if (limited) reason = warning.localBudget ? 'budget' : 'limited';
+  if (warning?.kind === 'error') reason = 'error';
+  const freshness = entry?.result.freshness;
+  let coverage: 'unavailable' | 'missing' | 'stale' | null = null;
+  if (entry) {
+    if (!frame?.points.length) coverage = 'unavailable';
+    else if (freshness?.partial) coverage = 'missing';
+    else if (!current || entry.previousForecast || freshness?.stale
+      || Date.parse(freshness?.expiresAt ?? '') <= Date.now()) coverage = 'stale';
+  }
+  return { frames: frames ?? [], frame, limited, notice: reason ?? coverage, detail: reason ? coverage : null };
 }

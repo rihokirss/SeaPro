@@ -59,6 +59,7 @@ export class RateLimitedError extends Error {
   constructor(
     readonly source: string,
     readonly retryAfterSeconds: number,
+    readonly localBudget = false,
   ) {
     super(`rate_limited:${source}`);
     this.name = 'RateLimitedError';
@@ -83,9 +84,10 @@ async function get<T>(
         message?: string;
         source?: string;
         retryAfterSeconds?: number;
+        localBudget?: boolean;
       };
       if (res.status === 503 && body.error === 'rate_limited') {
-        throw new RateLimitedError(body.source ?? 'allikas', body.retryAfterSeconds ?? 0);
+        throw new RateLimitedError(body.source ?? 'allikas', body.retryAfterSeconds ?? 0, body.localBudget);
       }
       if (body.error) detail = body.error;
     } catch (err) {

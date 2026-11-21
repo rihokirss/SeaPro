@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HttpError } from '../src/http.js';
-import { OpenMeteoEndpointPolicy } from '../src/providers/openMeteo.js';
+import { openMeteoLimit, OpenMeteoEndpointPolicy } from '../src/providers/openMeteo.js';
 
 function httpError(status: number): HttpError {
   return new HttpError(`HTTP ${status}`, status, 'https://example.test');
@@ -50,4 +50,12 @@ describe('OpenMeteoEndpointPolicy', () => {
     expect(policy.mode()).toBe('free');
     expect(policy.endpoint('forecast')).toBe('https://api.open-meteo.com/v1/forecast');
   });
+});
+
+it('uses Retry-After and recognizes minute limits without a header', () => {
+  const reason = 'Minutely API request limit exceeded';
+  const error = new HttpError('HTTP 429', 429, 'https://example.test', reason, 17);
+  expect(openMeteoLimit(error, 'open-meteo')).toMatchObject({ window: 'minute', retryAfterSeconds: 17 });
+  const legacy = new HttpError('HTTP 429', 429, 'https://example.test', reason);
+  expect(openMeteoLimit(legacy, 'open-meteo').retryAfterSeconds).toBe(60);
 });

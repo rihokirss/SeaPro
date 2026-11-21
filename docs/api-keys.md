@@ -82,25 +82,23 @@ ametlikke WMS-teenuseid, mis on avatud.
 
 ## Open-Meteo: tasuta või tasuline režiim
 
-Open-Meteo ei vaja võtit, aga tal on **tunnilimiit 5000 ja ööpäevane limiit
-10 000 kutset** — ja ta loeb mitmepunktilise võrgustikupäringu iga punkti
-eraldi kutseks. Päevane piir on see, mis tegelikult maksma jääb: tunnise
-kiirusega saaks selle täis nelja tunniga.
+Võtmeta mittekaubandusliku API piirid on **600 ühikut minutis, 5000 tunnis,
+10 000 ööpäevas ja 300 000 kuus**. Open-Meteo rakendab piiranguid IP-aadressi
+ja rakenduse alusel. [Hinnakiri ja kalkulaator](https://open-meteo.com/en/pricing) ·
+[Kasutustingimused](https://open-meteo.com/en/terms)
 
-Seevastu muutujate arv (kuni 10) ja ajavahemik (kuni 14 päeva) on kaalu mõttes
-TASUTA — seetõttu pärimegi alati terve nädala ja kogu muutujate komplekti
-korraga (vt [data-sources.md](data-sources.md)).
+Iga asukoht maksab vähemalt ühe ühiku. Ühel asukohal, ühe mudeliga,
+maksavad kuni kümme muutujat ja kuni 14 päeva kokku ühe ühiku. Kaardipaani
+16 asukoha kaheksa päeva tuuleprognoos maksab seega 16 ühikut. Eilne, tänane
+ja kuus järgmist UTC-päeva kasutavad sama paanipäringut ja vahemälukirjet.
 
-Eelarve seis on nähtav:
+SeaPro prognoosi- ja merepäringutel on ühine kohalik eelarve 560 ühikut
+minutis, 3000 tunnis ja 8000 ööpäevas. Mõlema hosti juures kuvatakse sama
+kasutust. `cooldownSeconds` näitab konkreetse hosti HTTP 429 ooteaega.
 
 ```bash
 curl -s localhost:8080/api/health | jq .budgets
-# {"open-meteo":        {"spent": 128, "limit": 3000, "dailySpent": 640, "dailyLimit": 8000},
-#  "open-meteo-marine": {"spent":  64, "limit": 3000, "dailySpent": 320, "dailyLimit": 8000}}
 ```
-
-Kui `spent` läheneb `limit`-ile, degradeerub rakendus sujuvalt vahemälust
-serveeritud andmetele, mitte tühjale ekraanile.
 
 Avalike ilmapäringute geograafiline kulupiir on AIS-ist eraldi seadistatav:
 
@@ -124,7 +122,7 @@ OPEN_METEO_MONTHLY_LIMIT=1000000
 ```
 
 Server valib selle olemasolul automaatselt Open-Meteo `customer-` endpointid
-ja tasuta paketi tunni-/päevapiirajat ei rakendata. Kui see koodiversioon on
+ja tasuta paketi piirajat ei rakendata. Kui see koodiversioon on
 juba serveris, piisab pärast võtme lisamist käsust
 `pm2 restart seapro --update-env`; uut buildi pole vaja. Režiimi saab
 kontrollida ilma võtit avaldamata:

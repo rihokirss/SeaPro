@@ -20,7 +20,7 @@ import { config } from '../config.js';
 import { HttpError } from '../http.js';
 import { RateLimitError, rateLimiter } from '../rateLimit.js';
 import { usageMeter } from '../usage.js';
-import { openMeteoMode } from '../providers/openMeteo.js';
+import { openMeteoLimit, openMeteoMode } from '../providers/openMeteo.js';
 import { vessels } from '../ais/registry.js';
 import { fetchHarbours } from '../harbours/overpass.js';
 import { aisstream } from '../ais/aisstream.js';
@@ -218,7 +218,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     time: new Date().toISOString(),
     openMeteo: {
       mode: openMeteoMode(),
-      usage: usageMeter.snapshot(config.openMeteoMonthlyLimit),
+      usage: usageMeter.snapshot(openMeteoMode() === 'commercial' ? config.openMeteoMonthlyLimit : 300_000),
     },
     // Päringueelarve seis — ilma selleta on "miks tuulekiht kadus?" pime koht.
     budgets: rateLimiter.stats(),
@@ -522,13 +522,14 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         err instanceof RateLimitError
           ? err.retryAfterSeconds
           : err instanceof HttpError && err.status === 429
-            ? Math.ceil((3600_000 - (Date.now() % 3600_000)) / 1000)
+            ? openMeteoLimit(err, 'open-meteo').retryAfterSeconds
             : null;
 
       if (retryAfterSeconds !== null) {
         reply.header('Retry-After', String(retryAfterSeconds));
         return reply.code(503).send({
           error: 'rate_limited',
+          localBudget: err instanceof RateLimitError && err.localBudget,
           source: err instanceof RateLimitError ? err.source : 'open-meteo',
           retryAfterSeconds,
           message:

@@ -26,7 +26,7 @@ describe('queryWeight', () => {
 
   it('skaleerub muutujate arvuga üle kümne', () => {
     // Allika enda näide: 2 nädalat × 15 muutujat = 1,5 kutset.
-    expect(queryWeight({ locations: 1, variables: 15, days: 14 })).toBe(2); // ceil(1.5)
+    expect(queryWeight({ locations: 1, variables: 15, days: 14 })).toBe(1.5);
     // ...ja 4 nädalat sama komplektiga = 3,0.
     expect(queryWeight({ locations: 1, variables: 15, days: 28 })).toBe(3);
   });
@@ -41,7 +41,7 @@ describe('queryWeight', () => {
 
   it('korrutab mudelid muutujatega', () => {
     // 9 muutujat × 5 mudelit = 45/10 = 4,5 kutset ühe asukoha kohta.
-    expect(queryWeight({ locations: 1, variables: 9, models: 5, days: 11 })).toBe(5); // ceil(4.5)
+    expect(queryWeight({ locations: 1, variables: 9, models: 5, days: 11 })).toBe(4.5);
     expect(queryWeight({ locations: 1, variables: 2, models: 5, days: 11 })).toBe(1);
   });
 });

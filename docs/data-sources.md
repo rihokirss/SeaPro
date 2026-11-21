@@ -55,10 +55,10 @@ Sellest tuleneb kolm asja:
 
 Kaitsed:
 
-1. `GRID_MAX_STEPS = 8` — üks kaader maksab kuni 64 kutset
+1. üks kaardivaade kasutab kuni 32 paani, igas paanis 4 × 4 asukohta
 2. bbox kleebitakse ruudustikule (`routes/api.ts:snapBbox`) — lähestikused
    vaated jagavad ühte vahemälukirjet
-3. üks päring toob **7 päeva ja kogu muutujate komplekti** (`BLOCK_DAYS`,
+3. üks paanipäring katab **eilse, tänase ja kuus järgmist päeva** (`BLOCK_DAYS`,
    `providers/openMeteo.ts`). Sama kaal, kordades rohkem vahemälu: ajaliuguri
    kerimine, järgmiste päevade eelhaare ja kihi vahetamine on pärast esimest
    tõmmet tasuta
@@ -66,8 +66,7 @@ Kaitsed:
    (`routes/api.ts:snapPoint`) — Open-Meteo ümardab niikuinii mudeli lahtrini
    (ICON-EU ~7 km), seega kordusklikid samas lahes on tasuta. Vastuses
    `lat`/`lon` jäävad kasutaja omaks
-5. `rateLimit.ts` peatab päringu ise 3000 kutse juures tunnis ja 8000 juures
-   ööpäevas — päevane piir on praktikas see, mis maksma jääb
+5. tasuta režiimi ühine kohalik eelarve on 560 ühikut minutis, 3000 tunnis ja 8000 ööpäevas
 6. lainekiht kasutab **lainemudelit** (`waveModel`, vaikimisi DWD EWAM 5 km),
    mitte atmosfäärimudelit. Need on eri komplektid: `models=icon_eu`
    mere-API-le annab üksikpunktil 200 täis nulle ja mitmepunktilisel 400
@@ -76,14 +75,13 @@ Kaitsed:
    veetase ja hoovused tulevad alati `best_match`-ist, sest EWAM/GWAM neid ei
    arvuta. EWAM-i domeenist väljas (avaookean) kordab server päringu
    automaatselt `best_match`-iga — vt `fetchMarineWithFallback`
-7. prognoosi- ja mere-API on eri hostid ERALDI kvoodiga, seega eraldi eelarved
-   (`open-meteo`, `open-meteo-marine`) — tuulekihi limiit ei tohi lainekihti
-   välja lülitada
+7. HTTP 429 ooteaeg kehtib vastanud hostile. Esmalt kasutatakse `Retry-After`
+   päist, selle puudumisel määratakse ooteaeg vastuse põhjuse järgi
 
 Kui `OPEN_METEO_API_KEY` on täidetud, lisab server võtme ainult väljaminevale
 Open-Meteo päringule ja kasutab automaatselt kommerts-endpointe. Võti ei kuulu
 vahemäluvõtmesse, `cache.json` faili, logidesse ega brauserile antavasse
-konfiguratsiooni. Tasulises režiimis tasuta paketi 3000/8000 kaitsepiire ei
+konfiguratsiooni. Tasulises režiimis tasuta paketi 560/3000/8000 kaitsepiire ei
 rakendata; päringumahtu piirab ostetud paketi kuueelarve.
 
 Kaardil nähtava tiheduse annab **kliendipoolne interpoleerimine**

@@ -35,3 +35,34 @@ it('distinguishes missing tiles from successfully returned stale fallback tiles'
   expect(result.freshness).toMatchObject({ stale: true, partial: true });
   expect(result.warning).toEqual({ kind: 'error' });
 });
+
+it('shares one upstream tile across yesterday, today and forecast days at startup', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-01-01T00:01:00Z'));
+  const days = ['2025-12-31', '2026-01-01', '2026-01-02', '2026-01-07'];
+  const fetch = vi.fn(async (url: string) => {
+    const params = new URL(url).searchParams;
+    expect(params.get('start_hour')).toBe('2025-12-31T00:00');
+    expect(params.get('end_hour')).toBe('2026-01-07T23:00');
+    const hourly = { time: days.map(day => day + 'T00:00'), wind_speed_10m: [1, 2, 3, 4] };
+    return Response.json([{ latitude: 59, longitude: 24, hourly }]);
+  });
+  vi.stubGlobal('fetch', fetch);
+  try {
+    const provider = new OpenMeteoProvider();
+    const results = await Promise.all(days.map(day => provider.gridDay({
+      bbox: [59.01, 24.01, 59.02, 24.02], steps: 8,
+      variables: ['wind_speed'], time: day + 'T00:00:00Z',
+    })));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    results.forEach((result, index) => {
+      expect(result.frames).toHaveLength(1);
+      expect(result.frames[0]?.time.slice(0, 10)).toBe(days[index]);
+      expect(result.frames[0]?.points[0]?.values.wind_speed).toBe(index + 1);
+      expect(result.warning).toBeUndefined();
+    });
+  } finally {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  }
+});

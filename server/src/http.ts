@@ -12,6 +12,7 @@ export class HttpError extends Error {
      * järgmise täistunnini ja prooviks siis terve päeva asjatult edasi.
      */
     readonly body?: string,
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = 'HttpError';
@@ -91,6 +92,8 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
       // vahemälu annab kutsujale viimase eduka vastuse.
       if (res.status === 429) {
         const retryAfter = res.headers.get('retry-after');
+        const waitSeconds = retryAfter && /^\d+$/.test(retryAfter)
+          ? Number(retryAfter) : Math.ceil((Date.parse(retryAfter ?? '') - Date.now()) / 1000);
         const body = await res.text().catch(() => '');
         throw new HttpError(
           `Päringulimiit ületatud (429)${retryAfter ? `, proovi ${retryAfter} s pärast` : ''}` +
@@ -98,6 +101,7 @@ export async function request(url: string, opts: FetchOptions = {}): Promise<Res
           429,
           safeUrl,
           body,
+          Number.isFinite(waitSeconds) ? Math.max(1, waitSeconds) : undefined,
         );
       }
 

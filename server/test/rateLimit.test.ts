@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RateLimitError, rateLimiter } from '../src/rateLimit.js';
 
 /**
@@ -96,4 +96,27 @@ describe('rateLimiter', () => {
   it('registreerimata allikal pole piirangut', () => {
     expect(() => rateLimiter.spend('tundmatu', 1_000_000)).not.toThrow();
   });
+});
+
+it('shares the minute budget and keeps upstream cooldowns specific to the host', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-01-01T12:00:45Z'));
+  try {
+    rateLimiter.register('wind', 100, 200, 16);
+    rateLimiter.shareBudget('waves', 'wind');
+    const reservedAt = Date.now();
+    rateLimiter.spend('wind', 16);
+    expect(() => rateLimiter.spend('waves')).toThrow(expect.objectContaining({ window: 'minute', retryAfterSeconds: 15 }));
+    vi.advanceTimersByTime(15_000);
+    rateLimiter.spend('waves', 8);
+    rateLimiter.refund('wind', 16, reservedAt);
+    expect(rateLimiter.stats().waves).toMatchObject({ minuteSpent: 8, spent: 8, dailySpent: 8 });
+    rateLimiter.cooldown('wind', 23);
+    expect(rateLimiter.canSpend('wind')).toBe(false);
+    expect(rateLimiter.canSpend('waves')).toBe(true);
+    vi.advanceTimersByTime(23_000);
+    expect(rateLimiter.canSpend('wind')).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });
