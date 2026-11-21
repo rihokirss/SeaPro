@@ -20,7 +20,7 @@ it('switches an existing query to vessel search and ignores a late place respons
   fireEvent.change(screen.getByPlaceholderText('Otsi kohta või sadamat…'), { target: { value: 'Test' } });
   fireEvent.submit(screen.getByRole('search'));
   expect(search).not.toHaveBeenCalled();
-  fireEvent.change(screen.getByLabelText('Otsingu liik'), { target: { value: 'vessels' } });
+  fireEvent.click(screen.getByRole('radio', { name: 'Laevad' }));
   const hit = await screen.findByRole('option', { name: /Test ferry/ });
   await act(async () => resolvePlaces({ results: [] }));
   fireEvent.click(hit);

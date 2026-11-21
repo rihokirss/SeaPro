@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Anchor, ChevronDown, MapPin, Search, Ship } from 'lucide-react';
+import { Anchor, MapPin, Search, Ship } from 'lucide-react';
 import type { SearchResult, TrackedVessel, VesselSearchResult } from '@seapro/shared';
 import { localeTag, useI18n } from '../i18n';
 import { api } from '../lib/api';
@@ -129,27 +129,33 @@ export function SearchBox({ bbox, onGoTo, onVessel }: Props): React.ReactElement
           else search();
         }}
       >
-        <label className="search__scope">
-          <select
-            aria-label={t('search.scope')}
-            value={scope}
-            onChange={event => {
-              request.current?.abort();
-              window.clearTimeout(timer.current);
-              suppressAutoSearch.current = false;
-              setScope(event.target.value === 'vessels' ? 'vessels' : 'places');
-              setResults([]);
-              setActive(-1);
-              setStatus('idle');
-              setOpen(false);
-              input.current?.focus();
-            }}
-          >
-            <option value="places">{t('search.places')}</option>
-            <option value="vessels">{t('search.vessels')}</option>
-          </select>
-          <ChevronDown size={14} aria-hidden="true" />
-        </label>
+        <div className="search__scope" role="radiogroup" aria-label={t('search.scope')}>
+          {(['places', 'vessels'] as const).map(value => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={scope === value}
+              aria-label={t(`search.${value}`)}
+              title={t(`search.${value}`)}
+              className={scope === value ? 'is-active' : ''}
+              onClick={() => {
+                input.current?.focus();
+                if (scope === value) return;
+                request.current?.abort();
+                window.clearTimeout(timer.current);
+                suppressAutoSearch.current = false;
+                setScope(value);
+                setResults([]);
+                setActive(-1);
+                setStatus('idle');
+                setOpen(false);
+              }}
+            >
+              {value === 'places' ? <MapPin size={18} aria-hidden="true" /> : <Ship size={18} aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
         <input
           ref={input}
           className="search__input"
