@@ -1,0 +1,65 @@
+import { trafficLat, trafficLon, TRAFFIC_TYPES, type TrafficDensity, type TrafficType } from '@seapro/shared';
+import type { ImageSource, Map as MapLibreMap } from 'maplibre-gl';
+import { insertBefore } from '../layerOrder';
+
+const LAYER = 'traffic-density';
+export const TRAFFIC_COLORS: Record<TrafficType, string> = {
+  cargo: '#307ec8', tanker: '#dc9324', passenger: '#239474', fishing: '#ae60a7',
+  sailing: '#55b4a7', pleasure: '#40a7d7', fast: '#e47864', other: '#7f8898',
+};
+
+const rgb = Object.fromEntries(TRAFFIC_TYPES.map(type => [type, parseInt(TRAFFIC_COLORS[type].slice(1), 16)]));
+
+// Each texel represents one measured cell. The transparent border lets isolated
+// routes fade at their actual edges. MapLibre interpolates adjacent texels on the GPU.
+export function trafficRaster(data: TrafficDensity, selected: readonly TrafficType[]) {
+  if (!data.cells.length || !data.coveredDays) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const cell of data.cells) {
+    minX = Math.min(cell.x, minX); maxX = Math.max(cell.x, maxX);
+    minY = Math.min(cell.y, minY); maxY = Math.max(cell.y, maxY);
+  }
+  minX--; minY--; maxX++; maxY++;
+  const width = maxX - minX + 1, height = maxY - minY + 1;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  const types = selected.length ? TRAFFIC_TYPES.filter(type => selected.includes(type)) : TRAFFIC_TYPES;
+  for (const { x, y, metres } of data.cells) {
+    let dominant = types[0]!, distance = 0;
+    for (const type of types) {
+      distance += metres[type] ?? 0;
+      if ((metres[type] ?? 0) > (metres[dominant] ?? 0)) dominant = type;
+    }
+    if (!distance) continue;
+    const i = 4 * ((y - minY) * width + x - minX);
+    const color = rgb[dominant]!;
+    pixels[i] = color >> 16;
+    pixels[i + 1] = (color >> 8) & 255;
+    pixels[i + 2] = color & 255;
+    const density = distance / (1852 * data.coveredDays * data.factor ** 2);
+    pixels[i + 3] = Math.round(255 * Math.min(0.87, 0.07 + 0.23 * Math.log1p(8 * density)));
+  }
+  const west = trafficLon(minX * data.factor), east = trafficLon((maxX + 1) * data.factor);
+  const north = trafficLat(minY * data.factor), south = trafficLat((maxY + 1) * data.factor);
+  const coordinates: [[number, number], [number, number], [number, number], [number, number]] =
+    [[west, north], [east, north], [east, south], [west, south]];
+  return { pixels, width, height, coordinates };
+}
+
+export function showTrafficDensity(map: MapLibreMap, data: TrafficDensity, selected: readonly TrafficType[]) {
+  const raster = trafficRaster(data, selected);
+  if (!raster) return hideTrafficDensity(map);
+  const { pixels, width, height, coordinates } = raster;
+  if (!map.getSource(LAYER)) map.addSource(LAYER, { type: 'image', coordinates });
+  map.getSource<ImageSource>(LAYER)!.updateImage({ image: new ImageData(pixels, width, height), coordinates });
+  if (!map.getLayer(LAYER)) {
+    map.addLayer({
+      id: LAYER, type: 'raster', source: LAYER,
+      paint: { 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
+    }, insertBefore(map, LAYER));
+  }
+  map.setLayoutProperty(LAYER, 'visibility', 'visible');
+}
+
+export function hideTrafficDensity(map: MapLibreMap) {
+  if (map.getLayer(LAYER)) map.setLayoutProperty(LAYER, 'visibility', 'none');
+}

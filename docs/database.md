@@ -64,8 +64,14 @@ salvestab tegelikud rajalõigud PostGIS-i ajatemplitega LINESTRING M kujul,
 lihtsustatuna kuni 25 m geomeetrilise tolerantsiga. Tüübi või liikumisoleku
 muutus katkestab lõigu; üks lõik hõlmab kuni tunni. Algne läbitud teepikkus ja
 kohalolekuaeg säilivad eraldi. Seismine salvestatakse POINT M kujul. Koondid
-on päevapõhised ja säilivad omaette reegli järgi. Tulevane kaardikiht saab
-rõhutada kattuvaid trajektoore ning eristada laevatüüpe.
+on päevapõhised ja säilivad omaette reegli järgi. Kaardikiht „Laevaliikluse tihedus” kasutab viimase koondatud päeva suhtes
+1, 7, 30 või 365 kalendripäeva. Osalise katvuse korral kuvatakse koondatud päevade arv. Iga liikumislõigu algne teepikkus jaotatakse
+läbitud ruutude vahel proportsionaalselt neisse jääva joonepikkusega.
+Alusruudu külg on 60° põhjalaiusel umbes 0,49 km. Ruudud on joondatud
+Web Mercatori kaardivõrgule. Laiemas vaates liidetakse naaberruudud.
+Kaardil sulanduvad kõrvuti olevate ruutude värvid sujuvalt. Värv tähistab suurima teepikkusega tüüpi ja värvi tugevus
+keskmist päevast teepikkust alusruudu kohta. Mitme tüübi valimisel liidetakse nende teepikkused ja ruudu värvi määrab
+valitud tüüpidest suurima teepikkusega tüüp. Vaate pingereas liidetakse nähtavate ruutude meremiilid.
 
 Üle 15 minuti andmelünki ja üle 100 sõlme eeldavaid asukohahüppeid ei ühendata.
 Kohalolekut arvestatakse järjestikuste raportite vahel kuni 5 minutit; pikemate

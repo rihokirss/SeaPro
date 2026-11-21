@@ -8,6 +8,7 @@ const defaults: LayerState = {
   scalarField: null,
   stations: false,
   vessels: false,
+  trafficDensity: false,
   harbours: false,
   anchorages: false,
   placeLabels: true,
@@ -57,12 +58,13 @@ describe('layer state routing graph migration', () => {
   });
 
   it('persists the toggles in version 6', () => {
-    saveLayerState({ ...defaults, routingGraph: true, aisBaseStations: true });
+    saveLayerState({ ...defaults, routingGraph: true, aisBaseStations: true, trafficDensity: true });
 
     expect(JSON.parse(values.get('seapro.layers')!)).toMatchObject({
       version: 6,
       routingGraph: true,
       aisBaseStations: true,
+      trafficDensity: true,
     });
   });
 

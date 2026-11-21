@@ -23,6 +23,7 @@ export interface LayerState {
   scalarField: Variable | null;
   stations: boolean;
   vessels: boolean;
+  trafficDensity: boolean;
   harbours: boolean;
   anchorages: boolean;
   placeLabels: boolean;
@@ -262,6 +263,8 @@ export function LayerPanel({
               onChange={(v) => set({ vessels: v })}
               label={t('layer.vessels')}
             />
+            <Toggle checked={layers.trafficDensity} onChange={trafficDensity => set({ trafficDensity })}
+              label={t('density.title')} hint={t('density.layerHint')} />
             <Toggle
               checked={layers.harbours}
               onChange={(v) => set({ harbours: v })}

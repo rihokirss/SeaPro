@@ -1,3 +1,5 @@
+import { TRAFFIC_PERIODS, type TrafficPeriod } from '@seapro/shared';
+import { trafficDensity } from './trafficDensity.js';
 import { historyMetrics } from '../db/monitor.js';
 import type { FastifyInstance } from 'fastify';
 import { database, databaseStatus } from '../db/pool.js';
@@ -10,6 +12,24 @@ export function historyHealth() {
   return { ...databaseStatus, queue: writeQueue.status, settings: historyConfig, metrics: historyMetrics };
 }
 export async function registerHistoryApi(app: FastifyInstance) {
+  app.get('/api/ais/traffic-density', async (req, reply) => {
+    const { days = '7', bbox } = req.query as { days?: string; bbox?: string };
+    const period = Number(days) as TrafficPeriod;
+    if (!TRAFFIC_PERIODS.includes(period) || String(period) !== days)
+      return reply.code(400).send({ error: 'Vali 1, 7, 30 või 365 päeva' });
+    const parts = typeof bbox === 'string' ? bbox.split(',') : [];
+    const [south, west, north, east] = parts.map(Number) as [number, number, number, number];
+    if (parts.length !== 4 || parts.some(value => !value.trim() || !Number.isFinite(Number(value)))
+      || south < -90 || north > 90 || north <= south || east <= west)
+      return reply.code(400).send({ error: 'Vigane kaardiala' });
+    try {
+      const result = await trafficDensity(period, [south, west, north, east]);
+      return reply.header('Cache-Control', 'public, max-age=900').send(result);
+    } catch (error) {
+      req.log.warn({ err: error }, 'AIS liiklustiheduse päring ebaõnnestus');
+      return reply.code(503).send({ error: 'Liiklusajalugu ei ole ajutiselt kättesaadav' });
+    }
+  });
   app.get('/api/ais/vessels/search', async (req, reply) => {
     const { q } = req.query as { q?: unknown };
     if (typeof q !== 'string' || q.trim().length < 2 || q.length > 100)

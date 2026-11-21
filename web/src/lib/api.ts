@@ -1,5 +1,7 @@
 import type {
   GridFrame,
+  TrafficDensity,
+  TrafficPeriod,
   GridDayResult,
   Harbour,
   NavigationData,
@@ -215,6 +217,10 @@ export const api = {
       signal,
       'no-cache',
     );
+  },
+
+  trafficDensity(days: TrafficPeriod, bbox: string, signal: AbortSignal) {
+    return get<TrafficDensity>(`/api/ais/traffic-density?${new URLSearchParams({ days: String(days), bbox })}`, signal);
   },
 
   /** Kogu ööpäev korraga — ajaliuguri kerimine käib siis mälust. */

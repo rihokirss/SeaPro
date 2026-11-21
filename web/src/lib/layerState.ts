@@ -9,6 +9,7 @@ const WIND_DISPLAYS = new Set<WindDisplay>(['off', 'arrows', 'animated']);
 const BOOLEAN_KEYS = [
   'stations',
   'vessels',
+  'trafficDensity',
   'harbours',
   'anchorages',
   'placeLabels',

@@ -1,6 +1,6 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { Feature, FeatureCollection } from 'geojson';
-import type { Vessel } from '@seapro/shared';
+import { trafficType, type Vessel } from '@seapro/shared';
 import { insertBefore } from '../layerOrder';
 import {
   MIN_HULL_LENGTH_PX,
@@ -42,19 +42,6 @@ export const VESSEL_LAYERS = [VESSEL_HULL_FILL, VESSELS_LAYER];
 
 /** Miinimumkiirus sõlmedes, mille juures loeme laeva liikuvaks. */
 const MOVING_SOG = 0.5;
-
-/** AIS ship type -> värvivariant. Ainult tüübid, mis merel midagi tähendavad. */
-function vesselCategory(shipType: number | undefined): string {
-  if (shipType === undefined) return 'default';
-  if (shipType === 30) return 'fishing';
-  if (shipType === 36) return 'sailing';
-  if (shipType === 37) return 'pleasure';
-  if (shipType >= 40 && shipType <= 49) return 'fast';
-  if (shipType >= 60 && shipType <= 69) return 'passenger';
-  if (shipType >= 70 && shipType <= 79) return 'cargo';
-  if (shipType >= 80 && shipType <= 89) return 'tanker';
-  return 'default';
-}
 
 /** Täidisvärvid kere jaoks — samad toonid mis ikoonidel. */
 const HULL_COLORS: Record<string, string> = {
@@ -103,7 +90,8 @@ export function updateVessels(map: MapLibreMap, list: Vessel[], zoom: number): v
     // Vööri suund on parem kui kurss üle põhja: triivival või manööverdaval
     // laeval need erinevad ja vöör näitab, kuhu ta tegelikult osutab.
     const hasHeading = v.heading !== undefined || v.cog !== undefined;
-    const category = vesselCategory(v.shipType);
+    const type = trafficType(v.shipType);
+    const category = type === 'other' ? 'default' : type;
     const props = commonProps(v, category, moving, hasHeading);
 
     const dims = hullDimensions(v);

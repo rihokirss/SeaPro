@@ -42,6 +42,7 @@ import { setAnchoragesVisible, setHarboursVisible, updateHarbours } from './map/
 import { closePopup, registerPopups } from './map/popups';
 import { buildWindField, type Field } from './map/interpolate';
 import { LayerPanel, type LayerState } from './components/LayerPanel';
+import { TrafficDensityLayer } from './components/TrafficDensityLayer';
 import { TimeSlider } from './components/TimeSlider';
 import { PointSheet } from './components/PointSheet';
 import { TopBar } from './components/TopBar';
@@ -76,6 +77,7 @@ const DEFAULT_LAYERS: LayerState = {
   scalarField: 'wind_speed',
   stations: true,
   vessels: true,
+  trafficDensity: false,
   harbours: true,
   anchorages: false,
   placeLabels: true,
@@ -1414,6 +1416,8 @@ export function App() {
           </div>
         ) : null}
 
+        {layers.trafficDensity && mapReady && mapRef.current && view &&
+          <TrafficDensityLayer map={mapRef.current} bbox={view.bbox} />}
         <MapLegend variable={layers.scalarField} speedUnit={speedUnit} />
 
         {/* Kaardi nupuvirn all paremal. Punktiprognoosi paneel istub samas

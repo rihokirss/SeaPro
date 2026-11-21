@@ -959,3 +959,5 @@ export interface VesselSearchResponse {
   results: VesselSearchResult[];
   historyAvailable: boolean;
 }
+
+export * from './traffic.js';

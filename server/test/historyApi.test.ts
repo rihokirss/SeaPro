@@ -15,6 +15,9 @@ describe('history API', () => {
     const app = Fastify();
     await registerHistoryApi(app);
     for (const url of [
+      '/api/ais/traffic-density?days=999&bbox=58,24,60,26',
+      '/api/ais/traffic-density?days=7&bbox=58,24,60,NaN',
+      '/api/ais/traffic-density?days=1&bbox=60,24,58,26',
       '/api/ais/vessels/search?q=x',
       '/api/ais/vessels/search?q=' + 'a'.repeat(101),
       '/api/ais/vessels?mmsi=0',

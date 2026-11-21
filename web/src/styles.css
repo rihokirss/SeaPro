@@ -3623,3 +3623,70 @@ button.sheet__grip::before {
 .vessel-popup-actions button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 
 .vessel-history__swatch { display: inline-block; width: 18px; height: 3px; margin-right: 8px; vertical-align: middle; border-radius: 2px; }
+
+/* Historical AIS shares the map with live navigation controls. */
+.density-card {
+  position: absolute;
+  z-index: 15;
+  left: calc(var(--safe-left) + var(--s4));
+  bottom: calc(var(--timebar-h) + var(--safe-bottom) + var(--s5));
+  width: min(268px, calc(100vw - 92px));
+  max-height: min(54dvh, 430px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+.density-card button { color: inherit; font: inherit; cursor: pointer; }
+.density-card__head, .density-card__ranking button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+.density-card__head { flex: none; min-height: var(--touch); }
+.density-card__head > span { flex: 1; }
+.density-card__head strong, .density-card__head small { display: block; }
+.density-card__head small, .density-card__status, .density-card__body p {
+  font-size: var(--t-sm);
+  color: var(--text-dim);
+}
+.density-card__head .is-open { transform: rotate(180deg); }
+.density-card__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--line);
+  padding: var(--s3) var(--s4);
+}
+.density-card__body p { margin: var(--s2) 0; }
+.density-card__status { padding: 0 var(--s4) var(--s3); }
+.density-card__dates, .density-card__ranking button > span:last-child { font-variant-numeric: tabular-nums; }
+.density-card__ranking button {
+  min-height: 34px;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--r-xs);
+  font-size: var(--t-sm);
+}
+.density-card__ranking button[aria-pressed="true"] { background: var(--line); font-weight: var(--w-bold); }
+.density-card__ranking button > span:last-child { margin-left: auto; white-space: nowrap; }
+.density-card__ranking i { width: 14px; height: 14px; display: grid; place-items: center; color: #fff; border-radius: 2px; flex: none; }
+@media (pointer: coarse) {
+  .density-card__ranking button { min-height: var(--touch); }
+}
+.density-card__ranking h3 {
+  margin: var(--s3) var(--s2) var(--s1);
+  color: var(--text-dim);
+  font-size: var(--t-sm);
+}
+
+.density-card__periods { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+.density-card__periods .chip { padding-inline: 2px; justify-content: center; white-space: nowrap; font-size: var(--t-sm); }

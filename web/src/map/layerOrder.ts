@@ -33,6 +33,7 @@ export const LAYER_ORDER = [
   'routing-graph-official',
   'routing-graph-recommended',
   'scalar-field',
+  'traffic-density',
   'wind-arrows',
   'place-labels',
   'place-labels-minor',
