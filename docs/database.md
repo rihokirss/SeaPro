@@ -70,10 +70,15 @@ läbitud ruutude vahel proportsionaalselt neisse jääva joonepikkusega.
 Alusruudu külg on 60° põhjalaiusel umbes 0,49 km. Ruudud on joondatud
 Web Mercatori kaardivõrgule. Laiemas vaates liidetakse naaberruudud.
 Kaardil sulanduvad kõrvuti olevate ruutude värvid sujuvalt. Igas ruudus liidetakse valitud laevatüüpide
-teepikkused. Ruudu värvi määrab valitud tüüpidest suurima teepikkusega tüüp. Vähima positiivse
-koguteepikkusega ruut on heledaim ja suurima koguteepikkusega ruut tumedaim. Vahepealsed toonid
+teepikkused. Ruudu värvi määrab valitud tüüpidest suurima teepikkusega tüüp. Kõigi tüüpide vaates määrab
+tumeduse keskmine päevane teepikkus alusruudu kohta. Osalise valiku korral on vähima positiivse
+koguteepikkusega ruut heledaim ja suurima koguteepikkusega ruut tumedaim. Vahepealsed toonid
 jaotuvad logaritmiliselt. Skaala arvutatakse laaditud kaardiala ja valitud perioodi põhjal.
 Kui kõigis liiklusega ruutudes on teepikkus sama, kasutatakse tumedaimat tooni. Vaate pingereas liidetakse nähtavate ruutude meremiilid.
+
+Igapäevane ajaloo hooldus valmistab aastavaate päeva- ja kuukoondid ette. Need säilivad kataloogis
+`data/ais-traffic-grids-v1` ka pärast rakenduse restarti. Server kontrollib päevade koondamise ajatempleid
+ning arvutab muutunud või puuduva koondi arhiivist uuesti.
 
 Üle 15 minuti andmelünki ja üle 100 sõlme eeldavaid asukohahüppeid ei ühendata.
 Kohalolekut arvestatakse järjestikuste raportite vahel kuni 5 minutit; pikemate

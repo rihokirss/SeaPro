@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import type { TrafficDensity } from '@seapro/shared';
+import { TRAFFIC_TYPES, type TrafficDensity } from '@seapro/shared';
 import { trafficRaster, TRAFFIC_COLORS } from './trafficDensity';
 
 it('blends a transparent-bordered raster, colouring and weighting only the selected types', () => {
@@ -19,7 +19,9 @@ it('blends a transparent-bordered raster, colouring and weighting only the selec
   expect(color(all.pixels, first)).toBe(TRAFFIC_COLORS.tanker);
   expect(color(selected.pixels, first)).toBe(TRAFFIC_COLORS.cargo);
   expect(color(selected.pixels, first + 4)).toBe(TRAFFIC_COLORS.passenger);
-  expect(selected.pixels[first + 3]).toBe(all.pixels[first + 3]);
+  const density = (1852 * 24) / (1852 * 2 * 2 ** 2);
+  expect(all.pixels[first + 3]).toBe(Math.round(255 * (0.09 + 0.24 * Math.log1p(8 * density))));
+  expect(trafficRaster(data, TRAFFIC_TYPES)!.pixels).toEqual(all.pixels);
   expect(selected.pixels[3]).toBe(0);
   expect(trafficRaster(data, ['fast'])!.pixels.every(v => v === 0)).toBe(true);
 });
