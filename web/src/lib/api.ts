@@ -10,6 +10,7 @@ import type {
   RadarTimeline,
   StationReading,
   SearchResult,
+  VesselSearchResponse,
   Variable,
   Vessel,
   RouteAnalysis,
@@ -141,6 +142,10 @@ export const api = {
     const p = new URLSearchParams({ q: opts.q, lang: opts.lang });
     if (opts.bbox) p.set('bbox', opts.bbox.map((n) => n.toFixed(4)).join(','));
     return get<{ results: SearchResult[] }>(`/api/search?${p}`, signal);
+  },
+
+  searchVessels(q: string, signal?: AbortSignal) {
+    return get<VesselSearchResponse>(`/api/ais/vessels/search?${new URLSearchParams({ q })}`, signal);
   },
 
   reversePlace(

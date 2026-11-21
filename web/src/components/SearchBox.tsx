@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { Anchor, MapPin, Search } from 'lucide-react';
-import type { SearchResult } from '@seapro/shared';
-import { useI18n } from '../i18n';
+import { Anchor, ChevronDown, MapPin, Search, Ship } from 'lucide-react';
+import type { SearchResult, TrackedVessel, VesselSearchResult } from '@seapro/shared';
+import { localeTag, useI18n } from '../i18n';
 import { api } from '../lib/api';
 
 interface Props {
   bbox?: [number, number, number, number];
+  onVessel(vessel: TrackedVessel): void;
   onGoTo(lat: number, lon: number, zoom?: number): void;
 }
 
 type Status = 'idle' | 'searching' | 'ready' | 'error';
 
-export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
+export function SearchBox({ bbox, onGoTo, onVessel }: Props): React.ReactElement {
   const { lang, t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -19,8 +20,11 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
   // Pärast tulemuse valimist ei tohi kaardi liikumisest muutuv bbox sama nime
   // soovitusi uuesti avada. Lukk vabaneb alles kasutaja järgmise sisestusega.
   const suppressAutoSearch = useRef(false);
+  const [scope, setScope] = useState<'places' | 'vessels'>('places');
+  const [historyAvailable, setHistoryAvailable] = useState(true);
+  const timer = useRef<number | undefined>(undefined);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<(SearchResult | VesselSearchResult)[]>([]);
   const [status, setStatus] = useState<Status>('idle');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -29,6 +33,10 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
   useEffect(() => {
     const closeOutside = (event: PointerEvent): void => {
       if (!root.current?.contains(event.target as Node)) {
+        window.clearTimeout(timer.current);
+        suppressAutoSearch.current = true;
+        setStatus(previous => previous === 'searching' ? 'idle' : previous);
+        request.current?.abort();
         setOpen(false);
         setMobileOpen(false);
       }
@@ -40,6 +48,7 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
   useEffect(() => () => request.current?.abort(), []);
 
   const search = (value = query): void => {
+    window.clearTimeout(timer.current);
     const q = value.trim();
     if (q.length < 2) {
       input.current?.focus();
@@ -51,8 +60,12 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
     setStatus('searching');
     setOpen(true);
     setActive(-1);
-    api.search({ q, lang, bbox }, ac.signal)
-      .then(({ results: found }) => {
+    const response = scope === 'vessels' ? api.searchVessels(q, ac.signal) : api.search({ q, lang, bbox }, ac.signal);
+    response
+      .then(data => {
+        if (ac.signal.aborted) return;
+        const found = data.results;
+        setHistoryAvailable(!('historyAvailable' in data) || data.historyAvailable);
         setResults(found);
         setStatus('ready');
         setActive(found.length ? 0 : -1);
@@ -76,19 +89,23 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
       setOpen(false);
       return;
     }
-    const timer = window.setTimeout(() => search(q), 400);
-    return () => window.clearTimeout(timer);
-  }, [query, lang, bbox?.join(',')]);
+    timer.current = window.setTimeout(() => search(q), 400);
+    return () => window.clearTimeout(timer.current);
+  }, [query, lang, scope, scope === 'places' ? bbox?.join(',') : undefined]);
 
-  const choose = (result: SearchResult): void => {
+  const choose = (result: SearchResult | VesselSearchResult): void => {
+    window.clearTimeout(timer.current);
+    request.current?.abort();
     suppressAutoSearch.current = true;
     setQuery(result.name);
     setOpen(false);
     setMobileOpen(false);
-    onGoTo(result.lat, result.lon, result.zoom);
+    if (result.kind === 'vessel') onVessel(result.vessel);
+    else onGoTo(result.lat, result.lon, result.zoom);
   };
 
-  const optionId = active >= 0 ? `search-result-${active}` : undefined;
+  const placeholder = t(scope === 'places' ? 'search.placeholder' : 'search.vesselPlaceholder');
+  const optionId = open && active >= 0 ? `search-result-${active}` : undefined;
   return (
     <div className={`search${mobileOpen ? ' is-mobile-open' : ''}`} ref={root}>
       <button
@@ -112,18 +129,40 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
           else search();
         }}
       >
+        <label className="search__scope">
+          <select
+            aria-label={t('search.scope')}
+            value={scope}
+            onChange={event => {
+              request.current?.abort();
+              window.clearTimeout(timer.current);
+              suppressAutoSearch.current = false;
+              setScope(event.target.value === 'vessels' ? 'vessels' : 'places');
+              setResults([]);
+              setActive(-1);
+              setStatus('idle');
+              setOpen(false);
+              input.current?.focus();
+            }}
+          >
+            <option value="places">{t('search.places')}</option>
+            <option value="vessels">{t('search.vessels')}</option>
+          </select>
+          <ChevronDown size={14} aria-hidden="true" />
+        </label>
         <input
           ref={input}
           className="search__input"
           type="search"
           value={query}
-          placeholder={t('search.placeholder')}
-          aria-label={t('search.placeholder')}
+          placeholder={placeholder}
+          aria-label={placeholder}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls="search-results"
           aria-activedescendant={optionId}
+          maxLength={scope === 'vessels' ? 100 : undefined}
           autoComplete="off"
           onFocus={() => {
             if (status !== 'idle') setOpen(true);
@@ -131,12 +170,17 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
           onChange={(event) => {
             suppressAutoSearch.current = false;
             request.current?.abort();
+            setStatus('idle');
             setQuery(event.target.value);
             setOpen(false);
             setActive(-1);
           }}
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
+              window.clearTimeout(timer.current);
+              request.current?.abort();
+              suppressAutoSearch.current = true;
+              setStatus(previous => previous === 'searching' ? 'idle' : previous);
               setOpen(false);
               setMobileOpen(false);
               event.currentTarget.blur();
@@ -165,11 +209,12 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
         <div className="search__results" id="search-results" role="listbox" aria-label={t('search.results')}>
           {status === 'searching' ? <p className="search__state">{t('search.searching')}</p> : null}
           {status === 'error' ? <p className="search__state search__state--error">{t('search.error')}</p> : null}
-          {status === 'ready' && results.length === 0 ? <p className="search__state">{t('search.noResults')}</p> : null}
+          {status === 'ready' && historyAvailable && results.length === 0 ? <p className="search__state">{t('search.noResults')}</p> : null}
+          {status === 'ready' && !historyAvailable ? <p className="search__state">{t('search.historyUnavailable')}</p> : null}
           {status === 'ready' && results.length ? (
             <ul>
               {results.map((result, index) => (
-                <li key={result.id}>
+                <li key={result.kind === 'vessel' ? result.vessel.mmsi : result.id}>
                   <button
                     id={`search-result-${index}`}
                     type="button"
@@ -180,20 +225,22 @@ export function SearchBox({ bbox, onGoTo }: Props): React.ReactElement {
                     onClick={() => choose(result)}
                   >
                     <span className="search__kind" aria-hidden="true">
-                      {result.kind === 'harbour' ? <Anchor size={18} /> : <MapPin size={18} />}
+                      {scope === 'vessels' ? <Ship size={18} /> : result.kind === 'harbour' ? <Anchor size={18} /> : <MapPin size={18} />}
                     </span>
                     <span className="search__label">
                       <strong>{result.name}</strong>
-                      {result.subtitle ? <small>{result.subtitle}</small> : null}
+                      <small>{result.kind === 'vessel'
+                        ? `MMSI ${result.vessel.mmsi} · ${t('search.lastReport')} ${new Date(result.vessel.timestamp).toLocaleString(localeTag(lang), { dateStyle: 'short', timeStyle: 'short' })}`
+                        : result.subtitle}</small>
                     </span>
                   </button>
                 </li>
               ))}
             </ul>
           ) : null}
-          <p className="search__attribution">
+          {scope === 'places' ? <p className="search__attribution">
             © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>
-          </p>
+          </p> : null}
         </div>
       ) : null}
     </div>

@@ -499,7 +499,7 @@ export function App() {
   const [nextWaypointIndex, setNextWaypointIndex] = useState(1);
   const [followingPosition, setFollowingPosition] = useState(true);
   const [vessels, setVessels] = useState<Vessel[]>([]);
-  const vesselTracking = useVesselTracking(mapReady ? mapRef.current : null, () => setFollowingPosition(false), vessels);
+  const vesselTracking = useVesselTracking(mapReady ? mapRef.current : null, () => setFollowingPosition(false), vessels, t('search.lastReport'));
   const [recordTrack, setRecordTrack] = useState(false);
   const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([]);
   const [offRouteWarning, setOffRouteWarning] = useState(false);
@@ -1357,6 +1357,11 @@ export function App() {
           }}
           geo={geo}
           favorites={favorites}
+          onVessel={v => {
+            setFollowingPosition(false);
+            goTo(v.lat, v.lon);
+            vesselTracking.showSearchResult(v);
+          }}
           onGoTo={goTo}
           bbox={view?.bbox}
         />

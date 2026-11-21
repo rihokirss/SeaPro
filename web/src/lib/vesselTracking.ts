@@ -67,7 +67,12 @@ export function extendLiveTrack(segments: TrackPosition[][], reports: Vessel[]):
   return result;
 }
 
-export function useVesselTracking(map: MapLibreMap | null, onFollow: () => void, liveVessels: Vessel[] = NO_VESSELS) {
+export function useVesselTracking(
+  map: MapLibreMap | null,
+  onFollow: () => void,
+  liveVessels: Vessel[] = NO_VESSELS,
+  lastReportLabel = '',
+) {
   const [favorites, setFavorites] = useState(loadVesselFavorites),
     [storageError, setStorageError] = useState(false);
   const [open, setOpen] = useState(false),
@@ -152,6 +157,19 @@ export function useVesselTracking(map: MapLibreMap | null, onFollow: () => void,
     },
     [follow, toggleFavorite, tracks.showTrack],
   );
+  const showSearchResult = (v: TrackedVessel) => {
+    const vessel = { name: v.name || String(v.mmsi), mmsi: v.mmsi };
+    const end = v.stale ? Date.parse(v.timestamp) : Date.now();
+    setFollowing(null);
+    setSelected(vessel);
+    setVessels(current => mergeVesselPositions([v], current));
+    setOpen(true);
+    tracks.showTrack(vessel, {
+      from: new Date(end - 86400000).toISOString(),
+      to: new Date(end).toISOString(),
+      live: !v.stale,
+    });
+  };
   const ids = [
     ...new Set([
       ...favorites.map((v) => v.mmsi),
@@ -212,7 +230,10 @@ export function useVesselTracking(map: MapLibreMap | null, onFollow: () => void,
     if (!map || !track || tracks.fitMmsi.current !== selected?.mmsi) return;
     tracks.fitMmsi.current = null;
     if (followingRef.current) return;
-    const points = track.segments.flat();
+    const points: TrackPosition[] = track.segments.flat();
+    const latest = vessels.find(v => v.mmsi === selected?.mmsi);
+    if (latest && range && Date.parse(latest.timestamp) >= Date.parse(range.from) &&
+        (range.live || Date.parse(latest.timestamp) <= Date.parse(range.to))) points.push(latest);
     if (!points.length) return;
     const west = Math.min(...points.map((p) => p.lon)),
       east = Math.max(...points.map((p) => p.lon)),
@@ -225,7 +246,7 @@ export function useVesselTracking(map: MapLibreMap | null, onFollow: () => void,
       ],
       { padding: 70, maxZoom: 14, duration: 500 },
     );
-  }, [map, track, selected?.mmsi, tracks.fitMmsi]);
+  }, [map, track, selected?.mmsi, tracks.fitMmsi, range, vessels]);
   useEffect(() => {
     if (!map) return;
     const stop = () => setFollowing(null);
@@ -261,7 +282,7 @@ export function useVesselTracking(map: MapLibreMap | null, onFollow: () => void,
         type: 'FeatureCollection',
         features: vessels.filter(v => v.mmsi === following || tracks.active[v.mmsi]).map(v => ({
           type: 'Feature',
-          properties: { mmsi: v.mmsi, stale: v.stale, color: tracks.active[v.mmsi]?.color ?? '#edb85e' },
+          properties: { mmsi: v.mmsi, stale: v.stale, label: `${v.name || v.mmsi}\n${lastReportLabel}`, color: tracks.active[v.mmsi]?.color ?? '#edb85e' },
           geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
         })),
       };
@@ -279,19 +300,35 @@ export function useVesselTracking(map: MapLibreMap | null, onFollow: () => void,
             'circle-stroke-color': ['case', ['get', 'stale'], '#999', ['get', 'color']],
           },
         });
+      if (!map.getLayer('ais-last-report'))
+        map.addLayer({
+          id: 'ais-last-report',
+          type: 'symbol',
+          source: 'ais-tracked',
+          filter: ['==', ['get', 'stale'], true],
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-font': ['Open Sans Regular'],
+            'text-size': 12,
+            'text-anchor': 'top',
+            'text-offset': [0, 1.1],
+          },
+          paint: { 'text-color': '#203443', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
+        });
     };
     render();
     map.on('style.load', render);
     return () => {
       map.off('style.load', render);
     };
-  }, [map, displayedTracks, vessels, tracks.active, following]);
+  }, [map, displayedTracks, vessels, tracks.active, following, lastReportLabel]);
   const close = () => setOpen(false);
   const hideTrack = (mmsi = selected?.mmsi) => { if (mmsi) tracks.hideTrack(mmsi); };
   const select = (vessel: VesselFavorite) => { setSelected(vessel); setOpen(true); };
 
   return {
     activeTracks,
+    showSearchResult,
     trackResults: tracks.results,
     select,
     mapVessels,

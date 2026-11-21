@@ -700,6 +700,27 @@ textarea {
   box-shadow: 0 0 0 2px var(--accent-glow), var(--shadow-sm);
 }
 
+.search__scope {
+  position: relative;
+  display: flex;
+  color: var(--brass);
+  background: var(--surface-2);
+  border-inline-end: 1px solid var(--float-line);
+}
+.search__scope select {
+  appearance: none;
+  padding: 0 28px 0 12px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.search__scope select:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.search__scope option { background: var(--surface-solid); color: var(--text); }
+.search__scope svg { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+
 .search__input {
   min-width: 0;
   flex: 1;

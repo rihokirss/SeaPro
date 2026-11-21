@@ -1,3 +1,4 @@
+import type { TrackedVessel } from '@seapro/shared';
 import { useState } from 'react';
 import { Menu, Pencil, Route, Ship, Star, Trash2, Radar } from 'lucide-react';
 import { useI18n } from '../i18n';
@@ -11,6 +12,7 @@ interface Props {
   onGoHome(): void;
   geo: GeoState;
   favorites: ReturnType<typeof useFavorites>;
+  onVessel(vessel: TrackedVessel): void;
   onGoTo(lat: number, lon: number, zoom?: number): void;
   bbox?: [number, number, number, number];
   onOpenRoutes(): void;
@@ -32,7 +34,7 @@ function CompassRose() {
   );
 }
 
-export function TopBar({ onOpenVesselHistory, onOpenLayers, onGoHome, onOpenRoutes, onOpenVesselSettings, geo, favorites, onGoTo, bbox }: Props) {
+export function TopBar({ onOpenVesselHistory, onOpenLayers, onGoHome, onOpenRoutes, onOpenVesselSettings, geo, favorites, onGoTo, onVessel, bbox }: Props) {
   const { t } = useI18n();
   const [favOpen, setFavOpen] = useState(false);
 
@@ -70,7 +72,7 @@ export function TopBar({ onOpenVesselHistory, onOpenLayers, onGoHome, onOpenRout
         </div>
       </button>
 
-      <SearchBox bbox={bbox} onGoTo={onGoTo} />
+      <SearchBox bbox={bbox} onGoTo={onGoTo} onVessel={onVessel} />
 
       {/* "Minu asukoht" oli varem siin. Kolis alla paremasse nurka
           (`LocateButton` `.mapctl` virnas) — pöidla ulatusse. */}

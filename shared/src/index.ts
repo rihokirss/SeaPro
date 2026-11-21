@@ -952,3 +952,10 @@ export interface VesselTrack {
   gaps: Array<{startedAt: string; endedAt: string | null; reason: string}>;
 }
 export interface TrackedVessel extends Vessel { stale: boolean }
+
+export interface VesselSearchResult { kind: 'vessel'; name: string; vessel: TrackedVessel }
+
+export interface VesselSearchResponse {
+  results: VesselSearchResult[];
+  historyAvailable: boolean;
+}

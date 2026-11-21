@@ -213,3 +213,28 @@ it('keeps multiple colored tracks live without following and hides each independ
     expect(data.get('ais-tracked').features).toHaveLength(0);
   } finally { unmount(); vi.useRealTimers(); }
 });
+
+it('opens the day ending at an archived search hit and marks even an isolated last report', async () => {
+  const end = Date.now() - 3 * 86400000;
+  const ship = { mmsi: 999000123, name: 'Test ferry', lat: 59, lon: 24,
+    timestamp: new Date(end).toISOString(), stale: true, source: 'digitraffic' as const };
+  const data = new Map<string, any>();
+  const map = {
+    getStyle: () => ({}), on: vi.fn(), off: vi.fn(),
+    getSource: (id: string) => data.has(id) ? { setData: (value: unknown) => data.set(id, value) } : undefined,
+    addSource: (id: string, source: { data: unknown }) => data.set(id, source.data),
+    getLayer: () => true, fitBounds: vi.fn(),
+  };
+  const fetch = vi.fn(async (url: string) => ({
+    ok: true, json: async () => url.includes('/track?') ? { segments: [[ship]] } : { vessels: [] },
+  }));
+  vi.stubGlobal('fetch', fetch);
+  const { result, unmount } = renderHook(() => useVesselTracking(map as unknown as MapLibreMap, () => {}));
+  await act(async () => result.current.showSearchResult(ship));
+  expect(result.current.range).toEqual({ from: new Date(end - 86400000).toISOString(), to: ship.timestamp, live: false });
+  expect(data.get('ais-tracked').features[0]).toMatchObject({
+    properties: { stale: true }, geometry: { coordinates: [ship.lon, ship.lat] },
+  });
+  expect(map.fitBounds).toHaveBeenCalled();
+  unmount();
+});

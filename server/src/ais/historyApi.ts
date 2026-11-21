@@ -4,10 +4,19 @@ import { database, databaseStatus } from '../db/pool.js';
 import { historyConfig, cutoff, DAY } from '../db/config.js';
 import { writeQueue } from '../db/queue.js';
 import { vesselTrack } from './history.js';
+import { searchVessels } from './search.js';
+
 export function historyHealth() {
   return { ...databaseStatus, queue: writeQueue.status, settings: historyConfig, metrics: historyMetrics };
 }
 export async function registerHistoryApi(app: FastifyInstance) {
+  app.get('/api/ais/vessels/search', async (req, reply) => {
+    const { q } = req.query as { q?: unknown };
+    if (typeof q !== 'string' || q.trim().length < 2 || q.length > 100)
+      return reply.code(400).send({ error: 'Sisesta 2–100 tähemärki' });
+    reply.header('Cache-Control', 'no-store');
+    return searchVessels(q.trim());
+  });
   app.get('/api/ais/vessels', async (req, reply) => {
     const input = (req.query as Record<string, string>).mmsi;
     if (!input || !/^\d{1,9}(,\d{1,9}){0,99}$/.test(input) || input.split(',').some((v) => Number(v) <= 0))
