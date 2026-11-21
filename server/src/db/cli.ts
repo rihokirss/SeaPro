@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { migrate } from './migrate.js';
 import { maintain } from './maintenance.js';
+import { prepareTrafficGrids } from '../ais/trafficDensity.js';
 import { applyEvents, type WriteEvent } from './queue.js';
 import { dataDirectory } from './config.js';
 import {
@@ -208,7 +209,10 @@ if (process.argv[1]?.endsWith('/db/cli.ts')) {
   try {
     const command = process.argv[2];
     if (command === 'migrate') await migrate();
-    else if (command === 'maintain') console.log(await maintain());
+    else if (command === 'maintain') {
+      console.log(await maintain());
+      await prepareTrafficGrids();
+    }
     else if (command === 'import') console.log(await importLegacy(resolve(process.argv[3] ?? dataDirectory)));
     else if (command === 'export') {
       if (!process.argv[3]) throw new Error('Määra ekspordikataloog');

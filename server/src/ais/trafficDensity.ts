@@ -2,8 +2,10 @@ import {
   TRAFFIC_WORLD_CELLS, TRAFFIC_TYPES, trafficX, trafficY, trafficWindow, distanceMetres, trafficType,
   type TrafficCell, type TrafficDensity, type TrafficPeriod, type TrafficType,
 } from '@seapro/shared';
+import { join } from 'node:path';
 import { database } from '../db/pool.js';
-import { DAY, historyConfig } from '../db/config.js';
+import { DAY, dataDirectory, historyConfig } from '../db/config.js';
+import { cachedTrafficGrid, pruneTrafficGrids } from './trafficGridCache.js';
 
 type Grid = Map<number, number>;
 type Position = [number, number];
@@ -12,6 +14,8 @@ type Position = [number, number];
 // of these values, so cached grids use alternating keys and distances.
 const ROW_STRIDE = TRAFFIC_WORLD_CELLS + 1;
 const TYPE_COUNT = TRAFFIC_TYPES.length;
+// Change the directory version if the grid geometry, key encoding or distance calculation changes.
+const gridDirectory = join(dataDirectory, 'ais-traffic-grids-v1');
 function cellKey(x: number, y: number, type: number) {
   return (y * ROW_STRIDE + x) * TYPE_COUNT + type;
 }
@@ -83,13 +87,17 @@ export function addTrafficLine(grid: Grid, line: Position[], type: TrafficType, 
   }
 }
 
-async function loadDay(day: string): Promise<Float64Array> {
+async function buildDay(day: string): Promise<Float64Array> {
   const { rows } = await database.query<{ ship_type: number; distance_m: number; path: { coordinates: Position[] } }>(
     `SELECT ship_type, distance_m, ST_AsGeoJSON(ST_Force2D(path))::json AS path FROM ais_heatmap
      WHERE day=$1 AND distance_m>0 AND ST_GeometryType(path)='ST_LineString'`, [day]);
   const grid: Grid = new Map();
   for (const row of rows) addTrafficLine(grid, row.path.coordinates, trafficType(row.ship_type), row.distance_m);
   return packTrafficGrid(grid);
+}
+
+function loadDay(day: string, revision: string) {
+  return cachedTrafficGrid(gridDirectory, day, revision, () => buildDay(day));
 }
 
 function mergeGrid(target: Grid, entries: Float64Array) {
@@ -138,7 +146,7 @@ async function loadSnapshot(period: TrafficPeriod): Promise<Snapshot> {
   for (const row of rows) {
     const month = row.day.slice(0, 7);
     if (month >= recentMonth) {
-      chunks.push(await cachedGrid(days, row.day, row.revision, () => loadDay(row.day)));
+      chunks.push(await cachedGrid(days, row.day, row.revision, () => loadDay(row.day, row.revision)));
     } else {
       const group = archived.get(month) ?? [];
       group.push(row);
@@ -147,17 +155,28 @@ async function loadSnapshot(period: TrafficPeriod): Promise<Snapshot> {
   }
   for (const [month, group] of archived) {
     const revision = group.map(row => row.day + '/' + row.revision).join(',');
-    const grid = await cachedGrid(months, month, revision, async () => {
+    const buildMonth = async () => {
       const combined: Grid = new Map();
-      for (const row of group) mergeGrid(combined, await loadDay(row.day));
+      for (const row of group) mergeGrid(combined, await loadDay(row.day, row.revision));
       return packTrafficGrid(combined);
-    });
+    };
+    const grid = await cachedGrid(months, month, revision, () => cachedTrafficGrid(gridDirectory, month, revision, buildMonth));
     chunks.push(grid);
   }
   return { from, to, coveredDays: rows.length, chunks };
 }
 
 const snapshots = new Map<TrafficPeriod, { until: number; snapshot: Promise<Snapshot> }>();
+
+/** Run after daily history maintenance so the first visitor reads already prepared grids. */
+export async function prepareTrafficGrids() {
+  const snapshot = await loadSnapshot(365);
+  const retention = historyConfig.heatmapDays;
+  const today = new Date().toISOString().slice(0, 10);
+  const oldest = snapshot.from ?? today;
+  const cutoff = retention ? new Date(Date.now() - retention * DAY).toISOString().slice(0, 10) : oldest;
+  await pruneTrafficGrids(gridDirectory, oldest > cutoff ? oldest : cutoff);
+}
 
 /** Merge complete, aligned cells at overview zooms, optionally including the pan margin. */
 export function trafficView(snapshot: Snapshot, bbox: Bbox, buffered = false): TrafficDensity {
