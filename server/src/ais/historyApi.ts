@@ -13,7 +13,7 @@ export function historyHealth() {
 }
 export async function registerHistoryApi(app: FastifyInstance) {
   app.get('/api/ais/traffic-density', async (req, reply) => {
-    const { days = '7', bbox } = req.query as { days?: string; bbox?: string };
+    const { days = '7', bbox, buffer } = req.query as { days?: string; bbox?: string; buffer?: string };
     const period = Number(days) as TrafficPeriod;
     if (!TRAFFIC_PERIODS.includes(period) || String(period) !== days)
       return reply.code(400).send({ error: 'Vali 1, 7, 30 või 365 päeva' });
@@ -23,7 +23,7 @@ export async function registerHistoryApi(app: FastifyInstance) {
       || south < -90 || north > 90 || north <= south || east <= west)
       return reply.code(400).send({ error: 'Vigane kaardiala' });
     try {
-      const result = await trafficDensity(period, [south, west, north, east]);
+      const result = await trafficDensity(period, [south, west, north, east], buffer === '1');
       return reply.header('Cache-Control', 'public, max-age=900').send(result);
     } catch (error) {
       req.log.warn({ err: error }, 'AIS liiklustiheduse päring ebaõnnestus');

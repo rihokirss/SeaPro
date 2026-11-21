@@ -1,5 +1,5 @@
 import {
-  TRAFFIC_WORLD_CELLS, TRAFFIC_TYPES, trafficX, trafficY, distanceMetres, trafficType,
+  TRAFFIC_WORLD_CELLS, TRAFFIC_TYPES, trafficX, trafficY, trafficWindow, distanceMetres, trafficType,
   type TrafficCell, type TrafficDensity, type TrafficPeriod, type TrafficType,
 } from '@seapro/shared';
 import { database } from '../db/pool.js';
@@ -159,14 +159,11 @@ async function loadSnapshot(period: TrafficPeriod): Promise<Snapshot> {
 
 const snapshots = new Map<TrafficPeriod, { until: number; snapshot: Promise<Snapshot> }>();
 
-/** Merge complete, aligned cells at overview zooms. Only cells touching the viewport leave the server. */
-export function trafficView(snapshot: Snapshot, [south, west, north, east]: Bbox): TrafficDensity {
-  const width = Math.min(360, east - west);
-  const startX = trafficX(((west + 180) % 360 + 360) % 360 - 180);
-  const endX = startX + width / 360 * TRAFFIC_WORLD_CELLS;
-  const top = trafficY(north), bottom = trafficY(south);
-  const span = Math.max(endX - startX, bottom - top);
-  const factor = 2 ** Math.max(0, Math.ceil(Math.log2(span / 200)));
+/** Merge complete, aligned cells at overview zooms, optionally including the pan margin. */
+export function trafficView(snapshot: Snapshot, bbox: Bbox, buffered = false): TrafficDensity {
+  const { left, right, top, bottom, factor } = trafficWindow(bbox, buffered);
+  const startX = ((left % TRAFFIC_WORLD_CELLS) + TRAFFIC_WORLD_CELLS) % TRAFFIC_WORLD_CELLS;
+  const endX = startX + (right - left);
   const minY = Math.floor(top / factor), maxY = Math.ceil(bottom / factor);
   const grid = new Map<number, TrafficCell>();
   for (const entries of snapshot.chunks) {
@@ -196,7 +193,7 @@ export function trafficView(snapshot: Snapshot, [south, west, north, east]: Bbox
   return { from: snapshot.from, to: snapshot.to, coveredDays: snapshot.coveredDays, factor, cells: [...grid.values()] };
 }
 
-export async function trafficDensity(period: TrafficPeriod, bbox: Bbox): Promise<TrafficDensity> {
+export async function trafficDensity(period: TrafficPeriod, bbox: Bbox, buffered = false): Promise<TrafficDensity> {
   let entry = snapshots.get(period);
   if (!entry || entry.until <= Date.now()) {
     const snapshot = loadSnapshot(period).catch(error => {
@@ -206,5 +203,5 @@ export async function trafficDensity(period: TrafficPeriod, bbox: Bbox): Promise
     entry = { until: Date.now() + 15 * 60_000, snapshot };
     snapshots.set(period, entry);
   }
-  return trafficView(await entry.snapshot, bbox);
+  return trafficView(await entry.snapshot, bbox, buffered);
 }

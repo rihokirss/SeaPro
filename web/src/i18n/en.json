@@ -322,7 +322,7 @@
   "density.selected": "{n} types selected",
   "density.cellKm": "Cell width ≈ {km} km",
   "density.noMatches": "No movement from the selected vessel types in this view.",
-  "density.hint": "Select one or more vessel types. Each cell takes the colour of the selected type that travelled farthest. Stronger colour means denser traffic.",
+  "density.loadedRank": "Nautical miles in loaded area",
   "density.loading": "Loading AIS history…",
   "density.error": "Traffic history could not be loaded.",
   "density.empty": "No recorded movement for this view and period.",

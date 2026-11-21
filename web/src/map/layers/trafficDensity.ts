@@ -4,8 +4,8 @@ import { insertBefore } from '../layerOrder';
 
 const LAYER = 'traffic-density';
 export const TRAFFIC_COLORS: Record<TrafficType, string> = {
-  cargo: '#307ec8', tanker: '#dc9324', passenger: '#239474', fishing: '#ae60a7',
-  sailing: '#55b4a7', pleasure: '#40a7d7', fast: '#e47864', other: '#7f8898',
+  cargo: '#2c73b8', tanker: '#cb8721', passenger: '#20876a', fishing: '#a05899',
+  sailing: '#4ea598', pleasure: '#3a99c5', fast: '#d16e5c', other: '#747d8c',
 };
 
 const rgb = Object.fromEntries(TRAFFIC_TYPES.map(type => [type, parseInt(TRAFFIC_COLORS[type].slice(1), 16)]));
@@ -36,7 +36,7 @@ export function trafficRaster(data: TrafficDensity, selected: readonly TrafficTy
     pixels[i + 1] = (color >> 8) & 255;
     pixels[i + 2] = color & 255;
     const density = distance / (1852 * data.coveredDays * data.factor ** 2);
-    pixels[i + 3] = Math.round(255 * Math.min(0.87, 0.07 + 0.23 * Math.log1p(8 * density)));
+    pixels[i + 3] = Math.round(255 * Math.min(0.90, 0.09 + 0.24 * Math.log1p(8 * density)));
   }
   const west = trafficLon(minX * data.factor), east = trafficLon((maxX + 1) * data.factor);
   const north = trafficLat(minY * data.factor), south = trafficLat((maxY + 1) * data.factor);

@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChartNoAxesColumnIncreasing, Check, ChevronDown } from 'lucide-react';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { TRAFFIC_PERIODS, TRAFFIC_TYPES, TRAFFIC_WORLD_CELLS, type TrafficDensity, type TrafficPeriod, type TrafficType } from '@seapro/shared';
+import { TRAFFIC_PERIODS, TRAFFIC_TYPES, TRAFFIC_WORLD_CELLS, trafficWindow, type TrafficBounds, type TrafficDensity, type TrafficPeriod, type TrafficType } from '@seapro/shared';
 import { api } from '../lib/api';
 import { useI18n, localeTag } from '../i18n';
 import { hideTrafficDensity, showTrafficDensity, TRAFFIC_COLORS } from '../map/layers/trafficDensity';
 
 interface Props {
   map: MapLibreMap;
-  bbox: [number, number, number, number];
+  bbox: TrafficBounds;
+}
+
+function covers(bounds: TrafficBounds, viewport: ReturnType<typeof trafficWindow>) {
+  const region = trafficWindow(bounds, true);
+  return region.factor === viewport.factor && region.left <= viewport.left && region.right >= viewport.right
+    && region.top <= viewport.top && region.bottom >= viewport.bottom;
 }
 
 export function TrafficDensityLayer({ map, bbox }: Props) {
@@ -17,36 +23,48 @@ export function TrafficDensityLayer({ map, bbox }: Props) {
   const [selected, select] = useState<TrafficType[]>([]);
   const [expanded, expand] = useState(() => window.innerWidth >= 760);
   const [attempt, retry] = useState(0);
-  const [response, setResponse] = useState<{ key: string; period: TrafficPeriod; data: TrafficDensity | null } | null>(null);
-  const bounds = bbox.map(n => n.toFixed(6)).join(',');
+  const viewport = useMemo(() => trafficWindow(bbox), [bbox]);
+  const [requestBounds, setRequestBounds] = useState(bbox);
+  if (!covers(requestBounds, viewport) && requestBounds !== bbox) setRequestBounds(bbox);
+  const bounds = requestBounds.join(',');
   const key = period + '/' + bounds;
-  const current = response?.key === key ? response : null;
-  const data = current?.data;
-  const mapped = response?.period === period ? response.data : null;
+  const [response, setResponse] = useState<{ period: TrafficPeriod; bounds: TrafficBounds; data: TrafficDensity } | null>(null);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const data = response?.period === period ? response.data : null;
+  const failed = failedKey === key;
 
   useEffect(() => {
     const abort = new AbortController();
     api.trafficDensity(period, bounds, abort.signal).then(data => {
-      if (!abort.signal.aborted) setResponse({ key, period, data });
+      if (!abort.signal.aborted) {
+        setResponse({ period, bounds: requestBounds, data });
+        setFailedKey(null);
+      }
     }).catch(() => {
-      if (!abort.signal.aborted) setResponse({ key, period, data: null });
+      if (!abort.signal.aborted) setFailedKey(key);
     });
     return () => abort.abort();
-  }, [period, bounds, key, attempt]);
+  }, [period, bounds, requestBounds, key, attempt]);
 
   useEffect(() => {
-    if (mapped) showTrafficDensity(map, mapped, selected);
+    if (data) showTrafficDensity(map, data, selected);
     else hideTrafficDensity(map);
-  }, [map, mapped, selected]);
+  }, [map, data, selected]);
   useEffect(() => () => hideTrafficDensity(map), [map]);
 
   const ranking = useMemo(() => {
     const totals = TRAFFIC_TYPES.map(type => ({ type, metres: 0 }));
-    for (const cell of data?.cells ?? []) {
+    if (!data) return totals;
+    for (const cell of data.cells) {
+      const y = cell.y * data.factor;
+      if (y >= viewport.bottom || y + data.factor <= viewport.top) continue;
+      // Offset eastwards from the left edge, including wrapped copies of the map.
+      const dx = ((cell.x * data.factor - viewport.left) % TRAFFIC_WORLD_CELLS + TRAFFIC_WORLD_CELLS) % TRAFFIC_WORLD_CELLS;
+      if (dx >= viewport.right - viewport.left && dx + data.factor <= TRAFFIC_WORLD_CELLS) continue;
       for (const row of totals) row.metres += cell.metres[row.type] ?? 0;
     }
     return totals.sort((a, b) => b.metres - a.metres);
-  }, [data]);
+  }, [data, viewport]);
   const total = ranking.reduce((sum, row) => sum + row.metres, 0);
   const filtered = selected.length > 0;
   const selectedMetres = ranking.reduce((sum, row) => sum + (selected.includes(row.type) ? row.metres : 0), 0);
@@ -68,10 +86,10 @@ export function TrafficDensityLayer({ map, bbox }: Props) {
     if (data) summary += ' · ' + number(selectedMetres) + ' NM';
   }
   let status: string | null = null;
-  if (!current) status = t('density.loading');
-  else if (!data) status = t('density.error');
-  else if (!total) status = t('density.empty');
-  else if (filtered && !selectedMetres) status = t('density.noMatches');
+  if (failed) status = t('density.error');
+  else if (!data) status = t('density.loading');
+  else if (!total && response?.bounds === requestBounds) status = t('density.empty');
+  else if (filtered && !selectedMetres && response?.bounds === requestBounds) status = t('density.noMatches');
   return (
     <section className="density-card" aria-label={t('density.title')}>
       <button type="button" className="density-card__head" aria-expanded={expanded} onClick={() => expand(!expanded)}>
@@ -90,11 +108,10 @@ export function TrafficDensityLayer({ map, bbox }: Props) {
           {data.coveredDays < period && ' · ' + t('density.coverage', { n: data.coveredDays, days: period })}
           <br />{t('density.cellKm', { km: cellKm.toLocaleString(locale, { maximumFractionDigits: 1 }) })}
         </p>}
-        {!status && <p>{t('density.hint')}</p>}
         {status && <p role="status">{status}</p>}
-        {current && !data && <button type="button" className="chip" onClick={() => { setResponse(null); retry(n => n + 1); }}>{t('density.retry')}</button>}
-        {data && <div className="density-card__ranking" role="group" aria-label={t('density.filter')}>
-          <h3>{t('density.rank')}</h3>
+        {failed && <button type="button" className="chip" onClick={() => { setFailedKey(null); retry(n => n + 1); }}>{t('density.retry')}</button>}
+        {data && <div className="density-card__ranking" role="group" aria-label={t('density.filter')} aria-busy={!failed && response?.bounds !== requestBounds}>
+          <h3>{t(response?.bounds !== requestBounds ? 'density.loadedRank' : 'density.rank')}</h3>
           <button type="button" aria-pressed={!filtered} onClick={() => select([])}>
             <strong>{t('density.all')}</strong><span>{number(total)} NM</span>
           </button>

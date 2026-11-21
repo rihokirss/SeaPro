@@ -322,7 +322,7 @@
   "density.selected": "{n} alustyyppiä valittu",
   "density.cellKm": "Ruudun sivu ≈ {km} km",
   "density.noMatches": "Valituilta alustyypeiltä ei ole liikkumishavaintoja tällä alueella.",
-  "density.hint": "Valitse yksi tai useampi alustyyppi. Ruudun väri kertoo, mikä valituista tyypeistä on kulkenut pisimmän matkan. Voimakkaampi väri tarkoittaa tiheämpää liikennettä.",
+  "density.loadedRank": "Meripeninkulmat ladatulla alueella",
   "density.loading": "Ladataan AIS-historiaa…",
   "density.error": "Liikennehistorian lataus epäonnistui.",
   "density.empty": "Tältä alueelta ja ajanjaksolta ei ole liikkumishavaintoja.",

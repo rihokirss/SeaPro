@@ -38,3 +38,19 @@ it('merges full cells at overview zoom and keeps types separate', () => {
   });
   expect(trafficType(79)).toBe('cargo');
 });
+
+it('preloads neighbouring cells for panning without changing the grid resolution', () => {
+  const grid = new Map<number, number>();
+  const bounds: [number, number, number, number] = [
+    trafficLat(11900), trafficLon(23000), trafficLat(11800), trafficLon(23170),
+  ];
+  for (const x of [22970, 23080, 23220]) {
+    const p: [number, number] = [trafficLon(x + 0.5), trafficLat(11850.5)];
+    addTrafficLine(grid, [p, p], 'fishing', 300);
+  }
+  const snapshot = { from: null, to: null, coveredDays: 1, chunks: [packTrafficGrid(grid)] };
+  expect(trafficView(snapshot, bounds).cells.map(c => c.x)).toEqual([23080]);
+  const buffered = trafficView(snapshot, bounds, true);
+  expect(buffered.factor).toBe(1);
+  expect(buffered.cells.map(c => c.x)).toEqual([22970, 23080]);
+});

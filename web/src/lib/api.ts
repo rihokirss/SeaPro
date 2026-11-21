@@ -220,7 +220,7 @@ export const api = {
   },
 
   trafficDensity(days: TrafficPeriod, bbox: string, signal: AbortSignal) {
-    return get<TrafficDensity>(`/api/ais/traffic-density?${new URLSearchParams({ days: String(days), bbox })}`, signal);
+    return get<TrafficDensity>(`/api/ais/traffic-density?${new URLSearchParams({ days: String(days), bbox, buffer: '1' })}`, signal);
   },
 
   /** Kogu ööpäev korraga — ajaliuguri kerimine käib siis mälust. */

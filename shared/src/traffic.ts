@@ -32,6 +32,20 @@ export function trafficLon(x: number): number {
 export function trafficLat(y: number): number {
   return Math.atan(Math.sinh(Math.PI * (1 - 2 * y / TRAFFIC_WORLD_CELLS))) * 180 / Math.PI;
 }
+export type TrafficBounds = [number, number, number, number];
+
+/** In base-grid units. Keep the same resolution when preloading the margins. */
+export function trafficWindow([south, west, north, east]: TrafficBounds, buffered = false) {
+  const left = trafficX(((west + 180) % 360 + 360) % 360 - 180);
+  const top = trafficY(north), bottom = trafficY(south);
+  const width = Math.min(360, east - west) / 360 * TRAFFIC_WORLD_CELLS;
+  const height = bottom - top;
+  const factor = 2 ** Math.max(0, Math.ceil(Math.log2(Math.max(width, height) / 200)));
+  const dx = buffered ? Math.min(width / 4, (TRAFFIC_WORLD_CELLS - width) / 2) : 0;
+  const dy = buffered ? height / 4 : 0;
+  return { left: left - dx, right: left + width + dx, top: Math.max(0, top - dy),
+    bottom: Math.min(TRAFFIC_WORLD_CELLS, bottom + dy), factor };
+}
 export interface TrafficCell {
   x: number;
   y: number;

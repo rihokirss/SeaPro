@@ -322,7 +322,7 @@
   "density.selected": "Valitud tüüpe: {n}",
   "density.cellKm": "Ruudu külg ≈ {km} km",
   "density.noMatches": "Valitud laevatüüpide liikumist selles vaates ei ole.",
-  "density.hint": "Vali üks või mitu laevatüüpi. Ruudu värv näitab valitud tüüpidest enim meremiile läbinut. Tugevam toon tähendab tihedamat liiklust.",
+  "density.loadedRank": "Meremiilid laaditud kaardialal",
   "density.loading": "Laen AIS-ajalugu…",
   "density.error": "Liiklusajaloo laadimine ebaõnnestus.",
   "density.empty": "Selle vaate ja ajavahemiku kohta liikumisandmeid pole.",
