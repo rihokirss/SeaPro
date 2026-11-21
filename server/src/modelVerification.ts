@@ -11,7 +11,11 @@ import type {
   TimeSeries,
   Variable,
 } from '@seapro/shared';
-import { distanceMetres } from '@seapro/shared';
+import {
+  distanceMetres,
+  MODEL_SKILL_OPEN_METEO_MODELS as OPEN_METEO_MODELS,
+  MODEL_SKILL_SOURCES as SOURCES,
+} from '@seapro/shared';
 import { getProvider } from './providers/registry.js';
 
 interface Logger {
@@ -45,19 +49,6 @@ export const VERIFICATION_LEADS = [0, 3, 12, 24, 48] as const;
 export type VerificationLead = (typeof VERIFICATION_LEADS)[number];
 export const VERIFICATION_DAYS = [7, 30, 90] as const;
 export type VerificationDays = (typeof VERIFICATION_DAYS)[number];
-
-const OPEN_METEO_MODELS = [
-  { id: 'metno_nordic', label: 'MET Nordic' },
-  { id: 'icon_eu', label: 'ICON-EU' },
-  { id: 'ecmwf_ifs025', label: 'ECMWF' },
-  { id: 'gfs_seamless', label: 'GFS' },
-] as const;
-
-const SOURCES = [
-  { id: 'open-meteo:best_match', label: 'Open-Meteo automaatne' },
-  ...OPEN_METEO_MODELS.map((model) => ({ id: `open-meteo:${model.id}`, label: model.label })),
-  { id: 'windfinder', label: 'Windfinder' },
-] as const;
 
 const WIND_VARIABLES: Variable[] = ['wind_speed', 'wind_gust', 'wind_dir'];
 const THREE_HOURS_MS = 3 * 3600_000;
@@ -371,23 +362,37 @@ export class ModelVerificationStore {
     return result;
   }
 
-  windReport(days: VerificationDays, leadHours: VerificationLead, now = Date.now(), pointId?: string): ModelSkillWindReport {
+  windReport(
+    days: VerificationDays,
+    leadHours: VerificationLead,
+    now = Date.now(),
+    pointId?: string,
+    sourceIds?: readonly string[],
+  ): ModelSkillWindReport {
     this.#ensureIndexes();
-    const key = `wind|${this.#revision}|${Math.floor(now / 60_000)}|${days}|${leadHours}|${pointId ?? '*'}`;
+    const key = JSON.stringify(['wind', this.#revision, Math.floor(now / 60_000), days, leadHours, pointId, sourceIds]);
     const cached = this.#queryCache.get(key);
     if (cached) return cached as ModelSkillWindReport;
     const points = VERIFICATION_POINTS.filter((point) => !pointId || point.id === pointId);
     const reports = points.map((point) => this.series(days, leadHours, point.id, now));
-    const sources = SOURCES.filter((source) => reports.some((report) => report.sources.some(
-      (item) => item.sourceId === source.id && item.entries.some((entry) => entry.forecastWindSpeed !== null && entry.observedWindSpeed !== null),
-    ))).map((source) => ({ sourceId: source.id, label: source.label }));
+    const sources = SOURCES.filter((source) => sourceIds
+      ? sourceIds.includes(source.id)
+      : reports.some((report) => report.sources.some((item) =>
+        item.sourceId === source.id && item.entries.some((entry) =>
+          entry.forecastWindSpeed !== null && entry.observedWindSpeed !== null,
+        ),
+      )),
+    ).map((source) => ({ sourceId: source.id, label: source.label }));
     const bins = Array.from({ length: 11 }, (_, index) => ({
       from: index * 2, to: index === 10 ? null : index * 2 + 2,
       stations: new Map<string, Map<string, { abs: number; bias: number; n: number }>>(),
     }));
+    let lastComparisonTime: number | null = null;
     for (const report of reports) {
       // Üks võrdlus jaama ja prognoosiaja kohta; kõigil mudelitel sama valim.
-      const bySource = new Map(report.sources.map((source) => {
+      const bySource = new Map(report.sources.filter((source) =>
+        sources.some((selected) => selected.sourceId === source.sourceId),
+      ).map((source) => {
         const times = new Map<number, typeof source.entries[number]>();
         for (const entry of source.entries) {
           if (entry.forecastWindSpeed === null || entry.observedWindSpeed === null) continue;
@@ -404,6 +409,7 @@ export class ModelVerificationStore {
         if (entries.some((entry) => !entry)) continue;
         const speed = observation.observedWindSpeed!;
         if (speed < 0) continue;
+        if (lastComparisonTime === null || time > lastComparisonTime) lastComparisonTime = time;
         const bin = bins[Math.min(10, Math.floor(speed / 2))]!;
         let station = bin.stations.get(report.point.id);
         if (!station) { station = new Map(); bin.stations.set(report.point.id, station); }
@@ -417,6 +423,7 @@ export class ModelVerificationStore {
     }
     const result: ModelSkillWindReport = {
       generatedAt: new Date(now).toISOString(), days, leadHours, pointId: pointId ?? null, sources,
+      lastComparisonAt: lastComparisonTime === null ? null : new Date(lastComparisonTime).toISOString(),
       bins: bins.map((bin) => ({
         from: bin.from, to: bin.to, stations: bin.stations.size,
         samples: [...bin.stations.values()].reduce((sum, station) => sum + (station.values().next().value?.n ?? 0), 0),
@@ -549,8 +556,8 @@ class DatabaseVerificationStore {
   private cache = new Map<string, {at: number; value: unknown}>();
   recordObservation(sample: ObservationSample) { writeQueue.enqueue({kind:'observation', data:sample}); this.cache.clear(); }
   recordForecast(sample: ForecastSample) { writeQueue.enqueue({kind:'forecast', data:sample}); this.cache.clear(); }
-  async calculate(kind: 'report' | 'series' | 'windReport', days: VerificationDays, lead: VerificationLead, now: number, pointId?: string): Promise<any> {
-    const key=JSON.stringify([kind,days,lead,pointId,Math.floor(now/60000)]);
+  async calculate(kind: 'report' | 'series' | 'windReport', days: VerificationDays, lead: VerificationLead, now: number, pointId?: string, sourceIds?: readonly string[]): Promise<any> {
+    const key=JSON.stringify([kind,days,lead,pointId,Math.floor(now/60000),sourceIds]);
     const cached=this.cache.get(key); if(cached && now-cached.at<60000) return cached.value;
     const lower=Math.max(now-days*DAY, cutoff(historyConfig.weatherDays,now));
     const retention=new Date(cutoff(historyConfig.weatherDays,now)).toISOString();
@@ -561,13 +568,15 @@ class DatabaseVerificationStore {
       database.query("SELECT (SELECT data->>'observedAt' FROM weather_observations WHERE observed_at >= $1 ORDER BY observed_at DESC LIMIT 1) AS observation, (SELECT data->>'capturedAt' FROM weather_forecasts WHERE valid_at >= $1 ORDER BY captured_at DESC LIMIT 1) AS forecast",[retention]),
     ]);
     const calculator=new ModelVerificationStore({version:1,collectionStartedAt:meta.rows[0]?.value??new Date(now).toISOString(),observations:observations.rows.map(r=>r.data),forecasts:forecasts.rows.map(r=>r.data)});
-    const value=kind==='series' ? calculator.series(days,lead,pointId!,now) : calculator[kind](days,lead,now,pointId);
+    const value=kind==='series' ? calculator.series(days,lead,pointId!,now) : calculator[kind](days,lead,now,pointId,sourceIds);
     if(kind==='report') Object.assign(value,{ lastObservationAt:latest.rows[0].observation??null, lastForecastAt:latest.rows[0].forecast??null });
     if(this.cache.size>=32) this.cache.clear(); this.cache.set(key,{at:now,value}); return value;
   }
   report(days: VerificationDays, lead: VerificationLead, now=Date.now(), pointId?: string) { return this.calculate('report',days,lead,now,pointId); }
   series(days: VerificationDays, lead: VerificationLead, pointId: string, now=Date.now()) { return this.calculate('series',days,lead,now,pointId); }
-  windReport(days: VerificationDays, lead: VerificationLead, now=Date.now(), pointId?: string) { return this.calculate('windReport',days,lead,now,pointId); }
+  windReport(days: VerificationDays, lead: VerificationLead, now=Date.now(), pointId?: string, sourceIds?: readonly string[]) {
+    return this.calculate('windReport', days, lead, now, pointId, sourceIds);
+  }
 }
 export const modelVerification = new DatabaseVerificationStore();
 type SampleWriter = Pick<ModelVerificationStore, 'recordObservation' | 'recordForecast'>;

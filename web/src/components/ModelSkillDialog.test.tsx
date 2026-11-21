@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MODEL_SKILL_SOURCES } from '@seapro/shared';
 import type { ModelSkillReport, ModelSkillSeriesReport } from '@seapro/shared';
 import { I18nContext, makeTranslate } from '../i18n';
 import { api } from '../lib/api';
@@ -64,26 +65,52 @@ describe('mudelitäpsuse modaal', () => {
     expect(onOpen.mock.calls[0]?.[0]).toBeInstanceOf(HTMLButtonElement);
   });
 
-  it('laeb tuulevaate eraldi ning mudeli peitmine ei tee uut päringut', async () => {
+  it('laeb tuulevaate valitud mudelitega ja säilitab valiku perioodi vahetamisel', async () => {
     vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
     vi.mocked(api.modelSkill).mockResolvedValue(report);
-    vi.mocked(api.modelSkillWind).mockResolvedValue({
-      generatedAt: report.generatedAt, days: 30, leadHours: 24, pointId: null,
-      sources: [{ sourceId: 'windfinder', label: 'Windfinder' }],
-      bins: Array.from({ length: 11 }, (_, index) => ({ from: index * 2, to: index === 10 ? null : index * 2 + 2,
-        samples: index === 5 ? 12 : 0, stations: index === 5 ? 1 : 0,
-        sources: index === 5 ? [{ sourceId: 'windfinder', mae: 2, bias: -1 }] : [],
-      })),
+    vi.mocked(api.modelSkillWind).mockImplementation(async (days, leadHours, sourceIds, pointId) => {
+      const sources = MODEL_SKILL_SOURCES.filter(({ id }) => sourceIds.includes(id))
+        .map(({ id, label }) => ({ sourceId: id, label }));
+      const hasSample = days !== 7 || !sourceIds.includes('windfinder');
+      return {
+        generatedAt: report.generatedAt, days, leadHours, pointId: pointId ?? null, sources,
+        lastComparisonAt: hasSample ? report.lastForecastAt : null,
+        bins: Array.from({ length: 11 }, (_, index) => {
+          const populated = hasSample && index === 5;
+          return {
+            from: index * 2, to: index === 10 ? null : index * 2 + 2,
+            samples: populated ? 12 : 0, stations: populated ? 1 : 0,
+            sources: populated ? sources.map(({ sourceId }) => ({ sourceId, mae: 2, bias: -1 })) : [],
+          };
+        }),
+      };
     });
     render(<Wrapper><ModelSkillDialog open onClose={() => {}} /></Wrapper>);
     expect(api.modelSkillWind).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('tab', { name: 'Tuulekiirus' }));
+
+    const allSources = MODEL_SKILL_SOURCES.map(({ id }) => id);
+    const withoutWindfinder = allSources.filter((id) => id !== 'windfinder');
+    await userEvent.click(screen.getByRole('button', { name: '48 h' }));
+    const windfinder = screen.getByRole('checkbox', { name: 'Windfinder' });
+    expect(windfinder).toHaveProperty('checked', false);
+    expect(api.modelSkillWind).toHaveBeenLastCalledWith(30, 48, withoutWindfinder, undefined, expect.any(AbortSignal));
+
+    await userEvent.click(screen.getByRole('button', { name: '7 p' }));
+    expect(api.modelSkillWind).toHaveBeenLastCalledWith(7, 48, withoutWindfinder, undefined, expect.any(AbortSignal));
+    await userEvent.click(windfinder);
+    expect(api.modelSkillWind).toHaveBeenLastCalledWith(7, 48, allSources, undefined, expect.any(AbortSignal));
+    expect(await screen.findByText('Valitud mudelitel pole sel perioodil ühiseid võrdlusi.')).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: '90 p' }));
+    expect(windfinder).toHaveProperty('checked', true);
+    expect(api.modelSkillWind).toHaveBeenLastCalledWith(90, 48, allSources, undefined, expect.any(AbortSignal));
     expect(await screen.findByRole('img', { name: 'Täpsus tuulekiiruse järgi' })).toBeTruthy();
-    expect(screen.getByText('2.00 m/s')).toBeTruthy();
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Windfinder' }));
-    expect(api.modelSkillWind).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Viimase ühise võrdluse kuupäev on 20/)).toBeTruthy();
+    expect(screen.getAllByText('2.00 m/s')).toHaveLength(allSources.length);
+
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Mõõtepunkt' }), 'helsinki-harmaja');
-    await waitFor(() => expect(api.modelSkillWind).toHaveBeenLastCalledWith(30, 24, 'helsinki-harmaja', expect.any(AbortSignal)));
+    expect(api.modelSkillWind).toHaveBeenLastCalledWith(90, 48, allSources, 'helsinki-harmaja', expect.any(AbortSignal));
   });
 
   it('vahetab punktivaates jaama ning sulgub Escape-klahviga', async () => {

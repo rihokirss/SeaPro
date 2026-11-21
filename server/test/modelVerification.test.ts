@@ -166,6 +166,36 @@ describe('mudelitäpsuse statistika', () => {
     expect(store.windReport(7, 0, now, 'tilgu').bins[5]).toMatchObject({ samples: 2, stations: 1 });
   });
 
+  it('säilitab perioodi pikendamisel valitud mudelid ja näitab viimast ühist võrdlust', () => {
+    const store = temporaryStore(directories);
+    const now = Date.parse('2026-08-20T12:00:00Z');
+    const recent = '2026-08-19T09:00:00Z';
+    const older = '2026-08-01T09:00:00Z';
+    const oldest = '2026-07-01T09:00:00Z';
+    const sourceIds = ['open-meteo:icon_eu', 'open-meteo:gfs_seamless'];
+    const withWindfinder = [...sourceIds, 'windfinder'];
+    for (const time of [recent, older, oldest]) {
+      addPair(store, 'tilgu', time, 12, 13, 'open-meteo:icon_eu', 'ICON-EU', 48);
+      addPair(store, 'tilgu', time, 12, 14, 'open-meteo:gfs_seamless', 'GFS', 48);
+    }
+    addPair(store, 'tilgu', older, 12, 15, 'windfinder', 'Windfinder', 48);
+
+    for (const [days, samples] of [[7, 1], [30, 2], [90, 3]] as const) {
+      const result = store.windReport(days, 48, now, undefined, sourceIds);
+      expect(result.sources.map((source) => source.sourceId)).toEqual(sourceIds);
+      expect(result.bins[6]?.samples).toBe(samples);
+      expect(result.lastComparisonAt).toBe(new Date(recent).toISOString());
+    }
+    const missing = store.windReport(7, 48, now, undefined, withWindfinder);
+    expect(missing.sources.map((source) => source.sourceId)).toEqual(withWindfinder);
+    expect(missing.bins[6]?.samples).toBe(0);
+    expect(missing.lastComparisonAt).toBeNull();
+
+    const overlap = store.windReport(30, 48, now, undefined, withWindfinder);
+    expect(overlap.bins[6]?.samples).toBe(1);
+    expect(overlap.lastComparisonAt).toBe(new Date(older).toISOString());
+  });
+
   it('tühistab valmis raporti cache’i uue valimi lisamisel', () => {
     const store = temporaryStore(directories);
     const now = new Date('2026-08-20T12:00:00Z').getTime();

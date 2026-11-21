@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { MODEL_SKILL_SOURCES } from '@seapro/shared';
 import type { ModelSkillReport, ModelSkillSeriesReport, ModelSkillSourceStats } from '@seapro/shared';
 import { BarChart3, CalendarDays, ChevronRight, CircleHelp, Clock3, Database, MapPin, Trophy, X } from 'lucide-react';
 import { localeTag, useI18n } from '../i18n';
@@ -12,6 +13,8 @@ type Tab = 'overview' | 'wind' | 'points';
 
 const PERIODS: Days[] = [7, 30, 90];
 const LEADS: LeadHours[] = [0, 3, 12, 24, 48];
+const ALL_WIND_SOURCE_IDS = MODEL_SKILL_SOURCES.map((source) => source.id);
+const WIND_SOURCE_IDS_48H = ALL_WIND_SOURCE_IDS.filter((id) => id !== 'windfinder');
 
 interface Props {
   open: boolean;
@@ -46,6 +49,7 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
   const [pointReport, setPointReport] = useState<ModelSkillReport | null>(null);
   const [series, setSeries] = useState<ModelSkillSeriesReport | null>(null);
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [windSourceIds, setWindSourceIds] = useState<Partial<Record<LeadHours, string[]>>>({});
   const [loading, setLoading] = useState(false);
   const [pointLoading, setPointLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -69,7 +73,7 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
       }
       if (event.key !== 'Tab' || !dialogRef.current) return;
       const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), select:not([disabled]), summary, [href], [tabindex]:not([tabindex="-1"])',
+        'button:not([disabled]), select:not([disabled]), input[type="checkbox"]:not([disabled]), summary, [href], [tabindex]:not([tabindex="-1"])',
       )];
       if (focusable.length === 0) return;
       const first = focusable[0]!;
@@ -210,7 +214,13 @@ export function ModelSkillDialog({ open, onClose, returnFocus }: Props) {
               </> : null}
             </>
           ) : tab === 'wind' ? (
-            <ModelSkillWind days={days} leadHours={leadHours} points={report?.points ?? []} />
+            <ModelSkillWind
+              days={days}
+              leadHours={leadHours}
+              points={report?.points ?? []}
+              sourceIds={windSourceIds[leadHours] ?? (leadHours === 48 ? WIND_SOURCE_IDS_48H : ALL_WIND_SOURCE_IDS)}
+              onSourcesChange={(ids) => setWindSourceIds((current) => ({ ...current, [leadHours]: ids }))}
+            />
           ) : (
             <>
               <div className="model-skill-point-controls">

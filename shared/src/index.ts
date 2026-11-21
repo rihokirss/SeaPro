@@ -242,6 +242,19 @@ export interface StationReading extends Station {
 // Prognoosimudelite verifikatsioon
 // ---------------------------------------------------------------------------
 
+export const MODEL_SKILL_OPEN_METEO_MODELS = [
+  { id: 'metno_nordic', label: 'MET Nordic' },
+  { id: 'icon_eu', label: 'ICON-EU' },
+  { id: 'ecmwf_ifs025', label: 'ECMWF' },
+  { id: 'gfs_seamless', label: 'GFS' },
+] as const;
+
+export const MODEL_SKILL_SOURCES = [
+  { id: 'open-meteo:best_match', label: 'Open-Meteo automaatne' },
+  ...MODEL_SKILL_OPEN_METEO_MODELS.map((model) => ({ id: `open-meteo:${model.id}`, label: model.label })),
+  { id: 'windfinder', label: 'Windfinder' },
+] as const;
+
 export interface ModelSkillPoint {
   id: string;
   name: string;
@@ -282,6 +295,8 @@ export interface ModelSkillReport {
 
 export interface ModelSkillWindReport {
   generatedAt: string;
+  /** Viimase ühisesse valimisse jõudnud prognoosi kehtivusaeg. */
+  lastComparisonAt: string | null;
   days: 7 | 30 | 90;
   leadHours: 0 | 3 | 12 | 24 | 48;
   pointId: string | null;

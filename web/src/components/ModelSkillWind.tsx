@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
+import { MODEL_SKILL_SOURCES } from '@seapro/shared';
 import type { ModelSkillPoint, ModelSkillWindReport } from '@seapro/shared';
 import { api } from '../lib/api';
-import { useI18n } from '../i18n';
+import { localeTag, useI18n } from '../i18n';
 import { modelSkillColor } from './ModelSkillChart';
 
-export function ModelSkillWind({ days, leadHours, points }: {
+export function ModelSkillWind({ days, leadHours, points, sourceIds, onSourcesChange }: {
   days: 7 | 30 | 90; leadHours: 0 | 3 | 12 | 24 | 48; points: ModelSkillPoint[];
+  sourceIds: readonly string[];
+  onSourcesChange(ids: string[]): void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [point, setPoint] = useState('');
   const [report, setReport] = useState<ModelSkillWindReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [hidden, setHidden] = useState(new Set<string>());
   const [selected, setSelected] = useState(5);
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
@@ -25,18 +27,20 @@ export function ModelSkillWind({ days, leadHours, points }: {
     return () => observer.disconnect();
   }, [report]);
   useEffect(() => {
+    setReport(null);
+    if (sourceIds.length === 0) return;
     const controller = new AbortController();
-    setLoading(true); setError(false); setReport(null);
-    api.modelSkillWind(days, leadHours, point || undefined, controller.signal)
+    setLoading(true); setError(false);
+    api.modelSkillWind(days, leadHours, sourceIds, point || undefined, controller.signal)
       .then((next) => { if (!controller.signal.aborted) setReport(next); })
       .catch(() => { if (!controller.signal.aborted) setError(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [days, leadHours, point]);
+  }, [days, leadHours, point, sourceIds]);
 
-  const sources = report?.sources.filter((source) => !hidden.has(source.sourceId)) ?? [];
+  const sources = report?.sources ?? [];
   const bins = report?.bins ?? [];
-  const maxError = Math.max(1, Math.ceil(Math.max(0, ...bins.flatMap((bin) => bin.sources.filter((source) => !hidden.has(source.sourceId)).map((source) => source.mae)))));
+  const maxError = Math.max(1, Math.ceil(Math.max(0, ...bins.flatMap((bin) => bin.sources.map((source) => source.mae)))));
   const maxSamples = Math.max(1, ...bins.map((bin) => bin.samples));
   const step = (width - 80) / 10;
   const x = (index: number) => 50 + index * step;
@@ -51,15 +55,20 @@ export function ModelSkillWind({ days, leadHours, points }: {
         {points.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
       </select>
     </label>
-    {loading ? <div className="model-skill-state" role="status">{t('modelSkill.loading')}</div> : error ? <div role="alert">{t('modelSkill.error')}</div> : report ? <>
-      <div className="model-skill-source-picker">
-        {report.sources.map((source) => <label key={source.sourceId} style={{ '--source-color': modelSkillColor(source.sourceId) } as React.CSSProperties}>
-          <input type="checkbox" checked={!hidden.has(source.sourceId)} onChange={() => setHidden((previous) => {
-            const next = new Set(previous); if (next.has(source.sourceId)) next.delete(source.sourceId); else next.add(source.sourceId); return next;
-          })} /><i />{source.label}
-        </label>)}
-      </div>
-      {report.sources.length > 0 && sources.length === 0 ? <p>{t('modelSkill.selectModel')}</p> : null}
+    <div className="model-skill-source-picker" role="group" aria-label={t('modelSkill.models')}>
+      {MODEL_SKILL_SOURCES.map((source) => <label key={source.id} style={{ '--source-color': modelSkillColor(source.id) } as React.CSSProperties}>
+        <input type="checkbox" checked={sourceIds.includes(source.id)} onChange={(event) => {
+          const next = new Set(sourceIds);
+          if (event.currentTarget.checked) next.add(source.id);
+          else next.delete(source.id);
+          onSourcesChange(MODEL_SKILL_SOURCES.map(({ id }) => id).filter((id) => next.has(id)));
+        }} /><i aria-hidden="true" />{source.label}
+      </label>)}
+    </div>
+    {sourceIds.length === 0 ? <p>{t('modelSkill.selectModel')}</p> : loading ? <div className="model-skill-state" role="status">{t('modelSkill.loading')}</div> : error ? <div role="alert">{t('modelSkill.error')}</div> : report ? <>
+      {report.lastComparisonAt ? <p className="model-skill-wind__note">{t('modelSkill.wind.lastComparison', {
+        date: new Date(report.lastComparisonAt).toLocaleDateString(localeTag(lang), { day: 'numeric', month: 'short', year: 'numeric' }),
+      })}</p> : null}
       {!bins.some((bin) => bin.samples > 0) ? <p>{t('modelSkill.wind.empty')}</p> : <>
         <div className="model-skill-wind__plot" ref={host}>
           <svg viewBox={`0 0 ${width} 325`} role="img" aria-label={t('modelSkill.wind.title')}>

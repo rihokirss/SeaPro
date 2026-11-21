@@ -13,7 +13,7 @@ import type {
   ModelSkillReport,
   ModelSkillSeriesReport,
 } from '@seapro/shared';
-import { VARIABLES, distanceMetres } from '@seapro/shared';
+import { MODEL_SKILL_SOURCES, VARIABLES, distanceMetres } from '@seapro/shared';
 import { cache } from '../cache.js';
 import { database } from '../db/pool.js';
 import { config } from '../config.js';
@@ -299,8 +299,15 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       || (pointId && !VERIFICATION_POINTS.some((point) => point.id === pointId))) {
       return reply.code(400).send({ error: 'Vigane mudelitäpsuse filter' });
     }
+    let sourceIds: string[] | undefined;
+    if (q.sources !== undefined) {
+      if (typeof q.sources !== 'string') return reply.code(400).send({ error: 'Vigane mudelivalik' });
+      const requested = new Set(q.sources.split(','));
+      sourceIds = MODEL_SKILL_SOURCES.map((source) => source.id).filter((id) => requested.has(id));
+      if (sourceIds.length !== requested.size) return reply.code(400).send({ error: 'Vigane mudelivalik' });
+    }
     reply.header('Cache-Control', 'public, max-age=60');
-    return modelVerification.windReport(days, lead, Date.now(), pointId);
+    return modelVerification.windReport(days, lead, Date.now(), pointId, sourceIds);
   });
 
   /** Saadaval vaatlus- ja nowcast-kaadrite ajad Keskkonnaagentuuri WMS-ist. */
