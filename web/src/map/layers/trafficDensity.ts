@@ -22,6 +22,8 @@ export function trafficRaster(data: TrafficDensity, selected: readonly TrafficTy
   minX--; minY--; maxX++; maxY++;
   const width = maxX - minX + 1, height = maxY - minY + 1;
   const pixels = new Uint8ClampedArray(width * height * 4);
+  const strengths = new Float64Array(width * height);
+  let minStrength = Infinity, maxStrength = -Infinity;
   const types = selected.length ? TRAFFIC_TYPES.filter(type => selected.includes(type)) : TRAFFIC_TYPES;
   for (const { x, y, metres } of data.cells) {
     let dominant = types[0]!, distance = 0;
@@ -30,13 +32,22 @@ export function trafficRaster(data: TrafficDensity, selected: readonly TrafficTy
       if ((metres[type] ?? 0) > (metres[dominant] ?? 0)) dominant = type;
     }
     if (!distance) continue;
-    const i = 4 * ((y - minY) * width + x - minX);
+    const index = (y - minY) * width + x - minX;
+    const i = 4 * index;
     const color = rgb[dominant]!;
     pixels[i] = color >> 16;
     pixels[i + 1] = (color >> 8) & 255;
     pixels[i + 2] = color & 255;
-    const density = distance / (1852 * data.coveredDays * data.factor ** 2);
-    pixels[i + 3] = Math.round(255 * Math.min(0.90, 0.09 + 0.24 * Math.log1p(8 * density)));
+    const strength = Math.log1p(distance);
+    strengths[index] = strength;
+    minStrength = Math.min(minStrength, strength);
+    maxStrength = Math.max(maxStrength, strength);
+  }
+  // Scale over occupied cells in the buffered area so small pans keep the same contrast.
+  for (let i = 0; i < strengths.length; i++) {
+    if (!strengths[i]) continue;
+    const level = maxStrength === minStrength ? 1 : (strengths[i]! - minStrength) / (maxStrength - minStrength);
+    pixels[4 * i + 3] = Math.round(255 * (0.22 + 0.68 * level));
   }
   const west = trafficLon(minX * data.factor), east = trafficLon((maxX + 1) * data.factor);
   const north = trafficLat(minY * data.factor), south = trafficLat((maxY + 1) * data.factor);

@@ -19,7 +19,29 @@ it('blends a transparent-bordered raster, colouring and weighting only the selec
   expect(color(all.pixels, first)).toBe(TRAFFIC_COLORS.tanker);
   expect(color(selected.pixels, first)).toBe(TRAFFIC_COLORS.cargo);
   expect(color(selected.pixels, first + 4)).toBe(TRAFFIC_COLORS.passenger);
-  expect(selected.pixels[first + 3]).toBeLessThan(all.pixels[first + 3]!);
+  expect(selected.pixels[first + 3]).toBe(all.pixels[first + 3]);
   expect(selected.pixels[3]).toBe(0);
   expect(trafficRaster(data, ['fast'])!.pixels.every(v => v === 0)).toBe(true);
+});
+
+it('gives a rare type its own contrast range and rescales combined selections', () => {
+  const data: TrafficDensity = { from: null, to: null, coveredDays: 7, factor: 1, cells: [
+    { x: 0, y: 0, metres: { fishing: 10 } },
+    { x: 1, y: 0, metres: { fishing: 50, sailing: 900 } },
+    { x: 2, y: 0, metres: { fishing: 100 } },
+    { x: 3, y: 0, metres: { cargo: 90000 } },
+  ] };
+  const alphas = (types: Parameters<typeof trafficRaster>[1]) => {
+    const { pixels, width } = trafficRaster(data, types)!;
+    return data.cells.map(({ x }) => pixels[4 * (width + 1 + x) + 3]!);
+  };
+  const [low, middle, high, empty] = alphas(['fishing']);
+  expect(low).toBe(56);
+  expect(middle).toBeGreaterThan(low!);
+  expect(middle).toBeLessThan(high!);
+  expect(high).toBe(230);
+  expect(empty).toBe(0);
+  expect(alphas([])[2]).toBeLessThan(high!);
+  expect(alphas(['fishing', 'sailing'])[1]).toBe(high);
+  expect(alphas(['sailing'])).toEqual([0, high, 0, 0]);
 });
